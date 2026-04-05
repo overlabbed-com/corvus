@@ -128,8 +128,8 @@ async def update_problem(problem_id: str, update: ProblemUpdate):
             raise HTTPException(status_code=400, detail="No fields to update")
 
         params.append(problem_id)
-        await db.execute(  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query
-            f"UPDATE ops_problems SET {', '.join(sets)} WHERE id = ?",  # nosec B608  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        await db.execute(
+            f"UPDATE ops_problems SET {', '.join(sets)} WHERE id = ?",  # nosec B608 - Dynamic SQL uses allowlist
             params,
         )
         await db.commit()

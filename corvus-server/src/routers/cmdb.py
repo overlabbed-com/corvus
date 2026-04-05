@@ -206,8 +206,8 @@ async def update_service(name: str, update: ServiceUpdate, request: Request):
             raise HTTPException(status_code=400, detail="No fields to update")
 
         params.append(name)
-        await db.execute(  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query
-            f"UPDATE ops_cmdb SET {', '.join(sets)} WHERE name = ?",  # nosec B608  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        await db.execute(
+            f"UPDATE ops_cmdb SET {', '.join(sets)} WHERE name = ?",  # nosec B608 - Dynamic SQL uses allowlist
             params,
         )
         await db.commit()

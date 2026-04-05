@@ -134,9 +134,18 @@ def authenticate_request(request: Request) -> AuthContext | None:
     Returns AuthContext on success.
     Raises HTTPException on auth failures.
     """
-    # Dev mode: no keys configured, allow everything
-    if not API_KEYS and not OIDC_ENABLED:
+    from src.config import CORVUS_DEV_MODE
+
+    # Dev mode: explicit flag allows everything
+    if CORVUS_DEV_MODE:
         return AuthContext(key_name="anonymous", role=Role.ADMIN)
+
+    # Production: no auth configured — log warning but deny access
+    if not API_KEYS and not OIDC_ENABLED:
+        import logging
+
+        logging.getLogger(__name__).warning("No auth configured in production mode!")
+        return None
 
     # Priority 1: OIDC/JWT auth if enabled
     if OIDC_ENABLED:
@@ -214,7 +223,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Dev mode — allow all
-        if not API_KEYS and not OIDC_ENABLED:
+        from src.config import CORVUS_DEV_MODE
+
+        if CORVUS_DEV_MODE:
             request.state.auth = AuthContext(key_name="anonymous", role=Role.ADMIN)
             return await call_next(request)
 
@@ -253,8 +264,13 @@ async def get_auth(
         return request.state.auth
 
     # Fallback: standalone auth (for backward compat)
-    if not API_KEYS and not OIDC_ENABLED:
+    from src.config import CORVUS_DEV_MODE
+
+    if CORVUS_DEV_MODE:
         return AuthContext(key_name="anonymous", role=Role.ADMIN)
+
+    if not API_KEYS and not OIDC_ENABLED:
+        return None
 
     # Try OIDC first if enabled
     if OIDC_ENABLED:

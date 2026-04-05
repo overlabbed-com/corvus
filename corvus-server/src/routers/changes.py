@@ -144,8 +144,8 @@ async def update_change(change_id: str, update: ChangeUpdate):
             raise HTTPException(status_code=400, detail="No fields to update")
 
         params.append(change_id)
-        await db.execute(  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query
-            f"UPDATE ops_changes SET {', '.join(sets)} WHERE id = ?",  # nosec B608  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        await db.execute(
+            f"UPDATE ops_changes SET {', '.join(sets)} WHERE id = ?",  # nosec B608 - Dynamic SQL uses allowlist
             params,
         )
         await db.commit()

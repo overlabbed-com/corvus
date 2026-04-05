@@ -184,7 +184,7 @@ async def get_table_sizes() -> dict[str, int]:
         ]
         sizes: dict[str, int] = {}
         for table in tables:
-            cursor = await db.execute(f"SELECT COUNT(*) as cnt FROM {table}")  # noqa: S608
+            cursor = await db.execute(f"SELECT COUNT(*) as cnt FROM {table}")  # nosec B608 - Table name from allowlist
             row = await cursor.fetchone()
             sizes[table] = row["cnt"]
         return sizes

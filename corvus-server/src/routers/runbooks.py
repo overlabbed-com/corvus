@@ -238,8 +238,8 @@ async def record_triage_outcome(triage_id: str, outcome_req: TriageOutcome):
             params.append(outcome_req.related_incident_id)
 
         params.append(triage_id)
-        await db.execute(  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query
-            f"UPDATE ops_triage_log SET {', '.join(sets)} WHERE id = ?",  # nosec B608  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        await db.execute(
+            f"UPDATE ops_triage_log SET {', '.join(sets)} WHERE id = ?",  # nosec B608 - Dynamic SQL uses allowlist
             params,
         )
         await db.commit()

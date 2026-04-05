@@ -39,6 +39,9 @@ if MCP_ENABLED and MCP_INTERNAL_KEY:
 # Change window defaults
 CHANGE_EXPIRY_HOURS = int(os.getenv("CORVUS_CHANGE_EXPIRY_HOURS", "4"))
 
+# Dev mode — explicit flag instead of inferring from empty API_KEYS
+CORVUS_DEV_MODE: bool = os.getenv("CORVUS_DEV_MODE", "false").lower() == "true"
+
 # OIDC (OpenID Connect) configuration
 OIDC_ISSUER_URL: str = os.getenv("OIDC_ISSUER_URL", "https://accounts.google.com")
 OIDC_CLIENT_ID: str = os.getenv("OIDC_CLIENT_ID", "")
