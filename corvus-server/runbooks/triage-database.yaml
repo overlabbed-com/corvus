@@ -1,0 +1,88 @@
+name: Database Service Triage
+type: triage
+service_type: database
+version: 1
+description: FMEA-informed investigation for databases (PostgreSQL, MySQL)
+
+investigation:
+  - name: Check disk usage
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: disk_usage
+    outputs:
+      disk_status: "{{ result }}"
+
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 200
+      grep: "error|fatal|lock|deadlock|connection|oom|corrupt|disk"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Health endpoint check
+    type: http.check
+    params:
+      url: "http://{{ target }}:5432/"
+      timeout: 10
+      expect_status: 200
+    outputs:
+      health_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "disk full|no space left|ENOSPC"
+    root_cause: disk_full
+    restart_safe: false
+    explanation: "Disk full — expand volume or clean WAL/logs before restart"
+
+  - pattern: "connection pool|too many connections|max_connections"
+    root_cause: connection_exhaustion
+    restart_safe: true
+    explanation: "Connection pool exhausted — restart to clear connections"
+
+  - pattern: "deadlock|lock timeout"
+    root_cause: lock_contention
+    restart_safe: false
+    explanation: "Lock contention or deadlock — investigate queries first"
+
+  - pattern: "corrupt|invalid page|checksum"
+    root_cause: data_corruption
+    restart_safe: false
+    explanation: "Data corruption detected — DO NOT restart. Escalate immediately."
+
+  - pattern: "oom|out of memory|killed"
+    root_cause: system_oom
+    restart_safe: true
+    explanation: "Database OOM-killed. Check shared_buffers and work_mem."
+
+  - pattern: "authentication|password|role"
+    root_cause: auth_failure
+    restart_safe: false
+    explanation: "Authentication failure — check credentials, not a restart issue"
+
+remediation:
+  restart_safe: conditional
+  pre_restart_checks:
+    - "disk_usage_pct < 95"
+    - "no_active_transactions"
+  post_restart_verification:
+    - type: http.check
+      params:
+        url: "http://{{ target }}:5432/"
+        timeout: 60
+        expect_status: 200
+  escalation_triggers:
+    - "data corruption"
+    - "volume corruption"
+    - "WAL corruption"
+    - "disk full"

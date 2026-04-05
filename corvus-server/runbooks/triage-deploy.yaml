@@ -1,0 +1,107 @@
+name: Deployment Failure Triage
+type: triage
+service_type: deploy
+version: 1
+description: >
+  FMEA-informed investigation for CI/CD deployment failures.
+  Covers GitHub Actions workflow failures with root cause analysis.
+  Unlike runtime runbooks, deploy failures require pipeline log parsing
+  and correlation with container health state.
+
+investigation:
+  - name: Pull workflow logs
+    type: deploy.workflow_logs
+    params:
+      run_id: "{{ run_id }}"
+      repo: "{{ repo }}"
+    outputs:
+      workflow_logs: "{{ result }}"
+    timeout: 30
+
+  - name: Check target container health
+    type: containers.inspect
+    params:
+      target: "{{ inferred_target }}"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Check config drift
+    type: containers.drift_check
+    params:
+      target: "{{ inferred_target }}"
+    outputs:
+      drift_report: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "has no healthcheck configured"
+    root_cause: stale_container_config
+    restart_safe: false
+    explanation: >
+      Container was created before healthcheck was added to compose file.
+      Docker Compose only recreates containers with changed config.
+      Fix: docker compose up -d --force-recreate <target>
+
+  - pattern: "dependency failed to start.*is unhealthy"
+    root_cause: slow_startup
+    restart_safe: false
+    explanation: >
+      Dependency health check timed out. Service may still be starting.
+      Check current health status — if healthy now, re-run deploy.
+
+  - pattern: "connection refused|ECONNREFUSED"
+    root_cause: dependency_down
+    restart_safe: false
+    explanation: >
+      A dependency is not accepting connections. Check upstream services
+      before re-running the deploy.
+
+  - pattern: "\\bpermission denied\\b|EACCES"
+    root_cause: auth_failure
+    restart_safe: false
+    explanation: >
+      Runner or container lacks permissions. Check GitHub runner service
+      account and Docker socket access.
+
+  - pattern: "no space left on device|ENOSPC"
+    root_cause: disk_full
+    restart_safe: false
+    explanation: >
+      Host disk is full. Check Docker image cache, build cache, and
+      unused volumes. Run docker system prune if safe.
+
+  - pattern: "manifest unknown|not found"
+    root_cause: image_not_found
+    restart_safe: false
+    explanation: >
+      Docker image tag does not exist in the registry. Check for typos
+      in the image tag or if the image was deleted upstream.
+
+  - pattern: "network .* not found"
+    root_cause: missing_network
+    restart_safe: false
+    explanation: >
+      Docker network referenced in compose does not exist on the host.
+      Create the network or check if it was removed.
+
+remediation:
+  restart_safe: false  # Deploys are never "just restart"
+  escalation_triggers:
+    - "data loss risk"
+    - "rollback needed"
+    - "multiple consecutive deploy failures"
+  auto_actions:
+    stale_container_config:
+      action: force_recreate
+      command: "docker compose up -d --force-recreate {{ target }}"
+      requires_approval: false  # Non-critical services only
+      critical_requires_approval: true  # Critical services need human
+      preflight:
+        - "Verify compose file parses without error"
+        - "Verify target is not a critical service (or get approval)"
+    slow_startup:
+      action: check_and_retry
+      steps:
+        - "Check if target is currently healthy"
+        - "If healthy: re-run workflow"
+        - "If unhealthy: escalate with current logs"
+      requires_approval: true

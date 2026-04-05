@@ -1,0 +1,7 @@
+{
+  "enabledMcpjsonServers": [
+    "/Users/tmiller/.claude/.mcp.json",
+    "litellm-mcp"
+  ],
+  "enableAllProjectMcpServers": true
+}

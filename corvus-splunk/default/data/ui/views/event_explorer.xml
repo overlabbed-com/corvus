@@ -1,0 +1,109 @@
+<dashboard version="1.1">
+  <label>OCSF Event Explorer</label>
+  <description>Explore operational events by target, agent, class, and severity</description>
+
+  <fieldset submitButton="true" autoRun="true">
+    <input type="time" token="time_range" searchWhenChanged="true">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="text" token="target_filter" searchWhenChanged="true">
+      <label>Target (service name)</label>
+      <default>*</default>
+    </input>
+    <input type="dropdown" token="class_filter" searchWhenChanged="true">
+      <label>Event Class</label>
+      <default>*</default>
+      <choice value="*">All</choice>
+      <choice value="2005">Incident Finding</choice>
+      <choice value="5019">Config State Change</choice>
+      <choice value="6002">API Activity</choice>
+      <choice value="6003">Web Resources Activity</choice>
+    </input>
+    <input type="dropdown" token="severity_filter" searchWhenChanged="true">
+      <label>Severity</label>
+      <default>*</default>
+      <choice value="*">All</choice>
+      <choice value="info">Info</choice>
+      <choice value="warning">Warning</choice>
+      <choice value="critical">Critical</choice>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Event Timeline</title>
+      <chart>
+        <search>
+          <query>`corvus_events` "unmapped.target"="$target_filter$" class_uid="$class_filter$" "unmapped.severity"="$severity_filter$" | timechart span=15m count by class_name</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Event Graph — Incident → Event → Change Traversal</title>
+      <table>
+        <search>
+          <query>`corvus_events` "unmapped.target"="$target_filter$" class_uid="$class_filter$" "unmapped.severity"="$severity_filter$"
+| sort _time
+| eval chain_key=coalesce("unmapped.incident_id", "unmapped.change_id", "none")
+| table _time class_name activity_name "unmapped.source" "unmapped.target" "unmapped.severity" chain_key "unmapped.incident_id" "unmapped.change_id"
+| rename "unmapped.source" as Agent "unmapped.target" as Target "unmapped.severity" as Severity "unmapped.incident_id" as "Incident ID" "unmapped.change_id" as "Change ID"</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">row</option>
+        <option name="count">25</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Top Targets</title>
+      <chart>
+        <search>
+          <query>`corvus_events` class_uid="$class_filter$" "unmapped.severity"="$severity_filter$" | stats count by "unmapped.target" | sort - count | head 15 | rename "unmapped.target" as Target</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Event Classes</title>
+      <chart>
+        <search>
+          <query>`corvus_events` "unmapped.target"="$target_filter$" "unmapped.severity"="$severity_filter$" | stats count by class_name | sort - count</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Raw Events</title>
+      <event>
+        <search>
+          <query>`corvus_events` "unmapped.target"="$target_filter$" class_uid="$class_filter$" "unmapped.severity"="$severity_filter$"</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="count">10</option>
+      </event>
+    </panel>
+  </row>
+</dashboard>

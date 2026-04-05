@@ -1,0 +1,73 @@
+name: Monitoring Service Triage
+type: triage
+service_type: monitoring
+version: 1
+description: FMEA-informed investigation for monitoring services (Splunk, Netdata, Uptime Kuma)
+
+investigation:
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 100
+      grep: "error|provision|auth|collector|permission|volume|disk"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Check disk usage
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: disk_usage
+    outputs:
+      disk_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "provision|bootstrap|first.*run|init.*loop"
+    root_cause: provisioning_loop
+    restart_safe: false
+    explanation: "Splunk provisioning loop — check provisioning state, do NOT restart"
+
+  - pattern: "auth.*corrupt|password|login.*fail"
+    root_cause: auth_corruption
+    restart_safe: false
+    explanation: "Auth corruption — may need credential reset, escalate"
+
+  - pattern: "collector.*fail|plugin.*error|module.*fail"
+    root_cause: collector_failure
+    restart_safe: true
+    explanation: "Collector/plugin failure — restart safe, check collector config"
+
+  - pattern: "permission|volume|mount|read-only"
+    root_cause: volume_permission
+    restart_safe: false
+    explanation: "Volume permission issue — fix permissions before restart"
+
+  - pattern: "disk.*full|no space|index.*full"
+    root_cause: disk_full
+    restart_safe: false
+    explanation: "Disk full / index full — clean up data before restart"
+
+remediation:
+  restart_safe: conditional
+  pre_restart_checks:
+    - "Verify volume permissions"
+    - "Check disk space"
+  post_restart_verification:
+    - type: http.check
+      params:
+        url: "http://{{ target }}:8000/"
+        timeout: 120
+        expect_status: 200
+  escalation_triggers:
+    - "Splunk provisioning loop"
+    - "auth corruption"
+    - "volume wipe required"

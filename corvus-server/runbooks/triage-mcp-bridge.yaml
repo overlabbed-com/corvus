@@ -1,0 +1,65 @@
+name: MCP Bridge Service Triage
+type: triage
+service_type: mcp_bridge
+version: 1
+description: FMEA-informed investigation for MCP server bridges (FastAPI/Python, stateless)
+
+investigation:
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 50
+      grep: "error|traceback|exception|timeout|auth|token|refused"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Health endpoint check
+    type: http.check
+    params:
+      url: "http://{{ target }}:8000/health"
+      timeout: 10
+      expect_status: 200
+    outputs:
+      health_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "upstream|connect refused|connection refused|502|503"
+    root_cause: upstream_unreachable
+    restart_safe: true
+    explanation: "Upstream API unreachable — check backend service health first"
+
+  - pattern: "auth|token|401|403|expired|credential"
+    root_cause: auth_failure
+    restart_safe: false
+    explanation: "Authentication token expired or invalid — rotate credentials"
+
+  - pattern: "traceback|exception|TypeError|KeyError|AttributeError"
+    root_cause: code_error
+    restart_safe: true
+    explanation: "Unhandled Python exception — restart safe (stateless)"
+
+  - pattern: "memory|oom|killed"
+    root_cause: memory_leak
+    restart_safe: true
+    explanation: "Memory leak — restart safe (stateless), investigate leak source"
+
+remediation:
+  restart_safe: true
+  post_restart_verification:
+    - type: http.check
+      params:
+        url: "http://{{ target }}:8000/health"
+        timeout: 30
+        expect_status: 200
+  escalation_triggers:
+    - "auth failure"
+    - "credential rotation needed"

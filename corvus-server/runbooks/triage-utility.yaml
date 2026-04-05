@@ -1,0 +1,75 @@
+name: Utility Service Triage
+type: triage
+service_type: utility
+version: 1
+description: FMEA-informed investigation for miscellaneous stateless services (tunnels, cron, GPU workloads, Redis)
+
+investigation:
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 50
+      grep: "error|crash|timeout|connection|memory|killed"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Health endpoint check
+    type: http.check
+    params:
+      url: "http://{{ target }}:8080/health"
+      timeout: 10
+      expect_status: 200
+    outputs:
+      health_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "tunnel.*disconnect|cloudflared|reconnect"
+    root_cause: tunnel_disconnected
+    restart_safe: true
+    explanation: "Tunnel disconnected — restart safe, notify on persistent failure"
+
+  - pattern: "certbot|certificate|renewal|acme"
+    root_cause: cert_renewal
+    restart_safe: true
+    explanation: "Certificate renewal issue — restart safe, cron-like behavior"
+
+  - pattern: "cuda|gpu|vram|torch"
+    root_cause: gpu_workload_error
+    restart_safe: false
+    explanation: "GPU workload error — check VRAM availability before restart"
+
+  - pattern: "autoheal|health.*check|restart.*fail"
+    root_cause: autoheal_failure
+    restart_safe: false
+    explanation: "Autoheal failure — P1 alert, the self-healer is broken"
+
+  - pattern: "redis|cache|connection.*pool"
+    root_cause: cache_failure
+    restart_safe: true
+    explanation: "Redis/cache failure — restart safe, check memory limits"
+
+  - pattern: "memory|oom|killed"
+    root_cause: oom_killed
+    restart_safe: true
+    explanation: "OOM killed — restart safe, consider increasing memory limits"
+
+remediation:
+  restart_safe: true
+  post_restart_verification:
+    - type: containers.inspect
+      params:
+        name: "{{ target }}"
+        field: "State.Running"
+  escalation_triggers:
+    - "autoheal failure"
+    - "GPU VRAM exhausted"
+    - "persistent tunnel disconnect"

@@ -1,0 +1,90 @@
+name: Inference Service Triage
+type: triage
+service_type: inference
+version: 1
+description: FMEA-informed investigation for GPU inference engines (vLLM)
+
+investigation:
+  - name: Check GPU state
+    type: gpu.nvidia_smi
+    params:
+      host: "{{ host }}"
+    outputs:
+      gpu_state: "{{ result }}"
+    timeout: 10
+
+  - name: Check model loading
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 100
+      grep: "model|loading|error|cuda|oom|nccl"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check NFS mount
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: nfs_mount
+    outputs:
+      nfs_status: "{{ result }}"
+
+  - name: Check container uptime
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State.StartedAt"
+    outputs:
+      started_at: "{{ result }}"
+
+  - name: Health endpoint check
+    type: http.check
+    params:
+      url: "http://{{ target }}:8000/health"
+      timeout: 30
+      expect_status: 200
+    outputs:
+      health_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "cuda_oom|out of memory|cuda error"
+    root_cause: gpu_oom
+    restart_safe: false
+    explanation: "CUDA OOM — check VRAM allocation and model size"
+
+  - pattern: "nccl"
+    root_cause: config_error
+    restart_safe: false
+    explanation: "NCCL error on TP=2 — GPU visibility issue, always escalate"
+
+  - pattern: "loading model|downloading"
+    root_cause: transient
+    restart_safe: false
+    explanation: "Model still loading (vLLM takes 2-10 min). Wait before acting."
+
+  - pattern: "nfs|mount|no such file"
+    root_cause: nfs_failure
+    restart_safe: false
+    explanation: "NFS mount missing — model weights unavailable. Fix mount first."
+
+  - pattern: "killed|oom-kill"
+    root_cause: system_oom
+    restart_safe: true
+    explanation: "Container OOM-killed by host. Check host memory pressure."
+
+remediation:
+  restart_safe: conditional
+  pre_restart_checks:
+    - "gpu_state.vram_available > 1024"
+    - "uptime_seconds > 600"
+  post_restart_verification:
+    - type: http.check
+      params:
+        url: "http://{{ target }}:8000/health"
+        timeout: 300
+        expect_status: 200
+  escalation_triggers:
+    - "nccl error"
+    - "all GPUs full"
+    - "NFS mount missing"

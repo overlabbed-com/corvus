@@ -1,0 +1,3 @@
+# Semgrep ignore patterns
+# Docs contain example tokens/patterns for design specs — not real secrets
+docs/

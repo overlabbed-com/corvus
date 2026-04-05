@@ -1,0 +1,15 @@
+name: soc2
+version: "0.1.0"
+type: compliance
+description: >
+  SOC 2 Type II compliance controls mapped to Corvus operational events.
+  Covers CC6 (Logical Access), CC7 (System Operations), CC8 (Change Management),
+  and CC9 (Risk Mitigation) trust services criteria.
+author: corvus
+entry_point: module
+dependencies: []
+config_schema:
+  audit_window_days:
+    type: integer
+    default: 90
+    description: "Lookback window for compliance evidence collection"

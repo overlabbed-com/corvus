@@ -1,0 +1,117 @@
+<dashboard version="1.1">
+  <label>Corvus - Operational Overview</label>
+  <description>Real-time operational governance dashboard for AI agent fleets</description>
+
+  <row>
+    <panel>
+      <title>Events (24h)</title>
+      <single>
+        <search>
+          <query>`corvus_events` earliest=-24h | stats count</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="underLabel">Total Events</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Open Incidents</title>
+      <single>
+        <search>
+          <query>`corvus_incidents` activity_name="Create" | stats dc("unmapped.incident_id") as opened | appendcols [search `corvus_incidents` activity_name="Close" | stats dc("unmapped.incident_id") as closed] | eval open=opened-closed</query>
+          <earliest>-7d@d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="rangeValues">[0,5]</option>
+        <option name="underLabel">Last 7 Days</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Active Changes</title>
+      <single>
+        <search>
+          <query>`corvus_changes` activity_name="Execute" earliest=-24h | stats count</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="underLabel">Last 24 Hours</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Remediation Actions</title>
+      <single>
+        <search>
+          <query>`corvus_remediation` earliest=-24h | stats count</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="underLabel">Last 24 Hours</option>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Event Timeline</title>
+      <chart>
+        <search>
+          <query>`corvus_events` | timechart span=1h count by class_name</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Agent Activity</title>
+      <chart>
+        <search>
+          <query>`corvus_events` | stats count by "unmapped.source" | sort - count</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Events by Severity</title>
+      <chart>
+        <search>
+          <query>`corvus_events` | stats count by "unmapped.severity" | sort - count</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Recent High-Severity Events</title>
+      <table>
+        <search>
+          <query>`corvus_events` ("unmapped.severity"="warning" OR "unmapped.severity"="critical") | sort - _time | head 20 | table _time class_name "unmapped.source" "unmapped.target" "unmapped.severity" "unmapped.description" | rename "unmapped.source" as Agent "unmapped.target" as Target "unmapped.severity" as Severity "unmapped.description" as Description</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">row</option>
+        <option name="count">10</option>
+      </table>
+    </panel>
+  </row>
+</dashboard>

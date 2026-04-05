@@ -1,0 +1,69 @@
+name: Automation Service Triage
+type: triage
+service_type: automation
+version: 1
+description: FMEA-informed investigation for workflow orchestration (Prefect, Admin API, NemoClaw)
+
+investigation:
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 100
+      grep: "error|database|connection|worker|deployment|flow|auth"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Health endpoint check
+    type: http.check
+    params:
+      url: "http://{{ target }}:8000/health"
+      timeout: 15
+      expect_status: 200
+    outputs:
+      health_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "database.*connect|postgres.*refuse|db.*error"
+    root_cause: database_connection_lost
+    restart_safe: false
+    explanation: "Database connection lost — check Prefect postgres health FIRST"
+
+  - pattern: "worker.*fail|deployment.*fail|agent.*error"
+    root_cause: worker_failure
+    restart_safe: true
+    explanation: "Worker/deployment failure — restart safe, check deployment config"
+
+  - pattern: "auth.*fail|token.*invalid|401|403"
+    root_cause: auth_failure
+    restart_safe: false
+    explanation: "Auth failure — check API keys and token validity"
+
+  - pattern: "flow.*fail|task.*error|timeout"
+    root_cause: flow_execution_error
+    restart_safe: true
+    explanation: "Flow execution error — restart safe, investigate failed flow"
+
+remediation:
+  restart_safe: conditional
+  pre_restart_checks:
+    - "Check for active flows before restart"
+    - "Verify database connectivity"
+  post_restart_verification:
+    - type: http.check
+      params:
+        url: "http://{{ target }}:8000/health"
+        timeout: 60
+        expect_status: 200
+  escalation_triggers:
+    - "database connection lost"
+    - "all workers down"
+    - "NemoClaw self-failure"

@@ -1,0 +1,17 @@
+service_name,host,service_type,critical
+caddy,tmtdockp04,reverse-proxy,1
+litellm,tmtdockp01,llm-gateway,1
+vllm-primary,tmtdockp01,vllm,1
+vllm-default,tmtdockp02,vllm,1
+vllm-subagent,tmtdockp02,vllm,0
+vllm-embed,tmtdockp01,vllm,0
+vllm-rerank,tmtdockp01,vllm,0
+milvus-standalone,tmtdockp01,vector-db,1
+open-webui,tmtdockp01,web-ui,0
+homeassistant,tmtdockp04,home-automation,1
+prefect-server,tmtdockp04,workflow,1
+prefect-worker,tmtdockp04,workflow,1
+admin-api,tmtdockp04,api,1
+corvus,tmtdockp04,governance,1
+corvus-neo4j,tmtdockp04,graph-db,0
+splunk,tmtdockp01,siem,1

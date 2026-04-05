@@ -1,0 +1,50 @@
+name: DNS Service Triage
+type: triage
+service_type: dns
+version: 1
+description: FMEA-informed investigation for DNS infrastructure
+
+investigation:
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 100
+      grep: "error|resolve|zone|transfer|refused|timeout|SERVFAIL"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "resolve.*fail|SERVFAIL|timeout|unreachable"
+    root_cause: resolver_failure
+    restart_safe: true
+    explanation: "DNS resolver not responding — restart safe, check upstream DNS"
+
+  - pattern: "zone.*transfer|AXFR|IXFR|secondary"
+    root_cause: zone_transfer_failure
+    restart_safe: false
+    explanation: "Zone transfer failure — check primary DNS server"
+
+  - pattern: "record.*missing|NXDOMAIN|wrong.*record"
+    root_cause: record_error
+    restart_safe: false
+    explanation: "DNS record issue — fix zone files, restart won't help"
+
+remediation:
+  restart_safe: conditional
+  post_restart_verification:
+    - type: host.check
+      params:
+        host: "{{ host }}"
+        check: dns_resolution
+  escalation_triggers:
+    - "all resolution failing"
+    - "zone corruption"

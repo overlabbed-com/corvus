@@ -1,0 +1,6 @@
+class_uid,class_name,category_name
+2005,Incident Finding,Findings
+5019,Device Config State Change,Discovery
+6002,API Activity,Application Activity
+6003,Web Resources Activity,Application Activity
+6004,Web Application Activity,Application Activity

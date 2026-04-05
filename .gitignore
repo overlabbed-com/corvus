@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code worktrees
+.claude/worktrees/
+
+# MCP config (contains local URLs)
+.mcp.json
+
+# Docker
+*.log
+
+# Environment
+.env
+.env.*
+!.env.template
+!.env.example
+
+# Secrets (NEVER commit)
+*credentials*
+*secret*
+*token*
+*.pem
+*.key
+
+# Allow runbook files that match secret patterns
+!corvus-server/runbooks/triage-secrets.yaml

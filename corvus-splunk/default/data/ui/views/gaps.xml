@@ -1,0 +1,95 @@
+<dashboard version="1.1">
+  <label>Gap Detection</label>
+  <description>Identify blind spots — services without event coverage, runbook gaps, and CI vs NFI workstreams</description>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time_range" searchWhenChanged="true">
+      <label>Time Range</label>
+      <default>
+        <earliest>-7d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Services Without Recent Events (Blind Spots)</title>
+      <table>
+        <search>
+          <query>| inputlookup cmdb_services.csv
+| join type=left service_name
+  [search `corvus_events` | stats latest(_time) as last_event count as event_count by "unmapped.target" | rename "unmapped.target" as service_name]
+| eval days_silent=round((now()-last_event)/86400, 1)
+| where isnull(last_event) OR days_silent > 3
+| table service_name host service_type critical days_silent event_count
+| sort - critical days_silent</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">row</option>
+        <option name="count">20</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Event Coverage by Service Type</title>
+      <chart>
+        <search>
+          <query>`corvus_events` | lookup corvus_cmdb_lookup service_name AS "unmapped.target" OUTPUT service_type | stats dc("unmapped.target") as services count as events by service_type | sort - events</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="charting.chart.overlayFields">services</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Critical vs Non-Critical Event Distribution</title>
+      <chart>
+        <search>
+          <query>`corvus_events` | lookup corvus_cmdb_lookup service_name AS "unmapped.target" OUTPUT critical | eval criticality=if(critical=1, "Critical", "Non-Critical") | stats count by criticality</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Runbook Coverage — Services With vs Without Triage</title>
+      <table>
+        <search>
+          <query>| inputlookup cmdb_services.csv
+| join type=left service_name
+  [search `corvus_remediation` | stats count as triage_count by "unmapped.target" | rename "unmapped.target" as service_name]
+| eval has_triage=if(isnotnull(triage_count) AND triage_count>0, "Yes", "No")
+| table service_name service_type critical has_triage triage_count
+| sort has_triage - critical</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="count">20</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Incident to Problem Correlation</title>
+      <table>
+        <search>
+          <query>`corvus_incidents` | spath "unmapped.target" | spath "unmapped.incident_id" | stats count as incident_count dc("unmapped.incident_id") as unique_incidents by "unmapped.target" | where incident_count >= 3 | sort - incident_count | rename "unmapped.target" as Target | eval needs_problem_record=if(incident_count>=3, "Yes", "No")</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+</dashboard>

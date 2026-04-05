@@ -1,0 +1,74 @@
+name: Home Automation Triage
+type: triage
+service_type: home_automation
+version: 1
+description: FMEA-informed investigation for home automation (Home Assistant)
+
+investigation:
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 100
+      grep: "error|mqtt|homekit|network|vlan|integration|database"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Health endpoint check
+    type: http.check
+    params:
+      url: "http://{{ target }}:8123/api/"
+      timeout: 15
+      expect_status: 200
+    outputs:
+      health_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "network|vlan|unreachable|default route|ipvlan"
+    root_cause: network_failure
+    restart_safe: false
+    explanation: "Network/VLAN issue — HA uses ipvlan networking, check host network config"
+
+  - pattern: "mqtt.*disconnect|mqtt.*error"
+    root_cause: mqtt_disconnected
+    restart_safe: true
+    explanation: "MQTT disconnected — restart safe, verify MQTT broker first"
+
+  - pattern: "homekit|no response|hap"
+    root_cause: homekit_failure
+    restart_safe: true
+    explanation: "HomeKit 'No Response' — restart may require HomeKit re-pairing"
+
+  - pattern: "integration.*fail|integration.*error|setup.*fail"
+    root_cause: integration_failure
+    restart_safe: true
+    explanation: "Integration setup failure — restart safe, check integration config"
+
+  - pattern: "database.*corrupt|db.*locked|sqlite.*error"
+    root_cause: database_corruption
+    restart_safe: false
+    explanation: "Database issue — backup before restart, may need DB repair"
+
+remediation:
+  restart_safe: conditional
+  pre_restart_checks:
+    - "MQTT broker is healthy"
+    - "Network connectivity verified"
+  post_restart_verification:
+    - type: http.check
+      params:
+        url: "http://{{ target }}:8123/api/"
+        timeout: 120
+        expect_status: 200
+  escalation_triggers:
+    - "database corruption"
+    - "network failure"
+    - "ALWAYS notify Todd on restart"

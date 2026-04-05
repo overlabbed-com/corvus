@@ -1,0 +1,67 @@
+name: IoT Gateway Triage
+type: triage
+service_type: iot_gateway
+version: 1
+description: FMEA-informed investigation for IoT gateways (Zigbee2MQTT, MQTT broker, ESPHome)
+
+investigation:
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 100
+      grep: "error|disconnect|coordinator|serial|flood|corrupt|mqtt"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Check MQTT connectivity
+    type: mqtt.check
+    params:
+      host: "{{ host }}"
+      port: 1883
+    outputs:
+      mqtt_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "coordinator.*disconnect|serial.*error|usb|ttyUSB"
+    root_cause: coordinator_disconnected
+    restart_safe: false
+    explanation: "Zigbee coordinator disconnected — check USB device, may need physical intervention"
+
+  - pattern: "mqtt.*disconnect|broker.*down|connection.*lost"
+    root_cause: mqtt_broker_down
+    restart_safe: false
+    explanation: "MQTT broker unreachable — fix broker first, then restart Z2M"
+
+  - pattern: "flood|too many|message.*rate|queue.*full"
+    root_cause: device_flood
+    restart_safe: true
+    explanation: "Device message flood — restart safe, investigate chatty device"
+
+  - pattern: "database.*corrupt|db.*error|state.*corrupt"
+    root_cause: database_corruption
+    restart_safe: false
+    explanation: "Z2M database corruption — backup before restart, may need DB reset"
+
+remediation:
+  restart_safe: conditional
+  pre_restart_checks:
+    - "MQTT broker is healthy"
+    - "Coordinator device is present"
+  post_restart_verification:
+    - type: mqtt.check
+      params:
+        host: "{{ host }}"
+        port: 1883
+  escalation_triggers:
+    - "coordinator disconnected"
+    - "database corruption"
+    - "MQTT broker down"

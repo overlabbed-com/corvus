@@ -1,0 +1,117 @@
+<dashboard version="1.1">
+  <label>SOC 2 Compliance Evidence</label>
+  <description>Automated compliance evidence generation — query, don't audit</description>
+
+  <fieldset submitButton="true" autoRun="true">
+    <input type="time" token="time_range" searchWhenChanged="true">
+      <label>Time Range</label>
+      <default>
+        <earliest>-90d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Overall Compliance Rate</title>
+      <single>
+        <search>
+          <query>`corvus_events` | stats count as total count(eval(status_id=1 OR "unmapped.outcome"="success")) as success | eval rate=round(success/total*100, 1) | fields rate</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xdc4e41","0xf8be34","0x53a051"]</option>
+        <option name="rangeValues">[80,95]</option>
+        <option name="underLabel">% Successful Operations</option>
+        <option name="useColors">1</option>
+        <option name="numberPrecision">0.0</option>
+        <option name="unit">%</option>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>CC6.1 — Logical Access Controls</title>
+      <table>
+        <search>
+          <query>`corvus_events` class_uid=6002 | stats count as total count(eval(status_id=1)) as success count(eval(status_id!=1)) as failed by "unmapped.source" | eval pass_rate=round(success/total*100, 1) | sort - total | rename "unmapped.source" as Agent</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>CC7.2 — Incident Detection and Response</title>
+      <table>
+        <search>
+          <query>`corvus_incidents` | stats count(eval(activity_name="Create")) as opened count(eval(activity_name="Update")) as investigated count(eval(activity_name="Close")) as resolved count(eval(activity_name="Other")) as escalated | eval resolution_rate=round(resolved/opened*100, 1)</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+    <panel>
+      <title>Mean Time to Resolution</title>
+      <single>
+        <search>
+          <query>`corvus_incidents` activity_name="Close" | spath "unmapped.resolution_time_minutes" | stats avg("unmapped.resolution_time_minutes") as avg_mttr | eval avg_mttr=round(avg_mttr, 0)</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="underLabel">Minutes (avg)</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>CC8.1 — Change Management</title>
+      <table>
+        <search>
+          <query>`corvus_changes` | stats count(eval(activity_name="Execute")) as started count(eval("unmapped.outcome"="success")) as succeeded count(eval("unmapped.outcome"="failure")) as failed | eval success_rate=round(succeeded/(succeeded+failed)*100, 1)</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>CC9.1 — Risk Mitigation (Automated Remediation)</title>
+      <table>
+        <search>
+          <query>`corvus_remediation` | spath "unmapped.action_type" | spath "unmapped.trust_tier" | stats count by "unmapped.action_type" "unmapped.trust_tier" "unmapped.outcome" | rename "unmapped.action_type" as Action "unmapped.trust_tier" as "Trust Tier" "unmapped.outcome" as Outcome | sort Action</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Audit Trail — All Events</title>
+      <table>
+        <search>
+          <query>`corvus_events` | sort - _time | table _time class_name activity_name "unmapped.source" "unmapped.target" status_id "unmapped.severity" | rename "unmapped.source" as Agent "unmapped.target" as Target "unmapped.severity" as Severity | head 100</query>
+          <earliest>$time_range.earliest$</earliest>
+          <latest>$time_range.latest$</latest>
+        </search>
+        <option name="drilldown">row</option>
+        <option name="count">20</option>
+      </table>
+    </panel>
+  </row>
+</dashboard>

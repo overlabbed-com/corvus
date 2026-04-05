@@ -1,0 +1,72 @@
+name: Media Service Triage
+type: triage
+service_type: media
+version: 1
+description: FMEA-informed investigation for media services (Plex, Sonarr, Radarr, etc.)
+
+investigation:
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 100
+      grep: "error|database|locked|disk|stream|download|indexer"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Check disk usage
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: disk_usage
+    outputs:
+      disk_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "database.*locked|db.*locked|sqlite.*locked"
+    root_cause: database_locked
+    restart_safe: true
+    explanation: "Database locked — restart safe, check for stuck processes"
+
+  - pattern: "download.*client|transmission|sabnzbd|disconnect"
+    root_cause: download_client_disconnected
+    restart_safe: false
+    explanation: "Download client disconnected — fix downstream service first"
+
+  - pattern: "disk.*full|no space|ENOSPC"
+    root_cause: disk_full
+    restart_safe: false
+    explanation: "Disk full — clear space before restart"
+
+  - pattern: "indexer.*fail|indexer.*error|api.*limit"
+    root_cause: indexer_failure
+    restart_safe: false
+    explanation: "Indexer failure — external service issue, restart won't help"
+
+  - pattern: "stream|transcode|buffer"
+    root_cause: streaming_issue
+    restart_safe: true
+    explanation: "Streaming/transcode issue — check for active sessions before restart"
+
+remediation:
+  restart_safe: conditional
+  pre_restart_checks:
+    - "Check for active Plex streams before restart"
+    - "Verify disk space available"
+  post_restart_verification:
+    - type: http.check
+      params:
+        url: "http://{{ target }}:8080/"
+        timeout: 60
+        expect_status: 200
+  escalation_triggers:
+    - "disk full"
+    - "active streams interrupted"

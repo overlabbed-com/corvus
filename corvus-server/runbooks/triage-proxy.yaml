@@ -1,0 +1,83 @@
+name: Proxy Service Triage
+type: triage
+service_type: proxy
+version: 1
+description: FMEA-informed investigation for reverse proxies (Caddy, Nginx)
+
+investigation:
+  - name: Check container logs
+    type: containers.logs
+    params:
+      name: "{{ target }}"
+      lines: 100
+      grep: "error|ERR|tls|cert|upstream|refused|timeout|bind"
+    outputs:
+      filtered_logs: "{{ result }}"
+
+  - name: Check container state
+    type: containers.inspect
+    params:
+      name: "{{ target }}"
+      field: "State"
+    outputs:
+      container_state: "{{ result }}"
+
+  - name: Check admin API
+    type: http.check
+    params:
+      url: "http://{{ target }}:2019/config/"
+      timeout: 10
+      expect_status: 200
+    outputs:
+      admin_status: "{{ result }}"
+
+  - name: Check public endpoint
+    type: http.check
+    params:
+      url: "https://{{ target }}/"
+      timeout: 10
+      expect_status: 200
+    outputs:
+      public_status: "{{ result }}"
+
+diagnosis_hints:
+  - pattern: "tls|cert|certificate|acme|letsencrypt"
+    root_cause: tls_failure
+    restart_safe: false
+    explanation: "TLS/cert issue — check certbot, certificate validity, ACME config"
+
+  - pattern: "config|syntax|parse|Caddyfile"
+    root_cause: config_error
+    restart_safe: false
+    explanation: "Config syntax error — fix config before reload. Do NOT restart."
+
+  - pattern: "upstream|connect refused|connection refused"
+    root_cause: upstream_down
+    restart_safe: false
+    explanation: "Upstream service unreachable — investigate upstream first, not proxy"
+
+  - pattern: "bind|address already in use|port"
+    root_cause: port_conflict
+    restart_safe: false
+    explanation: "Port binding failure — another process holds the port"
+
+  - pattern: "memory|oom|killed"
+    root_cause: memory_leak
+    restart_safe: true
+    explanation: "Memory issue — restart is safe but investigate leak cause"
+
+remediation:
+  restart_safe: conditional
+  pre_restart_checks:
+    - "config_valid"
+    - "upstream_reachable"
+  post_restart_verification:
+    - type: http.check
+      params:
+        url: "https://{{ target }}/"
+        timeout: 30
+        expect_status: 200
+  escalation_triggers:
+    - "all routes failing"
+    - "cert expired"
+    - "config syntax error"
