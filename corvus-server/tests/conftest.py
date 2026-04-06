@@ -11,12 +11,13 @@ from httpx import ASGITransport, AsyncClient
 _test_dir = tempfile.mkdtemp()
 os.environ["CORVUS_DATA_DIR"] = _test_dir
 
+# Enable dev mode so tests run without auth by default.
+# Tests that need auth (test_auth_middleware.py) configure keys via monkeypatch.
+os.environ["CORVUS_DEV_MODE"] = "true"
+
+from src import config  # noqa: E402
 from src.app import app  # noqa: E402
 from src.database import init_db  # noqa: E402
-
-# Clear API keys so default test client runs in dev mode (no auth required).
-# Tests that need auth (test_auth_middleware.py) configure keys via monkeypatch.
-from src import config  # noqa: E402
 from src.middleware import auth as _auth_module  # noqa: E402
 
 config.API_KEYS.clear()

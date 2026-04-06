@@ -10,23 +10,21 @@ S1.2 (agent impersonation) - JWT sub/jti enables traceability.
 
 import json
 import logging
-from datetime import datetime, timezone
-from enum import StrEnum
-from functools import lru_cache
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from fastapi import HTTPException, Request
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
-from src.config import OIDC_CLIENT_ID, OIDC_ENABLED, OIDC_ISSUER_URL, OIDC_CLIENT_SECRET
+from src.config import OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, OIDC_ENABLED, OIDC_ISSUER_URL
 
 logger = logging.getLogger(__name__)
 
 try:
     import jwt
-    from jwt.exceptions import PyJWTError, InvalidTokenError, ExpiredSignatureError, InvalidIssuerError
+    from jwt.exceptions import ExpiredSignatureError, InvalidTokenError, PyJWTError
     JWT_AVAILABLE = True
 except ImportError:
     JWT_AVAILABLE = False
@@ -50,7 +48,7 @@ class Identity:
     @property
     def is_expired(self) -> bool:
         """Check if token is expired."""
-        return datetime.now(timezone.utc).timestamp() > self.exp
+        return datetime.now(UTC).timestamp() > self.exp
 
     def __repr__(self) -> str:
         return f"Identity(sub={self.sub!r}, roles={self.roles})"
@@ -107,7 +105,7 @@ class OIDCConfig:
                             if "jwks_uri" in data:
                                 return data["jwks_uri"]
                 except Exception:
-                    pass
+                    logger.debug("Failed to fetch JWKS URL from discovery endpoint")
 
             # Fallback: try common patterns
             if "accounts.google.com" in self.issuer_url:
@@ -128,17 +126,16 @@ class OIDCConfig:
     async def _async_fetch_jwks_from_discovery(self) -> dict:
         """Async fetch of discovery document."""
         import anyio
-        async with anyio.create_task_group() as tg:
+        async with anyio.create_task_group():
             results = {}
             async def fetch():
-                async with anyio.open_file(self.discovery_url, "rb") as f:
+                async with anyio.open_file(self.discovery_url, "rb"):
                     pass
             return results
 
-    @lru_cache(maxsize=1)
     async def fetch_jwks(self) -> list[dict]:
         """Fetch and cache JWKS keys from issuer."""
-        current_time = datetime.now(timezone.utc).timestamp()
+        current_time = datetime.now(UTC).timestamp()
 
         # Return cached if still valid
         if (
@@ -175,7 +172,6 @@ class OIDCConfig:
             logger.error(f"Invalid JWKS response: {e}")
             raise
 
-    @lru_cache(maxsize=1)
     def get_key_for_token(self, token: str) -> Any:
         """Get the JWKS key matching the token's kid."""
         try:
@@ -193,10 +189,7 @@ class OIDCConfig:
             except RuntimeError:
                 loop = None
 
-            if loop:
-                keys = asyncio.run(self.fetch_jwks())
-            else:
-                keys = self._jwks_cache
+            keys = asyncio.run(self.fetch_jwks()) if loop else self._jwks_cache
 
             for key_data in keys:
                 if key_data.get("kid") == kid:
@@ -269,10 +262,10 @@ class OIDCConfig:
 
         except PyJWTError as e:
             logger.warning(f"JWT validation failed: {e}")
-            raise InvalidTokenError(str(e))
+            raise InvalidTokenError(str(e)) from e
         except Exception as e:
             logger.error(f"Unexpected error validating token: {e}")
-            raise InvalidTokenError(str(e))
+            raise InvalidTokenError(str(e)) from e
 
 
 # Singleton config instance
@@ -294,6 +287,20 @@ def get_oidc_config() -> OIDCConfig | None:
     return _oidc_config
 
 
+# Paths that skip OIDC auth
+OIDC_PUBLIC_PATHS = frozenset({
+    "/",
+    "/health",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+    "/mcp/sse",
+})
+
+# Prefixes that require OIDC auth
+OIDC_PROTECTED_PREFIXES = ("/ops/", "/backup/", "/agent-instructions")
+
+
 class OIDCAuthMiddleware(BaseHTTPMiddleware):
     """JWT/OIDC authentication middleware.
 
@@ -306,22 +313,10 @@ class OIDCAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> JSONResponse | Response:
         path = request.url.path
 
-        # Skip public paths
-        PUBLIC_PATHS = frozenset({
-            "/",
-            "/health",
-            "/docs",
-            "/openapi.json",
-            "/redoc",
-            "/mcp/sse",
-        })
-
-        if path in PUBLIC_PATHS:
+        if path in OIDC_PUBLIC_PATHS:
             return await call_next(request)
 
-        # Check if path needs auth
-        PROTECTED_PREFIXES = ("/ops/", "/backup/", "/agent-instructions")
-        needs_auth = any(path.startswith(prefix) for prefix in PROTECTED_PREFIXES)
+        needs_auth = any(path.startswith(prefix) for prefix in OIDC_PROTECTED_PREFIXES)
 
         if not needs_auth:
             return await call_next(request)

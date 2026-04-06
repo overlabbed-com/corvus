@@ -7,11 +7,6 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from src.database import get_db
-
-logger = logging.getLogger(__name__)
-
-# Valid alert_policy values — prevents silent suppression via arbitrary strings (E1.4)
-VALID_ALERT_POLICIES = frozenset({"default", "silent", "critical-only", "all"})
 from src.models.cmdb import (
     BaselineBehavior,
     BulkClassifyItem,
@@ -20,6 +15,11 @@ from src.models.cmdb import (
     ServiceResponse,
     ServiceUpdate,
 )
+
+logger = logging.getLogger(__name__)
+
+# Valid alert_policy values — prevents silent suppression via arbitrary strings (E1.4)
+VALID_ALERT_POLICIES = frozenset({"default", "silent", "critical-only", "all"})
 
 router = APIRouter(prefix="/ops/cmdb", tags=["cmdb"])
 
