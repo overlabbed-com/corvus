@@ -41,7 +41,7 @@ async def test_triage_with_service_type(client):
         "/ops/runbooks/triage",
         json={
             "target": "vllm-primary",
-            "host": "tmtdockp01",
+            "host": "host-01",
             "service_type": "inference",
             "investigation_data": {"logs": "CUDA error: out of memory"},
         },

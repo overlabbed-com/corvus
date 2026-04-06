@@ -2,15 +2,15 @@
 
 > Agent: Auditor
 > Workspace: automation
-> Project: 021-unified-ops-protocol
+> Project: unified-ops-protocol
 > Risk Level: AUTO (analysis only)
 > Generated: 2026-03-29
 
 ## Summary
 
 This threat model covers the multi-agent coordination platform spanning Projects
-019 (SOP), 020 (FMEA Runbooks), and 021 (Unified Ops Protocol). The system
-enables two AI agents (Claude Code and NemoClaw) to share operational awareness
+SOP, FMEA Runbooks, and the Unified Ops Protocol. The system
+enables two AI agents (Claude Code and ops-agent) to share operational awareness
 through a REST API with SQLite backing, MCP tool proxy, YAML-defined runbooks,
 and a host command allowlist. Analysis uses the STRIDE methodology across all
 trust boundaries. 27 findings identified: 2 Critical, 7 High, 10 Medium, 8 Low.
@@ -19,16 +19,16 @@ trust boundaries. 27 findings identified: 2 Critical, 7 High, 10 Medium, 8 Low.
 
 ```
                     +------------------------+
-                    |     Todd (Human)       |
-                    |   Slack / CC CLI       |
+                    |   Human Operator       |
+                    |   Slack / Agent CLI    |
                     +----------+-------------+
                                |
           +--------------------+--------------------+
           |                                         |
           v                                         v
 +-------------------+                    +-------------------+
-|   Claude Code     |                    |    NemoClaw       |
-|   (Mac / CC CLI)  |                    |  (dockp04 Docker) |
+|   Claude Code     |                    |    ops-agent       |
+| (Mac / Agent CLI) |                    |  (host-04 Docker) |
 |                   |                    |                   |
 | Uses MCP tools    |                    | Direct HTTP to    |
 | via LiteLLM proxy |                    | Admin API         |
@@ -37,8 +37,8 @@ trust boundaries. 27 findings identified: 2 Critical, 7 High, 10 Medium, 8 Low.
          v                                        v
 +-------------------+                    +-------------------+
 | LiteLLM Proxy     |                    |                   |
-| (dockp01:4000)    |------ HTTP ------->|    Admin API      |
-| MCP server        |                    |  (dockp04:8000)   |
+| (host-01:4000)    |------ HTTP ------->|    Admin API      |
+| MCP server        |                    |  (host-04:8000)   |
 +-------------------+                    |                   |
                                          | - FastAPI         |
                                          | - Bearer token    |
@@ -61,7 +61,7 @@ trust boundaries. 27 findings identified: 2 Critical, 7 High, 10 Medium, 8 Low.
                                     +-----------+-----------+
                                     |           |           |
                                     v           v           v
-                              dockp01      dockp02      dockp03
+                              host-01      host-02      host-03
                               (mTLS 2376)  (mTLS 2376)  (mTLS 2376)
 ```
 
@@ -69,26 +69,26 @@ trust boundaries. 27 findings identified: 2 Critical, 7 High, 10 Medium, 8 Low.
 
 | Boundary | Inside | Outside | Crossing Mechanism |
 |----------|--------|---------|-------------------|
-| **TB1: Admin API perimeter** | FastAPI app, SQLite, Docker socket | All callers (CC, NC, LiteLLM MCP) | Bearer token + IP whitelist |
+| **TB1: Admin API perimeter** | FastAPI app, SQLite, Docker socket | All callers (agent-a, ops-agent, LiteLLM MCP) | Bearer token + IP whitelist |
 | **TB2: Docker host boundary** | Admin API container process | Docker daemon, host kernel | Docker socket (local) + Docker TCP API (mTLS, port 2376) |
-| **TB3: MCP proxy boundary** | LiteLLM MCP server on dockp01 | Claude Code sessions (Mac) | LiteLLM API key + team-based access control |
-| **TB4: NemoClaw process boundary** | NemoClaw Python process | Admin API, Docker hosts, Slack, LLM backend | HTTP + bearer token + guardrails engine |
+| **TB3: MCP proxy boundary** | LiteLLM MCP server on host-01 | Claude Code sessions (Mac) | LiteLLM API key + team-based access control |
+| **TB4: ops-agent process boundary** | ops-agent Python process | Admin API, Docker hosts, Slack, LLM backend | HTTP + bearer token + guardrails engine |
 | **TB5: Runbook YAML boundary** | Python runbook selector/triage engine | YAML files on disk (bind-mounted from Git) | yaml.safe_load + named check allowlist |
-| **TB6: Network boundary** | Docker internal networks (172.16.x.x) | Server VLAN (192.168.20.x), other VLANs | IP whitelist (172.16/12, 10/8, 192.168.20/24, 127/8) |
+| **TB6: Network boundary** | Docker internal networks (172.16.x.x) | Server VLAN (10.0.1.x), other VLANs | IP whitelist (172.16/12, 10/8, 10.0.1/24, 127/8) |
 
 ## Attack Surface Enumeration
 
 | Surface | Exposure | Protocol | Auth |
 |---------|----------|----------|------|
-| Admin API port 8000 | Host-bound (0.0.0.0:8000 on dockp04) | HTTP/REST | Bearer token + IP whitelist |
+| Admin API port 8000 | Host-bound (0.0.0.0:8000 on host-04) | HTTP/REST | Bearer token + IP whitelist |
 | Docker socket (/var/run/docker.sock) | Container-internal | Unix socket | No auth (root equivalent) |
-| Docker TCP API (port 2376 on dockp01/02/03) | Network reachable from dockp04 | mTLS | Client certificate |
+| Docker TCP API (port 2376 on host-01/02/03) | Network reachable from host-04 | mTLS | Client certificate |
 | SQLite database (/data/ops.db) | Volume-mounted, container-internal | File I/O | No file-level auth |
 | Runbook YAML files (/app/config/playbooks/) | Bind-mounted from GitOps repo | File I/O | GitOps pipeline (CI/CD) |
 | Splunk HEC forwarding | Outbound from Admin API to Splunk | HTTPS | HEC token in env var |
 | Slack webhook (audit alerts) | Outbound from Admin API to Slack | HTTPS | Webhook URL in env var |
-| MCP tool proxy (LiteLLM) | dockp01 Docker network | HTTP | LiteLLM API key |
-| NemoClaw Slack bot | Inbound from Slack Events API | HTTPS via Slack | Slack signing secret |
+| MCP tool proxy (LiteLLM) | host-01 Docker network | HTTP | LiteLLM API key |
+| ops-agent Slack bot | Inbound from Slack Events API | HTTPS via Slack | Slack signing secret |
 | CORS on Admin API | `allow_origins=["*"]` | HTTP | Bearer token required per-request |
 
 ---
@@ -99,8 +99,8 @@ trust boundaries. 27 findings identified: 2 Critical, 7 High, 10 Medium, 8 Low.
 
 #### S1.1: Single bearer token shared across all callers [HIGH]
 
-**Finding**: All API consumers (Claude Code via MCP, NemoClaw, Prefect worker,
-any MCP bridge) authenticate with the same bearer token format (`hlab-*`).
+**Finding**: All API consumers (Claude Code via MCP, ops-agent, Prefect worker,
+any MCP bridge) authenticate with the same bearer token format (`xkey-*`).
 The `ADMIN_API_KEYS` env var supports multiple named keys (`name:key` pairs),
 but the auth system returns the same policy set (`admin-api-user`) regardless
 of which key authenticated. There is no role differentiation.
@@ -118,7 +118,7 @@ action taken.
 - Implement role-based access on API keys (e.g., `ops-read`, `ops-write`,
   `backup-exec`, `secrets-admin`). Each named key should map to a specific
   permission set.
-- NemoClaw should use a key scoped to ops endpoints + container restart.
+- ops-agent should use a key scoped to ops endpoints + container restart.
 - MCP proxy should use a key scoped to ops read + event creation.
 - `/backup/exec` and `/backup/zfs` should require a separate, restricted key.
 
@@ -126,7 +126,7 @@ action taken.
 
 **Finding**: The `operator` and `source` fields in change windows and events
 are caller-supplied strings. Any authenticated caller can create a change window
-claiming `operator: "claude-code"` or emit events with `source: "nemoclaw"`.
+claiming `operator: "claude-code"` or emit events with `source: "ops-agent"`.
 The auth system identifies the API key name, but the ops layer does not enforce
 that the operator/source field matches the authenticated key name.
 
@@ -138,21 +138,21 @@ events attributed to the other agent.
 
 **Mitigation**:
 - Enforce that `operator`/`source` fields are derived from or validated against
-  the authenticated key name. If key name is `nemoclaw`, only allow
-  `operator: "nemoclaw"`.
+  the authenticated key name. If key name is `ops-agent`, only allow
+  `operator: "ops-agent"`.
 - Alternatively, add an `authenticated_as` field to all records populated from
   the auth layer, independent of caller-supplied fields.
 
-#### S1.3: No mutual authentication between NemoClaw and Admin API [LOW]
+#### S1.3: No mutual authentication between ops-agent and Admin API [LOW]
 
-**Finding**: NemoClaw calls Admin API using a bearer token read from its
-environment. Admin API cannot verify the caller is actually NemoClaw vs. any
+**Finding**: ops-agent calls Admin API using a bearer token read from its
+environment. Admin API cannot verify the caller is actually ops-agent vs. any
 other process on the Docker network that obtained the token. The token is
 stored in the Docker compose environment, visible via `docker inspect`.
 
 **Risk**: LOW -- Attacker needs container access on the same Docker network.
 
-**Mitigation**: Consider mTLS between NemoClaw and Admin API (already used
+**Mitigation**: Consider mTLS between ops-agent and Admin API (already used
 for Docker TCP API). Would provide bidirectional identity verification.
 
 ---
@@ -194,7 +194,7 @@ A malicious PR that modifies `triage-inference.yaml` could:
 - Add overly broad regex patterns that match normal operation
 - Remove escalation triggers to suppress critical alerts
 
-**Impact**: Altered runbooks change NemoClaw's autonomous decision-making.
+**Impact**: Altered runbooks change ops-agent's autonomous decision-making.
 A subtle change to restart_safe flags could cause repeated restarts of
 TP=2 inference during NCCL errors (data corruption risk).
 
@@ -225,7 +225,7 @@ periodic checksum.
 **Finding**: `service_classification.py` contains a hardcoded Python dict
 (`SERVICE_TYPE_MAP`) mapping 92+ container names to FMEA service types.
 This mapping determines which triage runbook is used, which directly affects
-whether NemoClaw escalates or auto-restarts. The mapping can only be changed
+whether ops-agent escalates or auto-restarts. The mapping can only be changed
 via code commit + deploy.
 
 If a new service is deployed that happens to match the heuristic fallback
@@ -274,9 +274,9 @@ trigger Slack alerts.
 - Ensure Splunk ingestion is verified (currently fire-and-forget with
   logged-but-ignored failures).
 
-#### R1.2: NemoClaw triage decisions have limited attribution [LOW]
+#### R1.2: ops-agent triage decisions have limited attribution [LOW]
 
-**Finding**: When NemoClaw auto-restarts a container, the trust ledger records
+**Finding**: When ops-agent auto-restarts a container, the trust ledger records
 the action with `model_tier: "system"` and the triage decision detail. However,
 the specific LLM inference that informed the decision (diagnosis, investigation
 summary) is logged at DEBUG level and not persisted to the ops event stream
@@ -297,7 +297,7 @@ matched, and confidence score.
 
 **Finding**: Container logs are accessible through:
 1. Admin API `/containers/{name}/logs` endpoint (all authenticated callers)
-2. NemoClaw investigator (reads logs during triage)
+2. ops-agent investigator (reads logs during triage)
 3. Splunk HEC forwarding of ops events (may include log snippets in detail)
 4. Slack messages (investigation summaries posted to threads)
 
@@ -314,7 +314,7 @@ platform into Slack threads and potentially Splunk.
 surface.
 
 **Mitigation**:
-- Implement a log sanitizer that strips known secret patterns (`hlab-*`,
+- Implement a log sanitizer that strips known secret patterns (`xkey-*`,
   `sk-*`, `ghp_*`, `eyJ*`, `Bearer *`, connection strings) before:
   (a) returning logs via API, (b) including in Slack messages,
   (c) forwarding to Splunk, (d) storing in investigation reports.
@@ -327,14 +327,14 @@ surface.
 **Finding**: Admin API sets `allow_origins=["*"]` in CORS middleware with the
 comment "IP whitelist provides security." However, CORS and IP whitelisting
 serve different purposes. A malicious web page loaded in a browser on the
-192.168.20.x VLAN could make authenticated requests to Admin API if the user's
+10.0.1.x VLAN could make authenticated requests to Admin API if the user's
 browser has the bearer token cached or if the page can guess/extract it.
 
 **Risk**: MEDIUM -- Requires browser on the server VLAN with token access, but
 CORS wildcard is unnecessary when all legitimate callers are server-side.
 
 **Mitigation**: Set `allow_origins` to an empty list or to specific trusted
-origins only. Server-to-server callers (NemoClaw, MCP bridges) do not send
+origins only. Server-to-server callers (ops-agent, MCP bridges) do not send
 Origin headers and are unaffected by CORS restrictions.
 
 #### I1.3: Splunk HEC token in environment variable [LOW]
@@ -356,7 +356,7 @@ authenticated caller. While designed for transparency between agents, this
 data reveals current project work, planned infrastructure changes, and
 rollback strategies.
 
-**Risk**: LOW in homelab context. Would be MEDIUM in enterprise context.
+**Risk**: LOW in single-tenant context. Would be MEDIUM in enterprise context.
 
 **Mitigation**: Consider a "need-to-know" field or abbreviated responses for
 non-admin API keys.
@@ -369,7 +369,7 @@ non-admin API keys.
 
 **Finding**: SQLite in WAL mode supports concurrent reads but only ONE writer
 at a time. Every ops API write (change creation, event emission, incident
-creation, CMDB registration) acquires a write lock. NemoClaw emits events at
+creation, CMDB registration) acquires a write lock. ops-agent emits events at
 high rates during sweeps (up to ~150 requests per sweep). If Claude Code is
 simultaneously creating change windows and emitting events, write lock
 contention will cause `SQLITE_BUSY` errors.
@@ -379,7 +379,7 @@ connection pooling or retry logic. A `SQLITE_BUSY` error would propagate as
 a 500 error to the caller.
 
 **Impact**: Under concurrent load from both agents, ops operations may fail
-intermittently. NemoClaw's change window check (hot path) would fail,
+intermittently. ops-agent's change window check (hot path) would fail,
 potentially causing false alerts during planned work.
 
 **Risk**: HIGH -- Likely to occur during real incidents when both agents are
@@ -400,7 +400,7 @@ active simultaneously (the exact scenario SOP is designed for).
 **Finding**: The `cleanup_old_events` function exists (30-day retention)
 but is only called when explicitly invoked -- there is no scheduled cleanup.
 Events accumulate indefinitely until someone calls the cleanup function.
-With NemoClaw emitting events every 5-minute sweep, the events table
+With ops-agent emitting events every 5-minute sweep, the events table
 will grow by ~8000+ rows/day.
 
 Over months, this degrades query performance (the `/ops/events/context`
@@ -441,12 +441,12 @@ sweep.
 
 **Finding**: The rate limiter in `main.py` tracks requests per source IP.
 All containers on the same Docker network share the same gateway IP
-(e.g., 172.16.x.1). NemoClaw and MCP bridges calling from the same Docker
+(e.g., 172.16.x.1). ops-agent and MCP bridges calling from the same Docker
 network may all appear as the same IP, causing legitimate traffic to be
 rate-limited together.
 
 The limit is 500 requests/minute, which is generous, but a misbehaving MCP
-bridge could exhaust the budget and block NemoClaw's critical sweep requests.
+bridge could exhaust the budget and block ops-agent's critical sweep requests.
 
 **Risk**: LOW -- 500/min is generous; actual contention unlikely.
 
@@ -473,7 +473,7 @@ accessible via the Docker socket. This includes:
 - Database access: `["psql", "-U", "postgres", "-c", "SELECT * FROM secrets"]`
 
 **Impact**: Full privilege escalation from API token to arbitrary code
-execution across all containers on dockp04. Combined with Docker TCP API
+execution across all containers on host-04. Combined with Docker TCP API
 access (mTLS certs in Admin API's env), this extends to containers on all
 4 hosts.
 
@@ -516,18 +516,18 @@ namespace.
 - Consider a dedicated `/backup/zfs-snapshot` and `/backup/zfs-status`
   endpoint with no arbitrary command injection.
 
-#### E1.3: Host command allowlist bypass via NemoClaw service chain [MEDIUM]
+#### E1.3: Host command allowlist bypass via ops-agent service chain [MEDIUM]
 
-**Finding**: NemoClaw's `host_checks.py` defines a 5-command allowlist. The
+**Finding**: ops-agent's `host_checks.py` defines a 5-command allowlist. The
 `RunbookSelector` uses named references (e.g., `check: gpu_state`). However,
-NemoClaw also has access to Admin API's `/backup/exec` endpoint via its bearer
-token. If NemoClaw's triage engine or LLM-driven investigation decides to
+ops-agent also has access to Admin API's `/backup/exec` endpoint via its bearer
+token. If ops-agent's triage engine or LLM-driven investigation decides to
 "look deeper," it could call `/backup/exec` directly, bypassing the
 named-check allowlist entirely.
 
 The guardrails engine (`guardrails.py`) blocks certain action types but does
 not gate raw API calls to Admin API endpoints. The LLM inference driving
-NemoClaw's investigation could be prompted (via log content or error messages)
+ops-agent's investigation could be prompted (via log content or error messages)
 to call arbitrary Admin API endpoints.
 
 **Risk**: MEDIUM -- Requires LLM to generate specific API calls, which
@@ -535,15 +535,15 @@ guardrails and intent classification are designed to prevent, but the
 technical path exists.
 
 **Mitigation**:
-- NemoClaw's API key should NOT have access to `/backup/exec` or
+- ops-agent's API key should NOT have access to `/backup/exec` or
   `/backup/zfs`. Use role-based API keys (see S1.1).
-- The infra_client used by NemoClaw should not expose methods that call
+- The infra_client used by ops-agent should not expose methods that call
   backup endpoints.
 
 #### E1.4: CMDB alert_policy can be set to "silent" to suppress all alerts [MEDIUM]
 
 **Finding**: The CMDB service registration endpoint allows setting
-`alert_policy: "silent"` for any service. If NemoClaw's auto-discovery
+`alert_policy: "silent"` for any service. If ops-agent's auto-discovery
 or a malicious API caller registers a critical service as silent, health
 alerts for that service will be suppressed.
 
@@ -578,11 +578,11 @@ dashboard, so it would be noticed.
 **Finding**: Several MCP tools (ops_create_change, ops_create_incident,
 ops_emit_event, ops_register_service, etc.) have an `are_you_sure` parameter.
 This is a Claude Code convention to require explicit confirmation. However,
-the parameter is enforced client-side by the CC session, not server-side by
+the parameter is enforced client-side by the agent session, not server-side by
 Admin API. Any direct API caller or a compromised MCP bridge can omit this
 parameter.
 
-**Risk**: LOW -- The gate is for CC UX, not security.
+**Risk**: LOW -- The gate is for agent UX, not security.
 
 **Mitigation**: Document that `are_you_sure` is a UX convention, not a
 security control. Server-side enforcement should rely on API key roles and
@@ -611,13 +611,13 @@ CMDB alert_policy restrictions (E1.4), audit log forwarding to Splunk (R1.1).
 
 1. Attacker places crafted text in a service's log output (e.g., via a
    request to a web service that logs request bodies)
-2. NemoClaw's investigator reads these logs during triage
+2. ops-agent's investigator reads these logs during triage
 3. Crafted text includes instructions that influence the LLM's investigation
    summary or remediation decision
 4. LLM recommends restart of a healthy critical service, or recommends
    "no action" for a genuinely broken service
 
-**Mitigations**: NemoClaw's guardrails engine, rate limiter (max 2 restarts
+**Mitigations**: ops-agent's guardrails engine, rate limiter (max 2 restarts
 per container per hour), trust tier system, and the fact that investigation
 summaries pass through the triage engine's programmatic decision logic
 (not direct LLM-to-action). The FMEA runbooks add an additional layer of
@@ -644,11 +644,11 @@ pattern-based rather than LLM-based diagnosis.
 | D1.2 | Unbounded event stream growth | Denial of Service | MEDIUM | Low (scheduled cleanup) |
 | E1.3 | Host check allowlist bypass via /backup/exec | Elevation of Privilege | MEDIUM | Addressed by E1.1 fix |
 | E1.4 | CMDB silent alert_policy suppression | Elevation of Privilege | MEDIUM | Low (log + validate) |
-| S1.3 | No mutual auth NC-to-Admin-API | Spoofing | LOW | Medium (mTLS) |
+| S1.3 | No mutual auth ops-agent-to-Admin-API | Spoofing | LOW | Medium (mTLS) |
 | T1.3 | SQLite file tampering | Tampering | LOW | Low (non-root user) |
 | R1.2 | Limited triage decision attribution | Repudiation | LOW | Low (emit events) |
 | I1.3 | Splunk HEC token in env | Info Disclosure | LOW | Low (rotation) |
-| I1.4 | Change window details expose intent | Info Disclosure | LOW | N/A in homelab |
+| I1.4 | Change window details expose intent | Info Disclosure | LOW | N/A in single-tenant |
 | D1.4 | Rate limit per-IP not per-key | Denial of Service | LOW | Low (key-based limiting) |
 | E1.5 | Permanent change window suppression | Elevation of Privilege | LOW | Low (max duration) |
 | E1.6 | are_you_sure is client-side only | Elevation of Privilege | LOW | N/A (by design) |
@@ -671,7 +671,7 @@ pattern-based rather than LLM-based diagnosis.
 ### Short-Term (Next 2-4 Weeks)
 
 4. **Implement role-based API keys** -- at minimum, separate keys for:
-   `ops-full` (CC/NemoClaw), `ops-read` (MCP bridges), `backup-admin`
+   `ops-full` (agent-a/ops-agent), `ops-read` (MCP bridges), `backup-admin`
    (Prefect backup flows only).
 
 5. **Remove DELETE endpoint** from `/ops/changes` route. Make `targets`
@@ -713,14 +713,14 @@ Corvus Phase 1 security hardening addressed 15 of 22 findings. The remaining
 | E1.2 | /backup/zfs arbitrary privileged commands | Command allowlist (zpool/zfs only) + argument validation + audit logging |
 | S1.1 | Single bearer token, no roles | 4-role RBAC (admin, ops-write, ops-read, agent) with path+method permissions |
 | T1.1 | Mutable/deletable ops records | DELETE endpoint removed, targets immutable after creation |
-| I1.1 | Unfiltered secrets in logs | Sanitizer strips hlab-*, sk-*, ghp_*, Bearer tokens, connection strings, JWTs |
+| I1.1 | Unfiltered secrets in logs | Sanitizer strips xkey-*, sk-*, ghp_*, Bearer tokens, connection strings, JWTs |
 | D1.1 | SQLite write lock contention | `PRAGMA busy_timeout=5000` added to all connections |
 | T1.4 | Heuristic service classification | Logged warnings + CMDB registration required |
 | R1.1 | Audit log without integrity | Splunk HEC forwarding for all ops events |
 | I1.2 | CORS wildcard | Origins restricted to empty list |
 | D1.2 | Unbounded event growth | Cleanup on startup + retention policy |
-| E1.3 | Host check allowlist bypass | Addressed by E1.1 (NemoClaw key lacks /backup/ access) |
-| S1.3 | No mutual auth NC→Admin API | Accepted risk (LOW) — Docker network isolation sufficient |
+| E1.3 | Host check allowlist bypass | Addressed by E1.1 (ops-agent key lacks /backup/ access) |
+| S1.3 | No mutual auth ops-agent→Admin API | Accepted risk (LOW) — Docker network isolation sufficient |
 | T1.3 | SQLite file tampering | Accepted risk (LOW) — non-root container user |
 | I1.3 | Splunk HEC token in env | Accepted risk (LOW) — standard Docker secret pattern |
 | I1.4 | Change window details | Accepted risk (LOW) — transparency is a feature |
@@ -776,13 +776,13 @@ Corvus Phase 1 security hardening addressed 15 of 22 findings. The remaining
 | `admin-api/ops_cmdb_routes.py` | CMDB service registry endpoints |
 | `admin-api/backup_routes.py` | Container exec + ZFS command endpoints |
 | `admin-api/host_routes.py` | Host-level state queries via Netdata exec |
-| `nemoclaw/src/health_monitor.py` | Tiered sweep scheduler, SOP integration |
-| `nemoclaw/src/triage.py` | Triage engine, runbook-driven decisions |
-| `nemoclaw/src/runbook_selector.py` | YAML runbook loader, diagnosis matcher |
-| `nemoclaw/src/service_classification.py` | Hardcoded FMEA type mapping |
-| `nemoclaw/src/host_checks.py` | Named host command allowlist |
-| `nemoclaw/src/guardrails.py` | Self-preservation and safety checks |
-| `nemoclaw/src/ops_executor.py` | Credential rotation task execution |
-| `nemoclaw/config/guardrails.yaml` | Rate limits, trust thresholds |
-| `nemoclaw/config/playbooks/triage-inference.yaml` | Inference triage runbook |
+| `ops-agent/src/health_monitor.py` | Tiered sweep scheduler, SOP integration |
+| `ops-agent/src/triage.py` | Triage engine, runbook-driven decisions |
+| `ops-agent/src/runbook_selector.py` | YAML runbook loader, diagnosis matcher |
+| `ops-agent/src/service_classification.py` | Hardcoded FMEA type mapping |
+| `ops-agent/src/host_checks.py` | Named host command allowlist |
+| `ops-agent/src/guardrails.py` | Self-preservation and safety checks |
+| `ops-agent/src/ops_executor.py` | Credential rotation task execution |
+| `ops-agent/config/guardrails.yaml` | Rate limits, trust thresholds |
+| `ops-agent/config/playbooks/triage-inference.yaml` | Inference triage runbook |
 | `docker-compose.yml` | Network topology, port exposure |

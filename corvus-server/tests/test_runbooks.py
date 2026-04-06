@@ -76,7 +76,7 @@ async def test_execute_triage(inference_runbook):
     result = await execute_triage(
         runbook=inference_runbook,
         target="vllm-primary",
-        host="tmtdockp01",
+        host="host-01",
         investigation_data={"logs": "CUDA error: out of memory on device 0"},
     )
     assert result.runbook_name == "Inference Service Triage"

@@ -52,22 +52,22 @@ CC's governance framework (`.claude/rules/governance.md`) enforces Corvus compli
 ```
 CC calls: ops_check_target(target="litellm")
 Response: {"recommendation": "STOP", "reason": "Active incident INC-042..."}
-CC: "NemoClaw is already investigating litellm. I'll wait."
+CC: "ops-agent is already investigating litellm. I'll wait."
 ```
 
 ### After deploying a change:
 ```
 CC calls: ops_emit_event(source="claude-code", type="change.completed",
           target="admin-api", data={"summary": "OCSF transformer deployed"})
-→ NemoClaw sees this in its next sweep and doesn't alert on the restart
+→ ops-agent sees this in its next sweep and doesn't alert on the restart
 ```
 
 ### During a long session:
 ```
 CC calls: ops_watch_events(min_severity="warning")
 Response: {"events": [{"type": "remediation.restart", "target": "vllm-default",
-           "source": "nemoclaw"}]}
-CC: "FYI — NemoClaw restarted vllm-default while we were working."
+           "source": "ops-agent"}]}
+CC: "FYI — ops-agent restarted vllm-default while we were working."
 ```
 
 ## Files

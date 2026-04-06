@@ -24,7 +24,7 @@ POST /ops/incidents
   "title": "CUDA OOM on vllm-primary",
   "description": "GPU VRAM exhausted during inference. Detected via health sweep.",
   "severity": "critical",
-  "detected_by": "nemoclaw:health_sweep"
+  "detected_by": "ops-agent:health_sweep"
 }
 ```
 

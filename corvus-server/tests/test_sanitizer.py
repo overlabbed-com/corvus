@@ -6,8 +6,8 @@ from src.sanitizer import sanitize
 class TestSanitize:
     """Test secret pattern redaction."""
 
-    def test_homelab_api_key(self):
-        assert sanitize("token: hlab-nemoclaw-key-1234") == "token: [REDACTED]"
+    def test_custom_api_key(self):
+        assert sanitize("token: xkey-ops-agent-key-1234") == "token: [REDACTED]"
 
     def test_openai_key(self):
         assert sanitize("key=sk-abc123def456ghi789jkl012mno") == "key=[REDACTED]"

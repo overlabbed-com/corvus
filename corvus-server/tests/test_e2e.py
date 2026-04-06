@@ -45,23 +45,23 @@ async def test_change_window_prevents_conflict(client):
 @pytest.mark.asyncio
 async def test_incident_creates_stop_for_other_agents(client):
     """Agent A creates critical incident → Agent B sees STOP."""
-    # NemoClaw: detect failure
+    # ops-agent: detect failure
     inc = await client.post(
         "/ops/incidents",
         json={
             "target": "vllm-primary",
             "title": "CUDA OOM — GPU VRAM exhausted",
             "severity": "critical",
-            "detected_by": "nemoclaw:health_sweep",
+            "detected_by": "ops-agent:health_sweep",
         },
     )
     incident_id = inc.json()["id"]
 
-    # NemoClaw: emit event
+    # ops-agent: emit event
     await client.post(
         "/ops/events",
         json={
-            "source": "nemoclaw",
+            "source": "ops-agent",
             "type": "incident.opened",
             "target": "vllm-primary",
             "severity": "critical",
@@ -75,7 +75,7 @@ async def test_incident_creates_stop_for_other_agents(client):
     assert status.json()["recommendation"] == "STOP"
     assert "CUDA OOM" in status.json()["reason"]
 
-    # NemoClaw: resolve
+    # ops-agent: resolve
     await client.patch(
         f"/ops/incidents/{incident_id}",
         json={
@@ -106,7 +106,7 @@ async def test_event_emission_creates_shared_awareness(client):
         },
     )
 
-    # NemoClaw: check context at sweep start
+    # ops-agent: check context at sweep start
     context = await client.get("/ops/events/context")
     data = context.json()
     events = data["events_24h"]
@@ -134,7 +134,7 @@ async def test_full_incident_lifecycle_with_gap_detection(client):
             "target": "postgres-main",
             "title": "Connection pool exhausted",
             "severity": "high",
-            "detected_by": "nemoclaw:health_sweep",
+            "detected_by": "ops-agent:health_sweep",
         },
     )
     incident_id = inc.json()["id"]
@@ -195,7 +195,7 @@ async def test_triage_driven_incident_handling(client):
             "target": "vllm-test",
             "title": f"Triage: {triage_data['diagnosis']} on vllm-test",
             "severity": "critical",
-            "detected_by": "nemoclaw",
+            "detected_by": "ops-agent",
         },
     )
 
@@ -203,7 +203,7 @@ async def test_triage_driven_incident_handling(client):
     await client.post(
         "/ops/events",
         json={
-            "source": "nemoclaw",
+            "source": "ops-agent",
             "type": "incident.escalated",
             "target": "vllm-test",
             "severity": "critical",
@@ -243,7 +243,7 @@ async def test_problem_correlation_across_incidents(client):
                 "target": f"vllm-{i}",
                 "title": f"OOM on vllm-{i}",
                 "severity": "high",
-                "detected_by": "nemoclaw",
+                "detected_by": "ops-agent",
             },
         )
         await client.post(

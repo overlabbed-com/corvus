@@ -9,11 +9,11 @@ async def test_register_service(client):
         "/ops/cmdb/register",
         json={
             "name": "vllm-primary",
-            "host": "tmtdockp01",
+            "host": "host-01",
             "service_type": "inference",
             "critical": True,
             "dependencies": ["nfs-models"],
-            "registered_by": "nemoclaw",
+            "registered_by": "ops-agent",
         },
     )
     assert resp.status_code == 201

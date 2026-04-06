@@ -18,9 +18,9 @@ async def test_create_and_list_pending_steps(client):
 
     steps = [
         {"name": "check_logs", "type": "containers.logs", "params": {"container": "vllm"}, "timeout": 30},
-        {"name": "check_gpu", "type": "gpu.nvidia_smi", "params": {"host": "dockp01"}, "timeout": 15},
+        {"name": "check_gpu", "type": "gpu.nvidia_smi", "params": {"host": "host-01"}, "timeout": 15},
     ]
-    created = await create_pending_steps("TRG-TEST0001", steps, {"target": "vllm", "host": "dockp01"})
+    created = await create_pending_steps("TRG-TEST0001", steps, {"target": "vllm", "host": "host-01"})
     assert len(created) == 2
     assert created[0]["step_type"] == "containers.logs"
     assert created[1]["step_type"] == "gpu.nvidia_smi"
@@ -180,9 +180,9 @@ async def test_template_substitution(client):
             "params": {"container": "{{ target }}", "host": "{{host}}"},
         },
     ]
-    created = await create_pending_steps("TRG-TMPL", steps, {"target": "vllm-primary", "host": "dockp01"})
+    created = await create_pending_steps("TRG-TMPL", steps, {"target": "vllm-primary", "host": "host-01"})
     assert created[0]["params"]["container"] == "vllm-primary"
-    assert created[0]["params"]["host"] == "dockp01"
+    assert created[0]["params"]["host"] == "host-01"
 
 
 @pytest.mark.asyncio

@@ -234,13 +234,13 @@ async def test_compliance_audit_incidents(client):
     inc_resp = await client.post("/ops/incidents", json={
         "target": "vllm-primary",
         "title": "test incident",
-        "detected_by": "nemoclaw",
+        "detected_by": "ops-agent",
     })
     inc_id = inc_resp.json()["id"]
 
     # Emit a matching event
     await client.post("/ops/events", json={
-        "source": "nemoclaw",
+        "source": "ops-agent",
         "type": "incident.opened",
         "target": "vllm-primary",
         "related_incident_id": inc_id,

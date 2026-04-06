@@ -3,11 +3,11 @@
 > **Date**: 2026-03-30
 > **Agent**: Architect
 > **Status**: Approved
-> **Trigger**: CC hooks not in place — need agent-agnostic integration layer
+> **Trigger**: Agent hooks not in place -- need agent-agnostic integration layer
 
 ## Problem Statement
 
-Corvus is live with Neo4j graph (157 nodes, 346 edges) and NemoClaw consuming it.
+Corvus is live with Neo4j graph (157 nodes, 346 edges) and ops-agent consuming it.
 But Claude Code still uses static markdown governance rules and admin-api MCP tools.
 OpenCode, Aider, and future agents have no integration path at all.
 
@@ -27,7 +27,7 @@ Corvus server becomes a polyglot endpoint — one container serves four protocol
                     ┌─────────────────────────┐
                     │     Corvus Server        │
                     │                          │
-  CC/MCP agents ──► │  /mcp (SSE transport)    │ ◄── MCP protocol
+  MCP agents ─────► │  /mcp (SSE transport)    │ ◄── MCP protocol
                     │                          │
   Any HTTP agent ──►│  /ops/* (REST API)       │ ◄── HTTP/JSON
                     │                          │
@@ -42,8 +42,8 @@ Corvus server becomes a polyglot endpoint — one container serves four protocol
 ### Output 1: Built-in MCP Server
 
 Corvus serves MCP tools via SSE transport from the same FastAPI process.
-No separate container, no bridge. CC connects by adding Corvus to its
-MCP config — same as any other MCP server.
+No separate container, no bridge. Any MCP-capable agent connects by adding Corvus to its
+MCP config -- same as any other MCP server.
 
 **MCP Tool Mapping:**
 
@@ -78,7 +78,7 @@ Generated from OpenAPI spec. Installable via pip.
 ```bash
 # Examples
 corvus blast-radius caddy
-corvus triage vllm-primary --host tmtdockp01 --evidence '{"exit_code": 137}'
+corvus triage vllm-primary --host host-01 --evidence '{"exit_code": 137}'
 corvus check-target litellm
 corvus incidents --status open
 corvus graph stats
@@ -92,7 +92,7 @@ Config via `~/.corvus.yaml` or env vars (`CORVUS_URL`, `CORVUS_API_KEY`).
 
 ### Output 3: Python SDK
 
-What NemoClaw's `corvus_client.py` already is — but auto-generated, published,
+What ops-agent's `corvus_client.py` already is -- but auto-generated, published,
 and version-tracked.
 
 ```python
@@ -107,7 +107,7 @@ async with CorvusClient("https://corvus.example.com", api_key="...") as client:
     # Triage
     diagnosis = await client.triage(
         target="vllm-primary",
-        host="tmtdockp01",
+        host="host-01",
         service_type="inference",
         evidence={"exit_code": 137, "error_lines": ["CUDA OOM..."]}
     )
@@ -175,8 +175,8 @@ verify generated code matches the spec (fail if drift detected).
 ### Phase 1: MCP Server (embedded in Corvus)
 - Add MCP SSE endpoint to Corvus FastAPI app
 - Register all existing API endpoints as MCP tools
-- CC adds Corvus to `.mcp.json` config
-- CC governance rules updated to prefer `corvus_*` tools over `admin_api_ops_*`
+- Agent adds Corvus to MCP config
+- Agent governance rules updated to prefer `corvus_*` tools over `admin_api_ops_*`
 
 ### Phase 2: CLI
 - Generate CLI from OpenAPI
@@ -184,9 +184,9 @@ verify generated code matches the spec (fail if drift detected).
 - Shell-based agents and humans get quick access
 
 ### Phase 3: SDK + Agent Instructions
-- Extract NemoClaw's CorvusClient into published SDK
+- Extract ops-agent's CorvusClient into published SDK
 - Build agent-instructions endpoint
-- Update CC governance rules to reference Corvus instructions
+- Update agent governance rules to reference Corvus instructions
 
 ### Phase 4: Codegen Pipeline
 - Build `corvus-codegen` script
@@ -204,7 +204,7 @@ verify generated code matches the spec (fail if drift detected).
 ## Rollback Plan
 
 Each phase is independently reversible:
-- Phase 1: Remove `/mcp` route, CC falls back to admin-api tools
+- Phase 1: Remove `/mcp` route, agents fall back to admin-api tools
 - Phase 2: CLI is a separate package, uninstall to remove
 - Phase 3: SDK is a separate package; agent instructions endpoint returns 404 if disabled
 - Phase 4: Codegen is a dev tool, not runtime — removing it just means manual updates

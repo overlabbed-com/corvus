@@ -13,7 +13,7 @@ async def test_triage_creates_log_entry(client):
         "/ops/cmdb/register",
         json={
             "name": "vllm-primary",
-            "host": "dockp04",
+            "host": "host-04",
             "service_type": "inference",
             "critical": True,
         },
@@ -48,7 +48,7 @@ async def test_triage_outcome_success(client):
         "/ops/cmdb/register",
         json={
             "name": "vllm-primary",
-            "host": "dockp04",
+            "host": "host-04",
             "service_type": "inference",
             "critical": True,
         },
@@ -83,7 +83,7 @@ async def test_triage_outcome_failure(client):
         "/ops/cmdb/register",
         json={
             "name": "redis-primary",
-            "host": "dockp04",
+            "host": "host-04",
             "service_type": "database",
             "critical": True,
         },
@@ -115,7 +115,7 @@ async def test_triage_list_filters(client):
         "/ops/cmdb/register",
         json={
             "name": "vllm-primary",
-            "host": "dockp04",
+            "host": "host-04",
             "service_type": "inference",
             "critical": True,
         },
@@ -147,7 +147,7 @@ async def test_triage_no_runbook_still_logs(client):
         "/ops/cmdb/register",
         json={
             "name": "custom-svc",
-            "host": "dockp04",
+            "host": "host-04",
             "service_type": "custom_type",
         },
     )
@@ -195,7 +195,7 @@ async def test_triage_re_patch_returns_409(client):
         "/ops/cmdb/register",
         json={
             "name": "redis-dup",
-            "host": "dockp04",
+            "host": "host-04",
             "service_type": "database",
             "critical": True,
         },
@@ -233,7 +233,7 @@ async def test_metrics_runbook_hit_rate(client):
         "/ops/cmdb/register",
         json={
             "name": "vllm-primary",
-            "host": "dockp04",
+            "host": "host-04",
             "service_type": "inference",
             "critical": True,
         },

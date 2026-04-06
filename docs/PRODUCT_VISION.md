@@ -9,19 +9,21 @@
 
 Your AI agents are smart individually. Corvus makes them smart together.
 
-## Origin Story
+## Origin
 
-Born from a homelab with two AI agents (Claude Code and NemoClaw) that kept
-stepping on each other. CC stopped a container for GPU training. NemoClaw detected
-it as a failure and alerted. The human was the message bus between his own AI tools.
+Built to solve a real problem: two AI agents sharing infrastructure with no
+shared awareness. Agent A stopped a container for GPU training. Agent B detected
+it as a failure and alerted. The human operator was the message bus between
+agents that should have been coordinating automatically.
 
-The solution evolved through four projects:
-- **Project 019 (SOP)**: Shared database — changes, incidents, problems, CMDB, events
-- **Project 020 (FMEA Runbooks)**: Service-type-aware triage — not generic log pulls
-- **Project 021 (UOP)**: Unified protocol — same rules for all agents, blind spot detection
-- **Project 023 (Graph Explorer)**: OCSF-native audit trail with Splunk visualization
+The solution evolved through four capabilities:
+- **Shared Operational Picture**: Shared database -- changes, incidents, problems, CMDB, events
+- **FMEA Runbooks**: Service-type-aware triage -- not generic log pulls
+- **Unified Ops Protocol**: Same rules for all agents, blind spot detection
+- **Graph Explorer**: OCSF-native audit trail with SIEM visualization
 
-The inflection point: this isn't a homelab tool. This is a product that doesn't exist yet.
+The inflection point: this is not a single-deployment tool. This is a product
+that does not exist yet.
 
 ## Core Thesis
 
@@ -34,15 +36,15 @@ regardless of which agents, LLMs, or infrastructure you use.
 
 ### Core (always deployed)
 
-| Capability | Description | Origin |
-|-----------|-------------|--------|
-| **Shared Ops State** | Changes, incidents, problems, CMDB — one source of truth | Project 019 |
-| **Event Protocol** | OCSF 1.3.0 native, graph-traversable, SIEM-portable | Project 023 |
-| **Knowledge Management** | RAG-backed operational memory — agents learn from resolutions | Project 015/017 |
-| **FMEA Runbooks** | Service-type-aware triage — failure mode analysis, not pattern matching | Project 020 |
-| **Blind Spot Detection** | System knows what it doesn't know, generates improvement backlog | Project 021 |
-| **Conflict Check** | Pre-action target status: GO/CAUTION/STOP | Project 021 |
-| **Runbook Engine** | YAML-based, declarative, auditable investigation + remediation | Project 020 |
+| Capability | Description |
+|-----------|-------------|
+| **Shared Ops State** | Changes, incidents, problems, CMDB -- one source of truth |
+| **Event Protocol** | OCSF 1.3.0 native, graph-traversable, SIEM-portable |
+| **Knowledge Management** | RAG-backed operational memory -- agents learn from resolutions |
+| **FMEA Runbooks** | Service-type-aware triage -- failure mode analysis, not pattern matching |
+| **Blind Spot Detection** | System knows what it doesn't know, generates improvement backlog |
+| **Conflict Check** | Pre-action target status: GO/CAUTION/STOP |
+| **Runbook Engine** | YAML-based, declarative, auditable investigation + remediation |
 
 ### Extensible Modules
 
@@ -68,7 +70,7 @@ regardless of which agents, LLMs, or infrastructure you use.
 | Category | Systems | Status |
 |----------|---------|--------|
 | Ticketing | Jira, ServiceNow, Linear | Planned |
-| Communication | Slack, Teams, PagerDuty | Slack built (NemoClaw) |
+| Communication | Slack, Teams, PagerDuty | Slack built (ops-agent) |
 | SIEM | Splunk, Azure Sentinel, Google Chronicle, Elastic | Splunk in progress |
 | LLM | Any OpenAI-compatible API | Built (via LiteLLM) |
 | Infrastructure | Docker, Kubernetes, bare metal | Docker built |
@@ -76,8 +78,8 @@ regardless of which agents, LLMs, or infrastructure you use.
 #### Agent Adapters
 | Agent Framework | Description | Status |
 |----------------|-------------|--------|
-| NemoClaw | TMT Homelab autonomous ops agent | Built (customer zero) |
-| Claude Code | CC governance rules + MCP tools | Built (customer zero) |
+| ops-agent | Reference deployment autonomous ops agent | Built (customer zero) |
+| Claude Code | Agent governance rules + MCP tools | Built (customer zero) |
 | CrewAI | CrewAI agent adapter | Planned |
 | AutoGen | AutoGen adapter | Planned |
 | LangChain | LangChain agent adapter | Planned |
@@ -91,8 +93,8 @@ regardless of which agents, LLMs, or infrastructure you use.
 | 2026-03-29 | OCSF-native from day one | Portable across SIEMs. Standard > custom. |
 | 2026-03-29 | Single deployable (corvus-server) | One container, one config. Not a distributed system. |
 | 2026-03-29 | Modules, not hardcoded frameworks | Governance and compliance are plug-in, not built-in. ITIL is a module. |
-| 2026-03-29 | NemoClaw is a consumer, not part of product | Agents are customers. Corvus is the platform. |
-| 2026-03-29 | Portability as design constraint, not feature | Every decision must work outside the homelab. |
+| 2026-03-29 | ops-agent is a consumer, not part of product | Agents are customers. Corvus is the platform. |
+| 2026-03-29 | Portability as design constraint, not feature | Every decision must work outside the reference deployment. |
 | 2026-03-29 | Blind spot detection is operational, not periodic | The system generates problem records about its own gaps in real-time. |
 | 2026-03-29 | Gaps ARE problems (existing table) | No new abstractions. Gaps use the same lifecycle as operational problems. |
 | 2026-03-29 | Compliance evidence is auto-generated | Map OCSF events to control frameworks. Audit prep is a query, not a project. |
@@ -146,12 +148,12 @@ regardless of which agents, LLMs, or infrastructure you use.
 ### Unified Protocol
 | ID | Idea | Impact | Effort | Status |
 |----|------|--------|--------|--------|
-| UP-1 | CC ops compliance (emit events, create incidents) | Very High | Medium | Rules written, needs practice |
-| UP-2 | Real-time event feed to CC sessions | Very High | Medium | MCP tool deployed |
-| UP-3 | Shared FMEA runbooks (CC + NC use same) | High | Medium | Planned (021 P3) |
+| UP-1 | Agent-A ops compliance (emit events, create incidents) | Very High | Medium | Rules written, needs practice |
+| UP-2 | Real-time event feed to Agent-A sessions | Very High | Medium | MCP tool deployed |
+| UP-3 | Shared FMEA runbooks (Agent-A + ops-agent use same) | High | Medium | Planned |
 | UP-4 | Pre-action conflict check | High | Medium | Deployed |
 | UP-5 | Unified incident lifecycle | Very High | Low | Design exists |
-| UP-6 | NC conflict check (NC checks for CC activity) | High | Medium | Planned (021 P2) |
+| UP-6 | ops-agent conflict check (ops-agent checks for Agent-A activity) | High | Medium | Planned |
 
 ## Threat Model Findings (2026-03-29)
 
@@ -167,7 +169,7 @@ regardless of which agents, LLMs, or infrastructure you use.
 
 Full report: `docs/designs/2026-03-29-threat-model.md`
 
-## Customer Zero: TMT Homelab
+## Reference Deployment
 
 | Metric | Value |
 |--------|-------|
@@ -175,8 +177,8 @@ Full report: `docs/designs/2026-03-29-threat-model.md`
 | FMEA service types | 14 |
 | Triage runbooks | 3 (inference, database, proxy) |
 | Docker hosts | 4 |
-| GPUs | 9 (692GB VRAM) |
-| AI agents | 2 (NemoClaw + Claude Code) |
+| GPUs | 9 |
+| AI agents | 2 (ops-agent + Claude Code) |
 | SOP tables | 5 (changes, events, CMDB, incidents, problems) |
 | REST endpoints | 25+ |
 | MCP tools | 15 |
@@ -197,7 +199,7 @@ Logo: Corvus constellation (4-star quadrilateral) with stylized crow silhouette 
 - [ ] Migrate OCSF transformer → corvus-server/src/
 - [ ] Write protocol spec documents (spec/)
 - [ ] Set up CI/CD for corvus-server Docker image
-- [ ] Create NemoClaw integration example (examples/nemoclaw/)
+- [ ] Create ops-agent integration example (examples/ops-agent/)
 - [ ] Create Claude Code integration example (examples/claude-code/)
 
 ### Short-term (product hardening)
@@ -208,7 +210,7 @@ Logo: Corvus constellation (4-star quadrilateral) with stylized crow silhouette 
 - [ ] Deploy runbook (triage-deploy.yaml — CI/CD pipeline failure investigation)
 - [ ] Config drift detection (CMDB declared vs running state comparison)
 - [ ] Remediate CRITICAL threat model findings (E1.1, E1.2)
-- [ ] Complete UOP Phase 1 exit criteria (1b, 1c, 1d)
+- [ ] Complete UOP Phase 1 exit criteria
 - [ ] Remaining FMEA runbooks (11 service types)
 - [ ] Splunk app Phase 3 (graph explorer)
 - [ ] Compliance module: SOC 2 control mapping (first compliance module)

@@ -2,7 +2,7 @@
 
 > Agent: Architect
 > Workspace: automation
-> Project: 021-unified-ops-protocol
+> Project: unified-ops-protocol
 > Risk Level: AUTO (design only)
 > Generated: 2026-03-29
 
@@ -22,13 +22,13 @@ records to drive its own improvement.
 - Governance rules, ops-protocol.md, agent file updates
 
 ### 1b: Compliance Instrumentation
-**Exit criterion**: >90% of CC MODIFY+ actions have corresponding SOP events, measured over 10 sessions.
+**Exit criterion**: >90% of agent MODIFY+ actions have corresponding SOP events, measured over 10 sessions.
 
 Deliverables:
 - Compliance counter in Admin API: every target check and event emission logged
-- Session-end compliance audit: compare CC actions vs SOP events
+- Session-end compliance audit: compare agent actions vs SOP events
 - Extend `GET /ops/metrics` with compliance stats
-- Gap: "CC took action X but didn't emit event" → auto-flagged
+- Gap: "Agent took action X but didn't emit event" → auto-flagged
 
 ### 1c: Feedback Loop
 **Exit criterion**: Runbook effectiveness and resolution time are measured and queryable.
@@ -44,7 +44,7 @@ Deliverables:
 
 Deliverables:
 - CMDB `baseline_behavior` populated for high-noise services (certbot, autoheal, etc.)
-- NemoClaw triage checks baseline before alerting: "certbot restarts daily = not incident"
+- ops-agent triage checks baseline before alerting: "certbot restarts daily = not incident"
 - Intelligent severity scoring: service_type + critical + dependency_count → score
 - False positive tracking: incidents created then immediately resolved with no action
 
@@ -66,7 +66,7 @@ Every gap source runs automatically as part of existing operational loops:
 | Triage: `UNKNOWN` diagnosis | Every triage cycle | `gap:accuracy:unclassifiable` | CI |
 | Triage: no runbook for service_type | Every triage cycle | `gap:coverage:no-runbook` | NFI |
 | Triage: generic fallback used | Every triage cycle | `gap:coverage:generic-fallback` | NFI |
-| Incident: Todd resolves manually | Every manual resolution | `gap:autonomy:manual-resolution` | CI |
+| Incident: Operator resolves manually | Every manual resolution | `gap:autonomy:manual-resolution` | CI |
 | Incident: fix ≠ runbook recommendation | Every resolution | `gap:accuracy:wrong-recommendation` | CI |
 | Incident: resolution time > 2x baseline | Every resolution | `gap:efficiency:slow-resolution` | CI |
 | Sweep: service not seen in 7 days | Every sweep | `gap:monitoring:unseen-service` | NFI |
@@ -104,7 +104,7 @@ Pattern prefix determines workstream:
 
 ### Integration Points
 
-**NemoClaw triage.py** — after every diagnosis:
+**ops-agent triage.py** — after every diagnosis:
 ```python
 if diagnosis.root_cause == RootCause.UNKNOWN:
     await self._create_gap_problem(target, "gap:accuracy:unclassifiable", ...)
@@ -112,7 +112,7 @@ if runbook is None and service_type:
     await self._create_gap_problem(target, "gap:coverage:no-runbook", ...)
 ```
 
-**NemoClaw health_monitor.py** — during discovery sync:
+**ops-agent health_monitor.py** — during discovery sync:
 ```python
 if service.get("service_type") is None:
     await self._create_gap_problem(name, "gap:coverage:untyped-service", ...)
@@ -124,7 +124,7 @@ if service.get("service_type") is None:
 # Track resolution time vs baseline
 ```
 
-**NemoClaw proactive_ops.py** — weekly sweep:
+**ops-agent proactive_ops.py** — weekly sweep:
 ```python
 # Services not seen in 7 days
 # Trust ledger stale escalations
@@ -139,8 +139,8 @@ incident to `correlated_incidents`. If no, create new.
 
 ### Visibility
 
-- Gap problems appear in `ops_get_context` (CC session start briefing)
-- Gap problems appear in NemoClaw's weekly FMEA report
+- Gap problems appear in `ops_get_context` (agent session start briefing)
+- Gap problems appear in ops-agent's weekly FMEA report
 - Gap problems with `gap:security:*` pattern → P2 notification channel
 - Gap count by workstream in `GET /ops/metrics`
 
@@ -179,7 +179,7 @@ work items in the right lane.
 ## Portability Note
 
 Every component in this design is agent-agnostic:
-- Gap patterns use a generic taxonomy (not "nemoclaw can't do X")
+- Gap patterns use a generic taxonomy (not "ops-agent can't do X")
 - Problem records use the existing SOP schema
 - Workstream routing is pattern-based, not agent-based
 - Any agent that speaks the protocol can detect gaps and consume gap records

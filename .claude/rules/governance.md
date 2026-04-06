@@ -43,7 +43,7 @@ For planned work (deployments, upgrades, config changes):
 2. **During work**: Emit events for each step
 3. **After completion**: `ops_close_change(change_id, status="completed", outcome="success")`
 
-This prevents NemoClaw from alerting on your planned restarts.
+This prevents ops-agent from alerting on your planned restarts.
 
 ## 4. Incident Records
 

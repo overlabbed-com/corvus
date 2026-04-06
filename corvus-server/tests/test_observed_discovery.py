@@ -26,12 +26,12 @@ class TestParseConntrack:
             "src=172.20.0.5 dst=172.20.0.7 sport=33100 dport=6379 "
             "src=172.20.0.7 dst=172.20.0.5 sport=6379 dport=33100 [ASSURED]\n"
         )
-        conns = parse_conntrack(raw, host="tmtdockp01")
+        conns = parse_conntrack(raw, host="host-01")
         assert len(conns) == 2
         assert conns[0].src_ip == "172.20.0.5"
         assert conns[0].dst_ip == "172.20.0.3"
         assert conns[0].dst_port == 5432
-        assert conns[0].host == "tmtdockp01"
+        assert conns[0].host == "host-01"
         assert conns[1].dst_port == 6379
 
     def test_skip_non_established(self):
@@ -83,11 +83,11 @@ class TestParseTetragonEvents:
                 "time": "2026-03-30T12:00:00Z",
             }
         ]
-        conns = parse_tetragon_events(events, host="tmtdockp01")
+        conns = parse_tetragon_events(events, host="host-01")
         assert len(conns) == 1
         assert conns[0].src_ip == "172.20.0.5"
         assert conns[0].dst_port == 5432
-        assert conns[0].host == "tmtdockp01"
+        assert conns[0].host == "host-01"
 
     def test_skip_non_inet(self):
         events = [
@@ -244,7 +244,7 @@ class TestObservedAPI:
             headers=AUTH,
             json={
                 "format": "tuples",
-                "host": "tmtdockp01",
+                "host": "host-01",
                 "connections": [
                     {"src_ip": "172.20.0.5", "dst_ip": "172.20.0.3", "dst_port": 5432},
                 ],
@@ -265,7 +265,7 @@ class TestObservedAPI:
             headers=AUTH,
             json={
                 "format": "conntrack",
-                "host": "tmtdockp01",
+                "host": "host-01",
                 "raw_text": raw,
             },
         )

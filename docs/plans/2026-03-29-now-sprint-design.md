@@ -52,7 +52,7 @@ Regex-based secret stripping module.
 
 | Pattern | Matches |
 |---------|---------|
-| `hlab-[A-Za-z0-9_-]+` | Homelab API keys |
+| `xkey-[A-Za-z0-9_-]+` | Custom API keys |
 | `sk-[A-Za-z0-9_-]{20,}` | OpenAI/Anthropic keys |
 | `ghp_[A-Za-z0-9]{36,}` | GitHub personal tokens |
 | `ghs_[A-Za-z0-9]{36,}` | GitHub server tokens |
@@ -99,7 +99,7 @@ Extend `GET /ops/metrics` response with:
 
 - Changes vs events gap analysis
 - Incidents vs resolution events
-- Per-source breakdown (claude-code vs nemoclaw)
+- Per-source breakdown (claude-code vs ops-agent)
 - Auto-flags gaps as problem records via existing gap detection
 
 ### New: `src/tasks/compliance_audit.py`
