@@ -5,8 +5,8 @@ Usage:
     corvus blast-radius caddy
     corvus context
     corvus incidents --status open
-    corvus emit-event --source claude-code --type change.started --target caddy
-    corvus triage vllm-primary --service-type inference
+    corvus emit-event --source my-agent --type change.started --target proxy
+    corvus triage my-service --service-type inference
 """
 
 from __future__ import annotations

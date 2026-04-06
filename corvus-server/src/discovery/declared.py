@@ -12,6 +12,8 @@ from pathlib import Path
 
 import yaml
 
+from src.config import INFRA_GPUS, INFRA_HOSTS, INFRA_STACK_HOST_MAP
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,61 +28,6 @@ class DiscoveryResult:
     networks: list[dict] = field(default_factory=list)
 
 
-# Static infrastructure data
-HOSTS = [
-    {"name": "tmtdockp01", "ip": "192.168.20.15", "role": "AI Compute 1"},
-    {"name": "tmtdockp02", "ip": "192.168.20.16", "role": "AI Compute 2"},
-    {"name": "tmtdockp03", "ip": "192.168.20.17", "role": "AI Compute 3"},
-    {"name": "tmtdockp04", "ip": "192.168.20.14", "role": "Infrastructure + Storage"},
-]
-
-GPUS = [
-    {"host": "tmtdockp01", "index": 0, "model": "RTX PRO 6000 Blackwell Max-Q", "vram_gb": 98},
-    {"host": "tmtdockp01", "index": 1, "model": "RTX PRO 4500 Blackwell", "vram_gb": 32},
-    {"host": "tmtdockp01", "index": 2, "model": "RTX PRO 6000 Blackwell Max-Q", "vram_gb": 98},
-    {"host": "tmtdockp02", "index": 0, "model": "RTX PRO 5000 Blackwell", "vram_gb": 48},
-    {"host": "tmtdockp02", "index": 1, "model": "RTX PRO 6000 Blackwell", "vram_gb": 98},
-    {"host": "tmtdockp02", "index": 2, "model": "RTX PRO 6000 Blackwell", "vram_gb": 98},
-    {"host": "tmtdockp03", "index": 0, "model": "A5000", "vram_gb": 24},
-    {"host": "tmtdockp03", "index": 1, "model": "RTX PRO 6000 Blackwell Max-Q", "vram_gb": 98},
-    {"host": "tmtdockp03", "index": 2, "model": "RTX PRO 6000 Blackwell Max-Q", "vram_gb": 98},
-]
-
-STACK_HOST_MAP = {
-    "ai": "tmtdockp01",
-    "ai-dev": "tmtdockp01",
-    "ai-stg": "tmtdockp01",
-    "ai-gpu2": "tmtdockp02",
-    "ai-gpu3": "tmtdockp03",
-    "ai-edge": "tmtaip01",
-    "mcp-servers": "tmtdockp01",
-    "core": "tmtdockp01",
-    "dockp01-proxy": "tmtdockp01",
-    "monitoring": "tmtdockp01",
-    "devops": "tmtdockp01",
-    "agents": "tmtdockp01",
-    "dockp02-comfyui": "tmtdockp02",
-    "monitoring-dockp02": "tmtdockp02",
-    "dockp03-audio": "tmtdockp03",
-    "dockp03-plex": "tmtdockp03",
-    "monitoring-dockp03": "tmtdockp03",
-    "dockp04-core": "tmtdockp04",
-    "dockp04-automation": "tmtdockp04",
-    "dockp04-homeauto": "tmtdockp04",
-    "dockp04-media": "tmtdockp04",
-    "dockp04-misc": "tmtdockp04",
-    "dockp04-security": "tmtdockp04",
-    "dockp04-corvus": "tmtdockp04",
-    "monitoring-dockp04": "tmtdockp04",
-    "network": "tmtnsp01",
-    "network-monitoring": "tmtnsp01",
-    "blog": "tmtdockp04",
-    "media": "tmtdockp01",
-    "homeauto": "tmtdockp01",
-    "misc": "tmtdockp01",
-    "security": "tmtdockp01",
-    "docs": "tmtdockp01",
-}
 
 # Regex to extract hostnames from URLs in env var values
 _URL_HOST_RE = re.compile(
@@ -91,8 +38,8 @@ _URL_HOST_RE = re.compile(
 
 
 def _infer_host_from_stack(stack_name: str) -> str | None:
-    """Map a stack directory name to its host using STACK_HOST_MAP."""
-    return STACK_HOST_MAP.get(stack_name)
+    """Map a stack directory name to its host using INFRA_STACK_HOST_MAP."""
+    return INFRA_STACK_HOST_MAP.get(stack_name)
 
 
 def _infer_stack_from_path(compose_path: Path, compose_dir: Path) -> str:
@@ -174,13 +121,13 @@ def parse_compose_dir(compose_dir: str) -> DiscoveryResult:
     root = Path(compose_dir)
     if not root.exists():
         logger.warning("Compose directory does not exist: %s", compose_dir)
-        return DiscoveryResult(hosts=list(HOSTS), gpus=list(GPUS))
+        return DiscoveryResult(hosts=list(INFRA_HOSTS), gpus=list(INFRA_GPUS))
 
     # Find all compose files
     compose_files = sorted(root.rglob("docker-compose.yml"))
     if not compose_files:
         logger.warning("No docker-compose.yml files found in %s", compose_dir)
-        return DiscoveryResult(hosts=list(HOSTS), gpus=list(GPUS))
+        return DiscoveryResult(hosts=list(INFRA_HOSTS), gpus=list(INFRA_GPUS))
 
     logger.info("Found %d compose files in %s", len(compose_files), compose_dir)
 
@@ -214,8 +161,8 @@ def parse_compose_dir(compose_dir: str) -> DiscoveryResult:
 
     # Second pass: extract full service definitions
     result = DiscoveryResult(
-        hosts=list(HOSTS),
-        gpus=list(GPUS),
+        hosts=list(INFRA_HOSTS),
+        gpus=list(INFRA_GPUS),
     )
     seen_networks: set[str] = set()
     seen_services: set[str] = set()

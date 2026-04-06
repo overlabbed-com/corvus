@@ -10,8 +10,8 @@ Works with both local Docker socket and remote Docker TCP API (mTLS).
 
 Configuration:
   CORVUS_DOCKER_HOSTS: Comma-separated host specs.
-    - Local socket: "dockp04:unix:///var/run/docker.sock"
-    - Remote TCP:   "dockp01:https://192.168.20.15:2376"
+    - Local socket: "my-host:unix:///var/run/docker.sock"
+    - Remote TCP:   "remote-host:https://10.0.0.1:2376"
   CORVUS_DOCKER_TLS_DIR: Directory containing TLS certs for remote hosts.
     Expected files: ca.pem, cert.pem, key.pem
   CORVUS_COLLECT_INTERVAL: Collection interval in seconds (default: 900 = 15 min).

@@ -187,7 +187,7 @@ TOOL_DEFINITIONS: list[Tool] = [
         inputSchema={
             "type": "object",
             "properties": {
-                "source": {"type": "string", "description": "Event source (e.g. claude-code, nemoclaw)"},
+                "source": {"type": "string", "description": "Event source (e.g. my-agent, ops-bot)"},
                 "type": {"type": "string", "description": "Event type (e.g. change.started, remediation.restart)"},
                 "target": {"type": "string", "description": "Affected target", "default": ""},
                 "severity": {
@@ -367,7 +367,7 @@ TOOL_DEFINITIONS: list[Tool] = [
         inputSchema={
             "type": "object",
             "properties": {
-                "reporter": {"type": "string", "description": "Who is reporting (e.g. nemoclaw, claude-code)"},
+                "reporter": {"type": "string", "description": "Who is reporting (e.g. my-agent, ops-bot)"},
                 "services": {
                     "type": "array",
                     "description": "Services to register",
@@ -455,7 +455,7 @@ TOOL_DEFINITIONS: list[Tool] = [
         inputSchema={
             "type": "object",
             "properties": {
-                "source": {"type": "string", "description": "Knowledge source (e.g. claude-code:session)"},
+                "source": {"type": "string", "description": "Knowledge source (e.g. my-agent:session)"},
                 "from_service": {"type": "string", "description": "Service that depends"},
                 "to_service": {"type": "string", "description": "Service depended upon"},
                 "relationship": {
@@ -580,12 +580,15 @@ TOOL_DEFINITIONS: list[Tool] = [
         inputSchema={
             "type": "object",
             "properties": {
-                "q": {"type": "string", "description": "Search query (e.g. 'vllm OOM restart', 'caddy TLS error')"},
+                "q": {
+                    "type": "string",
+                    "description": "Search query (e.g. 'inference OOM restart', 'proxy TLS error')",
+                },
                 "source_type": {
                     "type": "string",
                     "description": "Filter: incident, problem, triage, or manual",
                 },
-                "service_type": {"type": "string", "description": "Filter by service type (e.g. vllm, caddy)"},
+                "service_type": {"type": "string", "description": "Filter by service type (e.g. inference, proxy)"},
                 "target": {"type": "string", "description": "Filter by target service name"},
                 "limit": {"type": "integer", "description": "Max results (default 10)"},
             },
@@ -623,7 +626,7 @@ TOOL_DEFINITIONS: list[Tool] = [
             "type": "object",
             "properties": {
                 "since": {"type": "string", "description": "ISO8601 timestamp — only audit items after this"},
-                "source": {"type": "string", "description": "Agent name filter (e.g. claude-code, nemoclaw)"},
+                "source": {"type": "string", "description": "Agent name filter (e.g. my-agent, ops-bot)"},
             },
         },
     ),

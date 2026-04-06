@@ -30,7 +30,7 @@ async def health_check():
 @router.get("/ops/metrics/compliance")
 async def get_compliance_metrics(
     since: str | None = Query(None, description="ISO8601 timestamp — only audit items after this"),
-    source: str | None = Query(None, description="Agent name filter (e.g. claude-code, nemoclaw)"),
+    source: str | None = Query(None, description="Agent name filter (e.g. my-agent, ops-bot)"),
 ):
     """Detailed compliance audit -- per-change, per-incident, per-source breakdown.
 

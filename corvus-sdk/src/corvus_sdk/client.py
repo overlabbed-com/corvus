@@ -2,11 +2,11 @@
 
 Usage:
     async with CorvusClient("http://corvus:8000", token="my-token") as client:
-        status = await client.check_target("caddy")
+        status = await client.check_target("my-proxy")
         if status["recommendation"] == "GO":
             change = await client.create_change(
-                targets=["caddy"],
-                description="Updating Caddyfile",
+                targets=["my-proxy"],
+                description="Updating proxy config",
             )
 """
 

@@ -22,7 +22,7 @@ async def run_compliance_audit(
     Args:
         db: An open aiosqlite connection (caller manages lifecycle).
         since: Optional ISO8601 timestamp — only audit items after this time.
-        source: Optional agent name filter (e.g. 'claude-code', 'nemoclaw').
+        source: Optional agent name filter (e.g. 'my-agent', 'ops-bot').
 
     Returns a dict with:
     - changes: {total, covered, uncovered: [...]}
