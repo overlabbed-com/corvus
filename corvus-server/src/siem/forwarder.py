@@ -39,6 +39,7 @@ def _init_adapters() -> list[SIEMAdapter]:
                 url=os.getenv("CORVUS_SIEM_URL", ""),
                 token=os.getenv("CORVUS_SIEM_TOKEN", ""),
                 index=os.getenv("CORVUS_SIEM_INDEX", "corvus"),
+                verify_tls=os.getenv("CORVUS_SIEM_VERIFY_TLS", "true").lower() == "true",
             )
         elif siem_type == "sentinel":
             from src.siem.sentinel import SentinelAdapter
