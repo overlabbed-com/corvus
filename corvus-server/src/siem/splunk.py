@@ -15,11 +15,12 @@ class SplunkAdapter(SIEMAdapter):
 
     name = "splunk"
 
-    def __init__(self, url: str = "", token: str = "", index: str = "corvus"):
+    def __init__(self, url: str = "", token: str = "", index: str = "corvus", verify_tls: bool = True):
         super().__init__()
         self._url = url
         self._token = token
         self._index = index
+        self._verify_tls = verify_tls
 
     def is_configured(self) -> bool:
         return bool(self._url and self._token)
@@ -31,7 +32,7 @@ class SplunkAdapter(SIEMAdapter):
             "index": self._index,
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=self._verify_tls) as client:
             resp = await client.post(
                 f"{self._url}/services/collector/event",
                 json=payload,
