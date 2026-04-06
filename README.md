@@ -115,7 +115,12 @@ Point your agents at `http://corvus:8000`. See the [protocol spec](spec/) for AP
 
 ## Status
 
-Customer zero: TMT Homelab — 92 services, 4 hosts, 9 GPUs, 2 AI agents (NemoClaw + Claude Code).
+**Customer Zero**: TMT Homelab — 92 services, 4 hosts, 9 GPUs, 2 AI agents (NemoClaw + Claude Code).
+
+**Deployments**:
+
+- `tmttodd/shrike` — Primary customer zero under tmttodd org
+- `overlabbed-com/corvus` — Public upstream reference deployment
 
 Active development. Core is proven in production. Modules and packaging in progress.
 
