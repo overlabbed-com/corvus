@@ -78,7 +78,7 @@ Add to `.claude/settings.json`:
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-http"],
       "env": {
-        "HTTP_URL": "https://corvus.themillertribe-int.org/ops/mcp/sse",
+        "HTTP_URL": "https://corvus.yourdomain.com/ops/mcp/sse",
         "HTTP_HEADERS": {
           "Authorization": "Bearer YOUR_CORVUS_API_KEY"
         }

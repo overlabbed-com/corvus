@@ -1,4 +1,6 @@
-# Corvus Deployment - dockp04
+# Corvus Deployment
+
+Generic deployment template - customize for your infrastructure.
 
 Next-gen customer zero deployment of Corvus operational governance platform.
 
@@ -6,7 +8,7 @@ Next-gen customer zero deployment of Corvus operational governance platform.
 
 ```bash
 # 1. Clone the config
-cd /mnt/docker/stacks/dockp04-corvus
+cd /mnt/docker/stacks/corvus  # or your stack directory
 cp .env.template .env
 
 # 2. Generate API keys for your agents

@@ -2,8 +2,8 @@
 # Next-gen customer zero deployment
 #
 # Deploy: git push → CI/CD → ssh dockp04 "docker compose pull && docker compose up -d"
-# Health: http://corvus.themillertribe-int.org/health
-# API: http://corvus.themillertribe-int.org/ops/events
+# Health: http://corvus.yourdomain.com/health
+# API: http://corvus.yourdomain.com/ops/events
 
 services:
   corvus:
@@ -64,12 +64,8 @@ services:
       - netdata.dashboards.enable=true
       - netdata.export=true
 
-      # Reverse proxy (Caddy)
-      - caddy.corvus.themillertribe-int.org=corvus:8000
-      - caddy.corvus.themillertribe-int.org.handle_path=/health=reverse_proxy corvus:8000
-      - caddy.corvus.themillertribe-int.org.handle_path=/ops/=reverse_proxy corvus:8000
-      - caddy.corvus.themillertribe-int.org.handle_path=/docs=reverse_proxy corvus:8000
-      - caddy.corvus.themillertribe-int.org.handle_path=/:8000=reverse_proxy corvus:8000
+      # Reverse proxy (Caddy) - customize for your domain
+      # Example: - caddy.corvus.yourdomain.com=corvus:8000
 
     restart: unless-stopped
     healthcheck:
