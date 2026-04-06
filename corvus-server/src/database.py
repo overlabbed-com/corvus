@@ -166,7 +166,10 @@ CREATE TABLE IF NOT EXISTS ops_knowledge (
     service_type TEXT,
     target TEXT,
     created_at TEXT NOT NULL,
-    updated_at TEXT
+    updated_at TEXT,
+    embeddings TEXT,
+    indexed_from TEXT,
+    node_id TEXT DEFAULT 'local'
 );
 
 CREATE INDEX IF NOT EXISTS idx_knowledge_source ON ops_knowledge(source_type, source_id);
@@ -190,16 +193,6 @@ CREATE TABLE IF NOT EXISTS ops_trust_ledger (
     trust_tier TEXT DEFAULT 'ESCALATE',
     promoted_at TEXT,
     demoted_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS ops_knowledge (
-    id TEXT PRIMARY KEY,
-    content TEXT NOT NULL,
-    embeddings TEXT NOT NULL,
-    metadata TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL,
-    indexed_from TEXT,
-    node_id TEXT DEFAULT 'local'
 );
 
 CREATE TABLE IF NOT EXISTS mesh_peers (

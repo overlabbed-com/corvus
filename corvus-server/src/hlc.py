@@ -21,10 +21,9 @@ locks. For concurrent access from multiple threads, wrap calls in a threading.Lo
         hlc.merge(remote_ts)
 """
 
-from dataclasses import dataclass
-import time
 import json
-from typing import Optional
+import time
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

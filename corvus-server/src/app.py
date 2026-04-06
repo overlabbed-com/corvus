@@ -12,7 +12,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from src.config import MCP_ENABLED
+from src.config import API_KEYS, CORVUS_DEV_MODE, MCP_ENABLED, OIDC_ENABLED
 from src.dashboard.router import router as dashboard_router
 from src.database import init_db
 from src.discovery.collector import start_collector, stop_collector
@@ -60,6 +60,14 @@ RUNBOOK_DIRS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # T3.2: Refuse to start without auth unless explicitly in dev mode
+    if not CORVUS_DEV_MODE and not API_KEYS and not OIDC_ENABLED:
+        raise RuntimeError(
+            "No authentication configured (CORVUS_API_KEYS empty, OIDC_ENABLED=false). "
+            "Set CORVUS_DEV_MODE=true to allow anonymous admin access, or configure "
+            "API keys via CORVUS_API_KEYS='name:key' environment variable."
+        )
+
     await init_db()
     await init_graph()
 

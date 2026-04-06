@@ -26,6 +26,7 @@ def _configure_api_keys(monkeypatch):
         "readonly-key-789": "dashboard:ops-read",
     }
     monkeypatch.setattr(config, "API_KEYS", test_keys)
+    monkeypatch.setattr(config, "CORVUS_DEV_MODE", False)
     # Also patch the module-level reference in auth middleware
     from src.middleware import auth
     monkeypatch.setattr(auth, "API_KEYS", test_keys)

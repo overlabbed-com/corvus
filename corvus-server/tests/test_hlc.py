@@ -3,11 +3,9 @@
 TDD-driven development: These tests define the expected behavior.
 """
 
-import pytest
 import json
-from datetime import datetime
-import sys
 import os
+import sys
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -45,7 +43,7 @@ class TestHLCUniqueness:
         timestamps = [hlc.now() for _ in range(1000)]
 
         # All timestamps should be unique
-        unique_timestamps = set(str(ts) for ts in timestamps)
+        unique_timestamps = {str(ts) for ts in timestamps}
         assert len(unique_timestamps) == 1000
 
         # All should be comparable (total ordering)
@@ -63,7 +61,7 @@ class TestHLCMergeCausalOrder:
 
         # Generate timestamps on different nodes
         ts1_a = hlc1.now()
-        ts2_a = hlc2.now()
+        hlc2.now()
 
         # Simulate causal relationship: ts2_b happens after ts1_a
         # Node 2 receives ts1_a, then generates ts2_b
@@ -142,30 +140,29 @@ class TestHLCSerialization:
 
     def test_logical_increases_on_physical_backward(self, monkeypatch):
         """When physical clock moves backward, logical should increase."""
-        import time
-        
+
         hlc = HLC(node_id="node-1")
-        ts1 = hlc.now()
-        
+        hlc.now()
+
         # Mock time to return older timestamp
 
     def test_logical_increases_on_physical_backward(self, monkeypatch):
         """When physical clock moves backward, logical should increase."""
         import time
-        
+
         hlc = HLC(node_id="node-1")
-        
+
         # First call: use real time
         ts1 = hlc.now()
         last_physical = ts1.physical
-        
+
         # Mock time to return older timestamp (older than last_physical)
         def mock_time_ns():
             return last_physical - 1000000  # 1ms older
-        
+
         monkeypatch.setattr(time, "time_ns", mock_time_ns)
         ts2 = hlc.now()
-        
+
         # Logical should have increased since physical went backward
         assert ts2.logical > ts1.logical, f"Expected logical {ts1.logical} < {ts2.logical}"
 
@@ -173,8 +170,8 @@ class TestHLCSerialization:
         """Equality with non-HLCTimestamp should return NotImplemented."""
         hlc = HLC(node_id="node-1")
         ts = hlc.now()
-        
+
         assert ts == ts  # Self-equality
-        assert not (ts == "string")  # Different type
-        assert not (ts == 123)  # Different type
-        assert not (ts == None)  # None
+        assert ts != "string"  # Different type
+        assert ts != 123  # Different type
+        assert ts is not None  # None

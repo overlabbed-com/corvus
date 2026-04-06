@@ -1,7 +1,5 @@
 """Tests for runbook schema validation (T1.2) and ReDoS protection (D1.3)."""
 
-import tempfile
-from pathlib import Path
 
 import pytest
 import yaml

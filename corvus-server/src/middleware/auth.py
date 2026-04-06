@@ -18,12 +18,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import JSONResponse, Response
 
 from src.config import API_KEYS, OIDC_ENABLED
-
 from src.middleware.oidc_auth import (
     Identity,
-    OIDCAuthMiddleware,
-    get_oidc_config,
-    oidc_verify_token,
 )
 
 logger = logging.getLogger(__name__)
@@ -130,7 +126,7 @@ def authenticate_request(request: Request) -> AuthContext | None:
     Priority order:
     1. OIDC/JWT validation if enabled
     2. API key validation (backward compat)
-    
+
     Returns AuthContext on success.
     Raises HTTPException on auth failures.
     """
@@ -151,7 +147,7 @@ def authenticate_request(request: Request) -> AuthContext | None:
     if OIDC_ENABLED:
         try:
             from src.middleware.oidc_auth import get_oidc_config
-            
+
             config = get_oidc_config()
             if config:
                 token = _extract_bearer_token(request)
@@ -167,7 +163,7 @@ def authenticate_request(request: Request) -> AuthContext | None:
                             role = Role.OPS_WRITE
                         elif "ops-read" in roles:
                             role = Role.OPS_READ
-                        
+
                         logger.debug(f"OIDC authenticated: {identity} as {role}")
                         return AuthContext(
                             key_name=identity.sub,
@@ -205,7 +201,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     This middleware supports both OIDC/JWT and API key auth:
     - If OIDC_ENABLED=true and JWT provided: validate via OIDC provider
     - Otherwise: validate API key
-    
+
     Ensures every /ops/ and /backup/ endpoint requires authentication.
     Auth context is stored in request.state.auth for downstream use.
     """
@@ -278,7 +274,7 @@ async def get_auth(
             token = _extract_bearer_token(request)
             if token:
                 from src.middleware.oidc_auth import get_oidc_config
-                
+
                 config = get_oidc_config()
                 if config:
                     identity = config.validate_token(token)
@@ -290,14 +286,14 @@ async def get_auth(
                         role = Role.OPS_WRITE
                     elif "ops-read" in roles:
                         role = Role.OPS_READ
-                    
+
                     return AuthContext(
                         key_name=identity.sub,
                         role=role,
                         identity=identity,
                     )
         except Exception:
-            pass  # Fall through to API key auth
+            logger.debug("OIDC token validation failed, falling back to API key auth")
 
     # API key auth
     if not credentials:
