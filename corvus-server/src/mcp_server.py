@@ -107,7 +107,7 @@ def ops_emit_event(
     - session.started / session.ended
 
     Args:
-        source: Your agent identity (e.g., "claude-code", "nemoclaw")
+        source: Your agent identity (e.g., "my-agent", "ops-bot")
         event_type: Event type from the taxonomy above
         target: The service/container affected
         severity: info, warning, or critical
@@ -139,7 +139,7 @@ def ops_create_incident(
     title: str,
     description: str | None = None,
     severity: str = "medium",
-    detected_by: str = "claude-code",
+    detected_by: str = "mcp-agent",
 ) -> str:
     """Create an incident record when you detect or investigate an issue.
 
@@ -151,7 +151,7 @@ def ops_create_incident(
         title: Short incident title
         description: Detailed description of what happened
         severity: low, medium, high, or critical
-        detected_by: Your agent identity (e.g., "claude-code:responder")
+        detected_by: Your agent identity (e.g., "my-agent:responder")
     """
     with _client() as client:
         resp = client.post(
@@ -172,7 +172,7 @@ def ops_create_incident(
 def ops_create_change(
     targets: list[str],
     description: str,
-    created_by: str = "claude-code",
+    created_by: str = "mcp-agent",
     rollback_plan: str | None = None,
     project: str | None = None,
 ) -> str:
@@ -276,7 +276,7 @@ def ops_register_service(
     service_type: str | None = None,
     critical: bool = False,
     dependencies: list[str] | None = None,
-    registered_by: str = "claude-code",
+    registered_by: str = "mcp-agent",
 ) -> str:
     """Register or update a service in the CMDB.
 

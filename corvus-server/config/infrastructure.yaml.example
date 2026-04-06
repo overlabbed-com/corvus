@@ -1,0 +1,30 @@
+# Corvus Infrastructure Configuration
+#
+# This file defines your environment's hosts, GPUs, and stack-to-host mappings.
+# Copy to infrastructure.yaml and customize for your environment.
+# Override the path with CORVUS_INFRA_CONFIG env var.
+#
+# If this file is absent, Corvus runs with empty defaults (no static hosts/GPUs).
+
+hosts:
+  - name: "host-01"
+    ip: "10.0.0.1"
+    role: "Compute Node 1"
+  - name: "host-02"
+    ip: "10.0.0.2"
+    role: "Storage + Infrastructure"
+
+gpus:
+  - host: "host-01"
+    index: 0
+    model: "RTX 4090"
+    vram_gb: 24
+  - host: "host-01"
+    index: 1
+    model: "RTX 4090"
+    vram_gb: 24
+
+stack_host_map:
+  my-app: "host-01"
+  monitoring: "host-01"
+  storage: "host-02"

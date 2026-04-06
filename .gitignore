@@ -32,6 +32,9 @@ Thumbs.db
 # MCP config (contains local URLs)
 .mcp.json
 
+# Instance-specific infrastructure config (only .example is committed)
+corvus-server/config/infrastructure.yaml
+
 # Docker
 *.log
 

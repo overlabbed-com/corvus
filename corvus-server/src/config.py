@@ -1,7 +1,12 @@
 """Corvus server configuration."""
 
+import logging
 import os
 from pathlib import Path
+
+import yaml
+
+logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(os.getenv("CORVUS_DATA_DIR", "/data"))
 DB_PATH = DATA_DIR / "corvus.db"
@@ -47,3 +52,36 @@ OIDC_ISSUER_URL: str = os.getenv("OIDC_ISSUER_URL", "https://accounts.google.com
 OIDC_CLIENT_ID: str = os.getenv("OIDC_CLIENT_ID", "")
 OIDC_CLIENT_SECRET: str = os.getenv("OIDC_CLIENT_SECRET", "")
 OIDC_ENABLED: bool = os.getenv("OIDC_ENABLED", "false").lower() == "true"
+
+# Infrastructure config — loaded from external YAML so no instance-specific
+# data lives in source code.  Set CORVUS_INFRA_CONFIG to override the path.
+INFRA_CONFIG_PATH = os.getenv(
+    "CORVUS_INFRA_CONFIG",
+    str(Path(__file__).parent.parent / "config" / "infrastructure.yaml"),
+)
+
+
+def _load_infra_config() -> dict:
+    """Load infrastructure config from YAML file. Returns empty defaults if not found."""
+    path = Path(INFRA_CONFIG_PATH)
+    if not path.exists():
+        logger.info("No infrastructure config at %s — using empty defaults", path)
+        return {}
+    try:
+        data = yaml.safe_load(path.read_text()) or {}
+        logger.info(
+            "Loaded infrastructure config: %d hosts, %d GPUs, %d stack mappings",
+            len(data.get("hosts", [])),
+            len(data.get("gpus", [])),
+            len(data.get("stack_host_map", {})),
+        )
+        return data
+    except Exception:
+        logger.warning("Failed to load infrastructure config from %s", path, exc_info=True)
+        return {}
+
+
+_infra = _load_infra_config()
+INFRA_HOSTS: list[dict] = _infra.get("hosts", [])
+INFRA_GPUS: list[dict] = _infra.get("gpus", [])
+INFRA_STACK_HOST_MAP: dict[str, str] = _infra.get("stack_host_map", {})
