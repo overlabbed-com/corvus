@@ -2,7 +2,7 @@
 
 > Agent: Architect
 > Workspace: automation
-> Project: 023-ops-graph-explorer
+> Project: ops-graph-explorer
 > Risk Level: AUTO (design only)
 > Generated: 2026-03-29
 
@@ -60,13 +60,13 @@ and graph-navigable in Splunk.
   "activity_id": 1,
   "activity_name": "Create",
   "time": "2026-03-29T18:10:01.412Z",
-  "message": "Container 'vllm-primary' unhealthy on tmtdockp01 — CUDA OOM",
+  "message": "Container 'vllm-primary' unhealthy on host-01 — CUDA OOM",
 
   "metadata": {
     "version": "1.3.0",
     "product": {
       "name": "Unified Ops Protocol",
-      "vendor_name": "TMT Homelab",
+      "vendor_name": "Corvus",
       "version": "1.0.0"
     },
     "logged_time": "2026-03-29T18:10:01.412Z"
@@ -74,9 +74,9 @@ and graph-navigable in Splunk.
 
   "actor": {
     "agent": {
-      "name": "nemoclaw",
+      "name": "ops-agent",
       "type": "AI Ops Agent",
-      "uid": "nemoclaw:health_sweep"
+      "uid": "ops-agent:health_sweep"
     }
   },
 
@@ -93,7 +93,7 @@ and graph-navigable in Splunk.
       "uid": "vllm-primary",
       "name": "vllm-primary",
       "type": "container",
-      "owner": { "name": "tmtdockp01" },
+      "owner": { "name": "host-01" },
       "labels": ["service_type:inference", "stack:ai", "critical:false"]
     }
   ],
@@ -112,7 +112,7 @@ and graph-navigable in Splunk.
 
   "observables": [
     { "name": "target", "type": "hostname", "value": "vllm-primary" },
-    { "name": "host", "type": "hostname", "value": "tmtdockp01" }
+    { "name": "host", "type": "hostname", "value": "host-01" }
   ],
 
   "unmapped": {
@@ -141,7 +141,7 @@ Every OCSF event carries relationship edges in `unmapped`:
     "related_problem_id": "PRB-003",
     "caused_by": "evt-000",
     "triggered": ["evt-002", "evt-003"],
-    "approved_by": "todd:slack:1711735801",
+    "approved_by": "operator:slack:1711735801",
     "remediated_by": "evt-004",
     "verified_by": "evt-005"
   }
@@ -169,7 +169,7 @@ These edges enable Splunk SPL graph queries:
     "uid": "vllm-primary",
     "name": "vllm-primary",
     "type": "container",
-    "hostname": "tmtdockp01",
+    "hostname": "host-01",
     "os": { "name": "Linux" },
     "hw_info": {
       "gpu": { "vram_mb": 100352, "model": "RTX PRO 6000 Max-Q" }

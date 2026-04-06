@@ -71,4 +71,4 @@ remediation:
   escalation_triggers:
     - "database corruption"
     - "network failure"
-    - "ALWAYS notify Todd on restart"
+    - "ALWAYS notify operator on restart"

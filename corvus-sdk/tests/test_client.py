@@ -195,7 +195,7 @@ class TestCMDB:
             return_value=httpx.Response(200, json={
                 "id": "SVC-1",
                 "name": "caddy",
-                "host": "dockp01",
+                "host": "host-01",
                 "service_type": "proxy",
                 "critical": True,
                 "dependencies": '["litellm"]',
@@ -386,7 +386,7 @@ class TestGraph:
             })
         )
         async with client as c:
-            result = await c.correlated_gpu("dockp01", 0)
+            result = await c.correlated_gpu("host-01", 0)
         assert len(result["services"]) == 2
 
     @respx.mock

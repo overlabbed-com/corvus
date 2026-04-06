@@ -1,7 +1,7 @@
 # THEN Sprint Design — Issues #5, #6, #18
 
 > Approved: 2026-03-30
-> Issues: #5 (Signal Quality), #6 (Blind Spot Detection), #18 (CC Governance Rules)
+> Issues: #5 (Signal Quality), #6 (Blind Spot Detection), #18 (agent Governance Rules)
 > Parallel execution: 3 independent branches
 
 ---
@@ -51,11 +51,11 @@ Trigger gap sweep on demand. Returns summary.
 
 ### Extend session briefing
 
-`GET /ops/events/context` includes gap summary for CC session start.
+`GET /ops/events/context` includes gap summary for agent session start.
 
 ---
 
-## Issue #18: CC Governance Rules
+## Issue #18: agent Governance Rules
 
 Four markdown files in `.claude/rules/`:
 

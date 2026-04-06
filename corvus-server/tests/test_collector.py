@@ -29,8 +29,8 @@ class TestHexConversions:
         assert _hex_to_ip("0F0012AC") == "172.18.0.15"
 
     def test_hex_to_ip_private_network(self):
-        # 192.168.20.15 = C0.A8.14.0F → little-endian = 0F14A8C0
-        assert _hex_to_ip("0F14A8C0") == "192.168.20.15"
+        # 10.0.1.15 = 0A.00.01.0F → little-endian = 0F01000A
+        assert _hex_to_ip("0F01000A") == "10.0.1.15"
 
     def test_hex_to_port_http(self):
         assert _hex_to_port("0050") == 80
@@ -57,13 +57,13 @@ class TestParseProcNetTcp:
             "   0: 0F0012AC:1F40 0E0012AC:1E07 01 00000000:00000000 02:00000271 00000000     0        0 12345\n"
             "   1: 0F0012AC:1F40 0D0012AC:18EB 01 00000000:00000000 02:00000271 00000000     0        0 12346\n"
         )
-        conns = parse_proc_net_tcp(raw, host="tmtdockp01")
+        conns = parse_proc_net_tcp(raw, host="host-01")
         assert len(conns) == 2
         assert conns[0].src_ip == "172.18.0.15"
         assert conns[0].src_port == 8000
         assert conns[0].dst_ip == "172.18.0.14"
         assert conns[0].dst_port == 7687
-        assert conns[0].host == "tmtdockp01"
+        assert conns[0].host == "host-01"
         assert conns[1].dst_ip == "172.18.0.13"
         assert conns[1].dst_port == 6379
 

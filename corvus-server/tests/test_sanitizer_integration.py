@@ -161,7 +161,7 @@ class TestSanitizerOnMCP:
 
 
 class TestNewPatterns:
-    """Test new sanitizer patterns added for homelab context."""
+    """Test new sanitizer patterns added for custom API key context."""
 
     def test_corvus_api_key(self):
         result = sanitize("key: corvus-e742918f5893bf1b89b1798fcc1b4f6b")

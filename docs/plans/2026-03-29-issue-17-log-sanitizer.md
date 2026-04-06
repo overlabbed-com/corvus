@@ -31,8 +31,8 @@ from src.sanitizer import sanitize
 class TestSanitize:
     """Test secret pattern redaction."""
 
-    def test_homelab_api_key(self):
-        assert sanitize("token: hlab-nemoclaw-key-1234") == "token: [REDACTED]"
+    def test_custom_api_key(self):
+        assert sanitize("token: xkey-ops-agent-key-1234") == "token: [REDACTED]"
 
     def test_openai_key(self):
         assert sanitize("key=sk-abc123def456ghi789jkl012mno") == "key=[REDACTED]"
@@ -129,7 +129,7 @@ _DEFAULT_PATTERNS: list[tuple[str, str]] = [
     # JWT tokens (header.payload.signature)
     (r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_.-]+", REDACTED),
     # Homelab API keys
-    (r"hlab-[A-Za-z0-9_-]+", REDACTED),
+    (r"xkey-[A-Za-z0-9_-]+", REDACTED),
     # OpenAI/Anthropic keys (sk- followed by 20+ chars, not normal words)
     (r"sk-[A-Za-z0-9]{20,}", REDACTED),
     # GitHub tokens

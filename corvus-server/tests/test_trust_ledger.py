@@ -196,7 +196,7 @@ class TestTrustIntegration:
             "/ops/cmdb/register",
             json={
                 "name": "vllm-primary",
-                "host": "dockp04",
+                "host": "host-04",
                 "service_type": "inference",
             },
         )

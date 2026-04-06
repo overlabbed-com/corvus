@@ -70,7 +70,7 @@ POST /ops/events
 ```
 ```json
 {
-  "source": "claude-code",
+  "source": "agent-a",
   "type": "change.completed",
   "target": "admin-api",
   "severity": "info",
@@ -134,7 +134,7 @@ per-member alerts.
 {
   "group_id": "CG-A1B2C3D4",
   "root_cause": "CUDA OOM on GPU 0",
-  "shared_resource": "gpu:tmtdockp03:0",
+  "shared_resource": "gpu:host-03:0",
   "shared_resource_type": "gpu",
   "member_incidents": ["INC-001", "INC-002", "INC-003", "INC-004"],
   "created_at": "2026-03-30T08:09:00Z"
@@ -150,7 +150,7 @@ POST /ops/correlations/check
 ```json
 {
   "incidents": ["INC-001", "INC-002", "INC-003"],
-  "host": "tmtdockp03"
+  "host": "host-03"
 }
 ```
 Returns a correlation group if the incidents share a resource, or null.

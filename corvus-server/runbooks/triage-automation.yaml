@@ -2,7 +2,7 @@ name: Automation Service Triage
 type: triage
 service_type: automation
 version: 1
-description: FMEA-informed investigation for workflow orchestration (Prefect, Admin API, NemoClaw)
+description: FMEA-informed investigation for workflow orchestration (Prefect, Admin API, ops-agent)
 
 investigation:
   - name: Check container logs
@@ -66,4 +66,4 @@ remediation:
   escalation_triggers:
     - "database connection lost"
     - "all workers down"
-    - "NemoClaw self-failure"
+    - "ops-agent self-failure"

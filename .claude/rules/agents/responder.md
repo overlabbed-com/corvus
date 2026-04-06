@@ -47,13 +47,13 @@ ops_emit_event(
 - Correlate with recent changes (was something just deployed?)
 - Check metrics for patterns
 
-### 5. Coordinate with NemoClaw
+### 5. Coordinate with ops-agent
 
-Check `ops_watch_events` for NemoClaw activity on the same target.
+Check `ops_watch_events` for ops-agent activity on the same target.
 
-- If NemoClaw is actively remediating — wait for its outcome
-- If NemoClaw escalated — it needs human help, that's why you're here
-- If NemoClaw is idle on this target — proceed with your investigation
+- If ops-agent is actively remediating — wait for its outcome
+- If ops-agent escalated — it needs human help, that's why you're here
+- If ops-agent is idle on this target — proceed with your investigation
 
 ### 6. Remediate
 
@@ -73,4 +73,4 @@ When the issue is confirmed fixed:
 - Don't investigate without creating an incident record
 - Don't restart services without checking `ops_check_target` first
 - Don't resolve an incident without documenting root cause
-- Don't ignore NemoClaw's active work on the same target
+- Don't ignore ops-agent's active work on the same target

@@ -2,28 +2,28 @@
 
 > Agent: Architect
 > Workspace: automation
-> Project: 021-unified-ops-protocol
-> Risk Level: APPROVE (modifies CC governance + Admin API + NemoClaw + MCP tools)
+> Project: unified-ops-protocol
+> Risk Level: APPROVE (modifies agent governance + Admin API + ops-agent + MCP tools)
 > Generated: 2026-03-29
 
 ## Summary
 
-Three deliverables that make CC and NC operationally identical:
-1. **Real-time event feed** — CC sessions see NC actions inline via polling MCP tool
-2. **CC ops compliance** — CC emits events and creates incidents through the SOP
-3. **Pre-action conflict check** — both agents check SOP state before acting on targets
+Three deliverables that make agent-a and ops-agent operationally identical:
+1. **Real-time event feed** -- agent-a sessions see ops-agent actions inline via polling MCP tool
+2. **Agent-a ops compliance** -- agent-a emits events and creates incidents through the SOP
+3. **Pre-action conflict check** -- both agents check SOP state before acting on targets
 
 ## Problem Statement
 
-CC and NC share a database but not a protocol. Specific gaps:
+Agent-a and ops-agent share a database but not a protocol. Specific gaps:
 
 | Gap | Impact |
 |-----|--------|
-| CC restarts a container → no incident record, no event | NC doesn't know CC caused it |
-| NC rotates a credential → CC's next session doesn't see it | CC may make decisions on stale state |
-| NC investigating a target → CC starts working on same target | Stepping on each other |
-| CC deploys new stack → change window closes → NC investigates restart | Race condition |
-| NC creates a problem record → CC's Architect doesn't see it | Design decisions miss operational data |
+| Agent-a restarts a container -> no incident record, no event | ops-agent doesn't know agent-a caused it |
+| ops-agent rotates a credential -> agent-a's next session doesn't see it | agent-a may make decisions on stale state |
+| ops-agent investigating a target -> agent-a starts working on same target | Stepping on each other |
+| Agent-a deploys new stack -> change window closes -> ops-agent investigates restart | Race condition |
+| ops-agent creates a problem record -> agent-a's Architect doesn't see it | Design decisions miss operational data |
 
 ## Proposed Solution
 
@@ -38,9 +38,9 @@ def ops_watch_events(
     min_severity: str = "warning",
     limit: int = 10,
 ) -> str:
-    """Watch for recent operational events from NemoClaw and other agents.
+    """Watch for recent operational events from ops-agent and other agents.
 
-    Call periodically during CC sessions to stay aware of infrastructure
+    Call periodically during agent sessions to stay aware of infrastructure
     changes happening in real-time. Returns events since the given timestamp
     (ISO8601), filtered to warning+ severity by default.
 
@@ -49,46 +49,46 @@ def ops_watch_events(
     """
 ```
 
-**How CC uses it**: The governance rules add a periodic check — every time CC is
+**How agent-a uses it**: The governance rules add a periodic check -- every time agent-a is
 about to modify infrastructure or at natural breakpoints, it calls `ops_watch_events`.
-Not a background poll (CC doesn't have that), but a check-before-act pattern.
+Not a background poll (agent-a doesn't have that), but a check-before-act pattern.
 
 **Admin API endpoint**: Already exists — `GET /ops/events?since=...&severity=warning`.
 The MCP tool just wraps it with sensible defaults and formatting.
 
-### Component 2: CC Ops Compliance Rules
+### Component 2: Agent-A Ops Compliance Rules
 
-Updates to `.claude/rules/governance.md` and `.claude/rules/tasks/`:
+Updates to agent governance rules:
 
-**Rule 1: CC MUST emit events for state-changing actions**
+**Rule 1: Agent-a MUST emit events for state-changing actions**
 
-| CC Action | Event Type | When |
+| Agent Action | Event Type | When |
 |-----------|-----------|------|
 | Responder restarts container | `remediation.restart` | After restart |
 | Responder investigates issue | `incident.investigating` | On start |
 | Changemaker merges PR | `change.completed` | After merge |
 | Changemaker creates change window | `change.started` | Already exists |
 | Sentinel detects anomaly | `incident.opened` | On detection |
-| Any agent takes APPROVE action | `action.approved` | After Todd approves |
+| Any agent takes APPROVE action | `action.approved` | After operator approves |
 
-Implementation: Add to governance.md's Incident Workflow and Standard Workflow.
-CC uses the existing `ops_emit_event` MCP tool (already available).
+Implementation: Add to governance rules Incident Workflow and Standard Workflow.
+Agent-a uses the existing `ops_emit_event` MCP tool (already available).
 
-**Rule 2: CC Responder MUST create SOP incident records**
+**Rule 2: Agent-a Responder MUST create SOP incident records**
 
-Currently, CC's Responder writes incident reports to `reports/` as markdown files.
-New rule: CC Responder MUST ALSO create an incident via `ops_create_incident` MCP tool.
+Currently, agent-a's Responder writes incident reports to `reports/` as markdown files.
+New rule: agent-a Responder MUST ALSO create an incident via `ops_create_incident` MCP tool.
 The file-based report is still written (for detail), but the SOP record is the
 canonical tracking mechanism.
 
 **Rule 3: Pre-action conflict check**
 
-Before any MODIFY+ action on a target, CC MUST:
+Before any MODIFY+ action on a target, agent-a MUST:
 1. Call `ops_watch_events(since=<15min_ago>)` — any recent activity on this target?
 2. Check active change windows — is someone else working on it?
 3. Check open incidents — is there an active investigation?
 
-If conflicts detected: STOP, report the conflict, ask Todd how to proceed.
+If conflicts detected: STOP, report the conflict, ask the operator how to proceed.
 
 New MCP tool to make this easy:
 
@@ -125,11 +125,11 @@ Consolidates target status into a single call:
 {
   "target": "vllm-primary",
   "change_windows": [],
-  "open_incidents": [{"id": "INC-042", "status": "investigating", "detected_by": "nemoclaw"}],
+  "open_incidents": [{"id": "INC-042", "status": "investigating", "detected_by": "ops-agent"}],
   "recent_events": [...],
-  "cmdb": {"service_type": "inference", "host": "tmtdockp01", "critical": false},
+  "cmdb": {"service_type": "inference", "host": "host-01", "critical": false},
   "recommendation": "CAUTION",
-  "reason": "Active incident INC-042 being investigated by NemoClaw"
+  "reason": "Active incident INC-042 being investigated by ops-agent"
 }
 ```
 
@@ -142,16 +142,16 @@ Consolidates target status into a single call:
 ### Phase 1b: Admin API (new endpoint)
 3. `GET /ops/targets/{target}/status` — consolidated target status
 
-### Phase 1c: CC Governance Updates
-4. Update governance.md: event emission rules, incident record requirement, conflict check
-5. Add `.claude/rules/tasks/ops-protocol.md` — operational protocol task procedure
+### Phase 1c: Agent Governance Updates
+4. Update governance rules: event emission rules, incident record requirement, conflict check
+5. Add operational protocol task procedure
 6. Update Responder agent file: SOP incident creation requirement
 7. Update Changemaker agent file: event emission requirement
 
 ### Phase 1d: Verification
-8. E2E test: CC creates change window → NC suppresses → CC closes → NC resumes
-9. E2E test: NC creates incident → CC session sees it in event feed → CC acknowledges
-10. E2E test: CC Responder restarts container → incident record created → NC sees it
+8. E2E test: agent-a creates change window -> ops-agent suppresses -> agent-a closes -> ops-agent resumes
+9. E2E test: ops-agent creates incident -> agent-a session sees it in event feed -> agent-a acknowledges
+10. E2E test: agent-a Responder restarts container -> incident record created -> ops-agent sees it
 
 ## Risk Assessment
 
@@ -176,9 +176,9 @@ Overall: **AUTO for docs**, **APPROVE for MCP/API changes** (they modify the too
 
 - **Admin API** (`ops_events_routes.py`): new target status endpoint
 - **MCP server** (`mcp_server.py`): 2 new tools
-- **CC governance** (`.claude/rules/governance.md`): event emission + conflict check rules
-- **CC tasks** (`.claude/rules/tasks/ops-protocol.md`): new operational procedure
-- **CC agents** (responder.md, changemaker.md): SOP integration requirements
+- **Agent governance** (governance rules): event emission + conflict check rules
+- **Agent tasks** (ops-protocol): new operational procedure
+- **Agent roles** (responder, changemaker): SOP integration requirements
 
 ## Responses to Advocate Findings
 
@@ -186,14 +186,14 @@ Overall: **AUTO for docs**, **APPROVE for MCP/API changes** (they modify the too
 Add event emission verification to session end protocol in governance.md:
 "MUST verify: all state-changing actions emitted events via ops_emit_event."
 Also: `ops_check_target` logs a `session.target_check` event automatically,
-creating an audit trail even when CC forgets to explicitly emit.
+creating an audit trail even when agent-a forgets to explicitly emit.
 
 ### F2: Polling Frequency — ACCEPTED
 Define concrete checkpoints in ops-protocol.md:
 1. Before any MODIFY+ action on a target (already specified)
 2. After completing each Standard Workflow phase
 3. When switching agent roles
-4. Before presenting CHECKPOINT to Todd
+4. Before presenting CHECKPOINT to operator
 5. At session end (summary check)
 These are existing natural pauses — no new overhead.
 
@@ -221,8 +221,8 @@ Both agents use this taxonomy. New types require documentation.
 ### F5: Tool Naming — ACCEPTED (no action)
 Current naming is fine. Document convention in MCP server.
 
-### F6: NC Conflict Check — DEFERRED to Phase 2
-NC's change window awareness handles the main case. CC-activity-awareness in NC
+### F6: ops-agent Conflict Check -- DEFERRED to Phase 2
+ops-agent's change window awareness handles the main case. Agent-a-activity-awareness in ops-agent
 is Phase 2 scope.
 
 ## Lean Review
@@ -230,6 +230,6 @@ is Phase 2 scope.
 - **No new services**: Everything runs in existing Admin API + MCP server
 - **No new databases**: Uses existing ops_events, ops_incidents, ops_changes tables
 - **2 MCP tools, not 10**: `ops_watch_events` (feed) and `ops_check_target` (conflict) cover all cases
-- **Governance rules, not code**: CC compliance is enforced via rules files, not middleware
-- **`ops_check_target` consolidates 3 calls**: Single tool instead of requiring CC to call 3 endpoints manually
-- **Deferred**: SSE/WebSocket push (overkill for CC which runs synchronously), NemoClaw conflict checking (NC already has change window awareness from Project 019)
+- **Governance rules, not code**: Agent compliance is enforced via rules files, not middleware
+- **`ops_check_target` consolidates 3 calls**: Single tool instead of requiring agent to call 3 endpoints manually
+- **Deferred**: SSE/WebSocket push (overkill for agent-a which runs synchronously), ops-agent conflict checking (ops-agent already has change window awareness from SOP)

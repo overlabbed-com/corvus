@@ -57,7 +57,7 @@ remediation:
 | `deploy.workflow_logs` | Pull CI/CD workflow logs and parse failure details | Agent-side |
 
 Steps marked "Agent-side" return a structured placeholder — the calling
-agent (NemoClaw, etc.) executes the actual check and passes results back
+agent (your ops-agent, etc.) executes the actual check and passes results back
 via `investigation_data`.
 
 ## Diagnosis Matching
@@ -75,7 +75,7 @@ POST /ops/runbooks/triage
 ```json
 {
   "target": "vllm-primary",
-  "host": "tmtdockp01",
+  "host": "host-01",
   "service_type": "inference",
   "investigation_data": {
     "logs": "CUDA error: out of memory on device 0"

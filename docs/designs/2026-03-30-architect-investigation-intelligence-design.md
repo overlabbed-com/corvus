@@ -3,31 +3,31 @@
 > **Date**: 2026-03-30
 > **Agent**: Architect
 > **Status**: Pending Advocate challenge
-> **Trigger**: NemoClaw gap analysis — 7 investigation gaps found during live incident triage
+> **Trigger**: ops-agent gap analysis -- 7 investigation gaps found during live incident triage
 
 ## Problem Statement
 
-NemoClaw escalated three alerts on 2026-03-30 that it should have investigated and
+The ops-agent escalated three alerts on 2026-03-30 that it should have investigated and
 (in two cases) resolved autonomously:
 
-1. **docling "auth_failure"** — false positive. Greedy regex matched "401" in clean
+1. **docling "auth_failure"** -- false positive. Greedy regex matched "401" in clean
    200 OK health check logs. Actual cause: CUDA OOM on co-located ace-step took out
-   all 4 GPU 0 services. Norbit filed 4 independent alerts instead of 1 correlated group.
+   all 4 GPU 0 services. The agent filed 4 independent alerts instead of 1 correlated group.
 
-2. **Deploy dockp04-core failed** — passthrough. Norbit reported "Step 'Deploy stack'
+2. **Deploy host-04-core failed** -- passthrough. The agent reported "Step 'Deploy stack'
    failed" with a link. Actual cause: certbot container created before healthcheck was
-   added to compose. Norbit could have pulled the workflow logs, identified the root
+   added to compose. The agent could have pulled the workflow logs, identified the root
    cause, and suggested `docker compose up -d --force-recreate certbot`.
 
-3. **Deploy dockp04-security failed** — passthrough. Splunk first boot takes ~6 min;
+3. **Deploy host-04-security failed** -- passthrough. Splunk first boot takes ~6 min;
    dependency timeout was shorter. Splunk was already healthy by the time anyone looked.
-   Norbit could have checked current health and reported "transient — already resolved."
+   The agent could have checked current health and reported "transient -- already resolved."
 
-**Root cause of all three**: operational intelligence definitions live in NemoClaw's
+**Root cause of all three**: operational intelligence definitions live in ops-agent's
 hardcoded Python, not in Corvus's governed spec. No feedback loop, no quality gate,
 no cross-agent benefit.
 
-**Todd's directive**: "Corvus should be the single place I make these changes so they're
+**Operator directive**: "Corvus should be the single place I make these changes so they're
 respected by all agents and code assistants."
 
 ## Design Principle
@@ -262,8 +262,8 @@ traversal: "What breaks if I restart caddy?" "Why did 4 containers die together?
 
 ```cypher
 // GAP 3: Correlated failure detection
-// "Find all services that share GPU 0 on dockp03 and are currently down"
-MATCH (s:Service)-[:USES_GPU]->(g:GPU {host: "tmtdockp03", index: 0})
+// "Find all services that share GPU 0 on host-03 and are currently down"
+MATCH (s:Service)-[:USES_GPU]->(g:GPU {host: "host-03", index: 0})
 MATCH (i:Incident {status: "open"})-[:AFFECTS]->(s)
 RETURN g, collect(s.name) AS affected_services, collect(i) AS incidents
 
@@ -372,7 +372,7 @@ RETURN cred.name, cred.properties.secret_path, dependents, cred.properties.expir
 #### Deployment
 
 ```yaml
-# Neo4j Community Edition — added to dockp04-automation stack
+# Neo4j Community Edition -- added to automation stack
 neo4j:
   container_name: corvus-neo4j
   image: neo4j:5-community
@@ -417,7 +417,7 @@ event_types:
       group_id: string
       root_cause: string
       member_incidents: string[]
-      shared_resource: string        # "gpu:tmtdockp03:0" or "dependency:caddy"
+      shared_resource: string        # "gpu:host-03:0" or "dependency:caddy"
       shared_resource_type: string   # "gpu", "network", "volume", "dependency"
 ```
 
@@ -625,7 +625,7 @@ gap_patterns:
 Declared state gets populated from two sources:
 1. **GitOps pipeline**: On deploy, CI/CD parses compose file and POSTs declared
    state to Corvus CMDB. This is the authoritative source.
-2. **Discovery sweep**: NemoClaw periodically compares running containers against
+2. **Discovery sweep**: ops-agent periodically compares running containers against
    CMDB declared state and flags drift.
 
 **Fixes**: GAP 7 directly. The certbot scenario would have been caught by drift detection
@@ -643,47 +643,47 @@ before it caused a deploy failure.
 - Update PRODUCT_VISION.md — Neo4j moves from "long-term" to "next sprint"
 
 ### Phase 2: Neo4j Foundation (next session)
-- Deploy Neo4j Community on dockp04
+- Deploy Neo4j Community on host-04
 - Implement graph schema (nodes + edges)
 - Migrate CMDB data from SQLite → Neo4j
 - Add Corvus server Neo4j driver (async neo4j-python-driver)
 - Dual-write: SQLite for backward compat, Neo4j as primary for graph queries
 
-### Phase 3: NemoClaw Migration (following session)
-- NemoClaw drops hardcoded log patterns → calls Corvus `POST /ops/runbooks/triage`
-- NemoClaw drops independent alerting per container → calls Corvus correlation check
-- NemoClaw drops deploy passthrough → uses deploy runbook
-- NemoClaw adds exit code to all investigation reports
-- NemoClaw adds log category separation (error/health/app)
+### Phase 3: ops-agent Migration (following session)
+- ops-agent drops hardcoded log patterns -> calls Corvus `POST /ops/runbooks/triage`
+- ops-agent drops independent alerting per container -> calls Corvus correlation check
+- ops-agent drops deploy passthrough -> uses deploy runbook
+- ops-agent adds exit code to all investigation reports
+- ops-agent adds log category separation (error/health/app)
 
-### Phase 4: CC Integration
-- CC governance rules updated to call Corvus investigation standards
-- CC ops protocol uses Corvus correlation groups
-- CC gets blast radius queries via Neo4j traversal
+### Phase 4: Agent-A Integration
+- Agent-a governance rules updated to call Corvus investigation standards
+- Agent-a ops protocol uses Corvus correlation groups
+- Agent-a gets blast radius queries via Neo4j traversal
 
 ## Risk Assessment
 
 | Risk | Blast Radius | Reversibility | Mitigation |
 |------|-------------|---------------|------------|
-| Neo4j container on dockp04 | Contained | Easy (remove container) | Non-critical — Corvus falls back to SQLite |
+| Neo4j container on host-04 | Contained | Easy (remove container) | Non-critical -- Corvus falls back to SQLite |
 | CMDB schema extension | None (additive) | Trivial | New fields are nullable |
 | Pattern quality migration | Multi-service | Moderate | Dual-run: old patterns + new, compare results before cutover |
-| NemoClaw consuming Corvus | Multi-service | Easy (revert to local patterns) | Feature flag per capability |
+| ops-agent consuming Corvus | Multi-service | Easy (revert to local patterns) | Feature flag per capability |
 
 ## Rollback Plan
 
 Every phase is independently reversible:
 - Phase 1: Spec docs are additive — no existing behavior changes
 - Phase 2: Neo4j is additive — SQLite continues to work. Remove container to rollback
-- Phase 3: NemoClaw feature flags per capability. Flip flag to revert to local patterns
-- Phase 4: CC rules are additive — can be reverted by editing governance.md
+- Phase 3: ops-agent feature flags per capability. Flip flag to revert to local patterns
+- Phase 4: Agent rules are additive -- can be reverted by editing governance rules
 
 ## Advocate Challenge Resolution
 
 6 findings raised (1 BLOCKING, 3 HIGH, 2 ADVISORY). All resolved.
 
 ### Finding 1 (BLOCKING): Neo4j over-engineering for 92 services
-**Resolution**: Accepted — proceed with Neo4j. Todd's directive: "design for where
+**Resolution**: Accepted -- proceed with Neo4j. Operator directive: "design for where
 we're going, not where we are." This is a product, not a script. Graph queries are
 the natural model for operational intelligence. 92 services today, but the product
 vision targets organizations with 500+ services across multiple agent fleets.
@@ -719,15 +719,15 @@ marked as `type: "inferred"`). Agents can distinguish hard vs inferred dependenc
 ## Dependency Map
 
 ```
-spec/investigation.md ──► NemoClaw log collection
-                      ──► NemoClaw exit code handling
-                      ──► NemoClaw pattern matching
+spec/investigation.md ──► ops-agent log collection
+                      ──► ops-agent exit code handling
+                      ──► ops-agent pattern matching
 spec/events.md (ext)  ──► Corvus server correlation endpoint
-                      ──► NemoClaw sweep correlation
+                      ──► ops-agent sweep correlation
 spec/cmdb.md (ext)    ──► GitOps pipeline (declared state)
-                      ──► NemoClaw drift detection
-runbooks/triage-deploy ──► NemoClaw deploy_manager
+                      ──► ops-agent drift detection
+runbooks/triage-deploy ──► ops-agent deploy_manager
 Neo4j                  ──► Corvus server graph queries
-                      ──► CC blast radius queries
+                      ──► agent-a blast radius queries
                       ──► Correlation group detection
 ```

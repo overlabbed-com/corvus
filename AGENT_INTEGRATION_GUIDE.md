@@ -1,13 +1,13 @@
-# Agent Integration Guide - Corvus
+# Agent Integration Guide
 
-This document describes how to connect AI agents to Corvus for operational governance.
+How to connect AI agents to Corvus for operational governance.
 
 ## Overview
 
 Corvus provides two integration methods:
 
-1. **REST API** - Direct HTTP calls for event emission, incident creation, etc.
-2. **MCP Server** - Model Context Protocol for seamless Claude Code integration
+1. **REST API** — Direct HTTP calls for any agent that speaks HTTP
+2. **MCP Server** — Model Context Protocol for Claude Code and compatible agents
 
 ## REST API Integration
 
@@ -16,7 +16,7 @@ Corvus provides two integration methods:
 All `/ops/` endpoints require API key authentication via Bearer token:
 
 ```bash
-curl -H "Authorization: Bearer YOUR_API_KEY" https://corvus.themillertribe-int.org/ops/events
+curl -H "Authorization: Bearer YOUR_API_KEY" http://corvus:8000/ops/events
 ```
 
 ### API Key Roles
@@ -24,9 +24,9 @@ curl -H "Authorization: Bearer YOUR_API_KEY" https://corvus.themillertribe-int.o
 | Role | Permissions | Use Case |
 |------|-------------|----------|
 | `admin` | Full access | Human operators, emergency access |
-| `ops-write` | Create changes, incidents, events | Autonomous agents (NemoClaw, Claude Code) |
+| `ops-write` | Create changes, incidents, events | Autonomous agents |
 | `ops-read` | Read-only | Monitoring dashboards, auditors |
-| `agent` | Scoped to event emission, triage | Lightweight agent integrations |
+| `agent` | Scoped to event emission, triage | Lightweight integrations |
 
 ### Core Endpoints
 
@@ -34,9 +34,9 @@ curl -H "Authorization: Bearer YOUR_API_KEY" https://corvus.themillertribe-int.o
 ```bash
 POST /ops/events
 {
-  "source": "claude-code",
+  "source": "my-agent",
   "type": "change.started",
-  "target": "vllm-primary",
+  "target": "web-server",
   "severity": "info",
   "data": {"summary": "Deploying security patch"},
   "related_change_id": "CHG-ABC123"
@@ -47,10 +47,10 @@ POST /ops/events
 ```bash
 POST /ops/incidents
 {
-  "target": "vllm-primary",
-  "title": "CUDA OOM on GPU 0",
+  "target": "web-server",
+  "title": "Service unhealthy after deploy",
   "severity": "high",
-  "detected_by": "claude-code"
+  "detected_by": "my-agent"
 }
 ```
 
@@ -78,7 +78,7 @@ Add to `.claude/settings.json`:
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-http"],
       "env": {
-        "HTTP_URL": "https://corvus.yourdomain.com/ops/mcp/sse",
+        "HTTP_URL": "http://corvus:8000/ops/mcp/sse",
         "HTTP_HEADERS": {
           "Authorization": "Bearer YOUR_CORVUS_API_KEY"
         }
@@ -92,43 +92,45 @@ Add to `.claude/settings.json`:
 
 Once connected, agents have access to:
 
-- `corvus_check_target(target)` - Pre-action conflict check
-- `corvus_emit_event(...)` - Emit operational events
-- `corvus_create_incident(...)` - Create incident records
-- `corvus_create_change(...)` - Declare change windows
-- `corvus_close_change(...)` - Close change windows
-- `corvus_get_context()` - Session briefing (last 24h events)
-- `corvus_watch_events(...)` - Watch for other agent activity
-- `corvus_blast_radius(service)` - Dependency impact analysis
-- `corvus_dependency_chain(service)` - Upstream dependencies
-- `corvus_triage(target)` - Execute runbook triage
-- `corvus_get_service(name)` - CMDB service details
-- `corvus_list_services(...)` - List registered services
-- `corvus_register_service(...)` - Register new service
-- `corvus_correlated_gpu(host)` - GPU incident correlation
-- `corvus_expiring_cis(...)` - List expiring configuration items
+| Tool | Purpose |
+|------|---------|
+| `corvus_check_target(target)` | Pre-action conflict check |
+| `corvus_emit_event(...)` | Emit operational events |
+| `corvus_create_incident(...)` | Create incident records |
+| `corvus_create_change(...)` | Declare change windows |
+| `corvus_close_change(...)` | Close change windows |
+| `corvus_get_context()` | Session briefing (last 24h events) |
+| `corvus_watch_events(...)` | Watch for other agent activity |
+| `corvus_blast_radius(service)` | Dependency impact analysis |
+| `corvus_dependency_chain(service)` | Upstream dependencies |
+| `corvus_triage(target)` | Execute runbook triage |
+| `corvus_get_service(name)` | CMDB service details |
+| `corvus_list_services(...)` | List registered services |
+| `corvus_register_service(...)` | Register new service |
+| `corvus_correlated_gpu(host)` | GPU incident correlation |
+| `corvus_expiring_cis(...)` | List expiring configuration items |
 
-### Example: Using Corvus MCP Tools
+### Example: Agent Workflow
 
 ```python
 # Before any infrastructure action
-status = corvus_check_target(target="vllm-primary")
+status = corvus_check_target(target="web-server")
 if status.recommendation == "STOP":
     print(f"Cannot proceed: {status.reason}")
     return
 
 # Declare change window
 change = corvus_create_change(
-    targets=["vllm-primary"],
+    targets=["web-server"],
     description="Deploying security patch",
     rollback_plan="Revert to previous image tag"
 )
 
 # Emit event
 corvus_emit_event(
-    source="claude-code",
+    source="my-agent",
     type="change.started",
-    target="vllm-primary",
+    target="web-server",
     related_change_id=change.id
 )
 
@@ -138,27 +140,9 @@ corvus_emit_event(
 corvus_close_change(change_id=change.id, success=True, notes="Deploy successful")
 ```
 
-## Agent-Specific Guides
+## Custom Agent Integration
 
-### Claude Code
-
-1. Generate API key: `openssl rand -hex 32`
-2. Register key in Corvus: `CORVUS_API_KEYS=claude-code:agent:ops-write`
-3. Add MCP server to `.claude/settings.json` (see above)
-4. Verify connection: `corvus_get_context()`
-
-### NemoClaw
-
-NemoClaw uses the same MCP integration. Key differences:
-
-- Role: `ops-write` (can create changes and incidents)
-- Always checks `corvus_check_target()` before infrastructure actions
-- Emits events for all state-changing operations
-- Watches `corvus_watch_events()` for Claude Code activity
-
-### Custom Agents
-
-For custom agents, use the REST API:
+For agents that don't support MCP, use the REST API directly:
 
 ```python
 import httpx
@@ -184,16 +168,18 @@ class CorvusClient:
         return response.json()
 ```
 
+Or use the [Python SDK](corvus-sdk/) (early stage).
+
 ## Troubleshooting
 
 ### Connection Issues
 
 ```bash
 # Test endpoint
-curl -H "Authorization: Bearer YOUR_KEY" https://corvus.themillertribe-int.org/health
+curl -H "Authorization: Bearer YOUR_KEY" http://corvus:8000/health
 
 # Check MCP connection
-npx -y @modelcontextprotocol/client https://corvus.themillertribe-int.org/ops/mcp/sse
+npx -y @modelcontextprotocol/client http://corvus:8000/ops/mcp/sse
 ```
 
 ### Authentication Errors
@@ -205,5 +191,3 @@ npx -y @modelcontextprotocol/client https://corvus.themillertribe-int.org/ops/mc
 ### Rate Limiting
 
 Default: 500 requests/minute per IP. Exceeding this returns 429.
-
-Increase limit by configuring `slowapi` in Corvus server if needed.

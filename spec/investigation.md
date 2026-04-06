@@ -76,7 +76,7 @@ match: '\\bHTTP[/ ]\\d+\\.?\\d*"?\\s+401\\b|\\b(?:unauthorized|authentication fa
 false_positive_filter: 'health.*200|GET /health.*OK'
 ```
 
-**Bad pattern (what NemoClaw had):**
+**Bad pattern (common mistake):**
 ```yaml
 name: auth_failure
 match: '(?i)401|403|unauthorized'

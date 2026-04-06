@@ -281,7 +281,7 @@ async def test_compliance_gap_incident_without_event(client):
         await db.execute(
             """INSERT INTO ops_incidents
                (id, created_at, detected_by, target, status, severity, title)
-               VALUES (?, ?, 'nemoclaw', 'test-svc', 'open', 'warning', 'Test incident')""",
+               VALUES (?, ?, 'ops-agent', 'test-svc', 'open', 'warning', 'Test incident')""",
             (inc_id, now),
         )
         await db.commit()

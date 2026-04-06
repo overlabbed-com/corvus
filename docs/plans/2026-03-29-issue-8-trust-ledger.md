@@ -544,7 +544,7 @@ class TestTrustIntegration:
         # Register service
         await client.post("/ops/cmdb/register", json={
             "name": "vllm-primary",
-            "host": "dockp04",
+            "host": "host-04",
             "service_type": "inference",
         })
 

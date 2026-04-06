@@ -22,7 +22,7 @@ def _configure_api_keys(monkeypatch):
 
     test_keys = {
         "admin-key-123": "admin-user:admin",
-        "agent-key-456": "nemoclaw:agent",
+        "agent-key-456": "ops-agent:agent",
         "readonly-key-789": "dashboard:ops-read",
     }
     monkeypatch.setattr(config, "API_KEYS", test_keys)
@@ -166,7 +166,7 @@ class TestAuthMiddlewareRoleEnforcement:
             json={
                 "targets": ["test"],
                 "description": "test change",
-                "created_by": "nemoclaw",
+                "created_by": "ops-agent",
             },
         )
         assert resp.status_code == 201
@@ -187,4 +187,4 @@ class TestAuthMiddlewareRoleEnforcement:
         # The source can be anything the caller claims, but authenticated_as
         # should reflect the actual key holder
         data = resp.json()
-        assert data.get("authenticated_as") == "nemoclaw"
+        assert data.get("authenticated_as") == "ops-agent"

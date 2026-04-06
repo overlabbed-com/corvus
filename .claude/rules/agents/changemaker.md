@@ -27,7 +27,7 @@ ops_create_change(
 )
 ```
 
-Save the change ID. This window tells NemoClaw "these restarts are planned."
+Save the change ID. This window tells ops-agent "these restarts are planned."
 
 ### 3. Emit start event
 

@@ -17,7 +17,7 @@ behavior.
 | `home_automation` | Home automation platforms | Home Assistant |
 | `media` | Media services | Plex, Sonarr, Radarr |
 | `monitoring` | Observability stack | Splunk, Netdata, Uptime Kuma |
-| `automation` | Workflow orchestration | Prefect, NemoClaw |
+| `automation` | Workflow orchestration | Prefect, ops-agent |
 | `dns` | DNS infrastructure | CoreDNS, Pi-hole |
 | `utility` | Stateless misc services | Tunnels, cron, Redis, autoheal |
 
@@ -49,7 +49,7 @@ starved Sonarr, which means Plex isn't getting new content."
 | `model` | ML/AI models | vLLM models, embedding models | size_gb, quantization, path, loaded |
 | `flow` | Orchestration flows | Prefect flows, Prefect deployments | schedule, last_run, avg_duration_s, status |
 | `endpoint` | HTTP/API endpoints | Health checks, API routes, webhooks | url, method, expected_status, avg_latency_ms |
-| `automation` | Automation rules / triggers | HA automations, NemoClaw playbooks, cron | trigger, last_triggered, success_rate |
+| `automation` | Automation rules / triggers | HA automations, ops-agent playbooks, cron | trigger, last_triggered, success_rate |
 | `integration` | Service-to-service connectors | HA integrations, OWUI connections, MCP servers | status, config_hash, last_healthy |
 | `library` | Media / content libraries | Plex libraries, Radarr root folders | path, item_count, last_scan |
 | `queue` | Processing / download queues | Sabnzbd queue, Prefect work queue | depth, avg_throughput, stuck_threshold |
@@ -66,7 +66,7 @@ starved Sonarr, which means Plex isn't getting new content."
 #### Infrastructure Components
 | Type | Description | Examples | Key Fields |
 |------|-------------|---------|------------|
-| `zone` | DNS zones | themillertribe.org, internal zones | provider, record_count, serial |
+| `zone` | DNS zones | example.com, internal zones | provider, record_count, serial |
 | `record` | DNS records | A records, CNAME, TXT | zone, name, type, value, ttl |
 | `vlan` | Network segments | VLAN 20 (server), VLAN 400 (IoT) | id, subnet, purpose, gateway |
 | `firewall_rule` | Network access rules | UniFi firewall rules | direction, source, destination, action |
@@ -167,11 +167,11 @@ POST /ops/cmdb/register
 ```json
 {
   "name": "vllm-primary",
-  "host": "tmtdockp01",
+  "host": "host-01",
   "service_type": "inference",
   "critical": true,
   "dependencies": ["nfs-models", "caddy"],
-  "registered_by": "nemoclaw:discovery"
+  "registered_by": "ops-agent:discovery"
 }
 ```
 
@@ -179,7 +179,7 @@ Upserts — if the service exists, updates fields and refreshes `last_seen`.
 
 ### List Services
 ```
-GET /ops/cmdb?service_type=inference&critical=true&host=tmtdockp01
+GET /ops/cmdb?service_type=inference&critical=true&host=host-01
 ```
 
 ### Get Service

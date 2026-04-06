@@ -18,8 +18,8 @@ _DEFAULT_PATTERNS: list[tuple[str, str]] = [
     (r"Bearer\s+[A-Za-z0-9_.+/=-]+", REDACTED),
     # JWT tokens (header.payload.signature)
     (r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_.-]+", REDACTED),
-    # Homelab API keys
-    (r"hlab-[A-Za-z0-9_-]+", REDACTED),
+    # Custom API keys (xkey- prefix)
+    (r"xkey-[A-Za-z0-9_-]+", REDACTED),
     # OpenAI/Anthropic keys (sk- followed by 20+ chars, not normal words)
     (r"sk-[A-Za-z0-9]{20,}", REDACTED),
     # GitHub tokens

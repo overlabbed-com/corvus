@@ -62,9 +62,9 @@ class TestLayer4Reported:
                 "/ops/discovery/report",
                 headers=AUTH,
                 json={
-                    "reporter": "nemoclaw",
+                    "reporter": "ops-agent",
                     "services": [
-                        {"name": "vllm-primary", "host": "tmtdockp01", "service_type": "inference"},
+                        {"name": "vllm-primary", "host": "host-01", "service_type": "inference"},
                     ],
                 },
             )
@@ -72,7 +72,7 @@ class TestLayer4Reported:
         assert resp.status_code == 201
         data = resp.json()
         assert data["accepted"] is True
-        assert data["reporter"] == "nemoclaw"
+        assert data["reporter"] == "ops-agent"
         assert data["stats"]["services"] == 1
 
     @pytest.mark.asyncio
@@ -89,7 +89,7 @@ class TestLayer4Reported:
                 "/ops/discovery/report",
                 headers=AUTH,
                 json={
-                    "reporter": "nemoclaw",
+                    "reporter": "ops-agent",
                     "edges": [
                         {"source": "sonarr", "target": "prowlarr", "type": "FEEDS", "confidence": 0.9},
                     ],
@@ -113,7 +113,7 @@ class TestLayer4Reported:
                 "/ops/discovery/report",
                 headers=AUTH,
                 json={
-                    "reporter": "nemoclaw",
+                    "reporter": "ops-agent",
                     "cis": [
                         {
                             "type": "account",

@@ -1,22 +1,22 @@
-# FMEA Catalog & Runbook Engine Design — Project 020
+# FMEA Catalog & Runbook Engine Design
 
 > Agent: Architect
 > Workspace: automation
-> Project: 020-operational-runbooks
-> Risk Level: APPROVE (modifies NemoClaw triage pipeline + adds new playbooks)
+> Project: operational-runbooks
+> Risk Level: APPROVE (modifies ops-agent triage pipeline + adds new playbooks)
 > Generated: 2026-03-29
 
 ## Summary
 
 Design for FMEA-informed, service-type-aware operational runbooks that replace
-NemoClaw's generic one-size-fits-all investigation with targeted triage per
+ops-agent's generic one-size-fits-all investigation with targeted triage per
 service category. 92 CMDB services classified into 12 service types, each with
 specific failure modes, investigation steps, remediation actions, and escalation
 criteria.
 
 ## Problem Statement
 
-NemoClaw's current investigation pipeline is generic:
+The ops-agent's current investigation pipeline is generic:
 - Same 50-line log pull for every container
 - Same log pattern matching (14 rules in `diagnostics.py`)
 - No service-specific knowledge (vLLM OOM vs PostgreSQL connection exhaustion)
@@ -32,8 +32,8 @@ ask the right questions for the specific service.
 92 CMDB services classified into 12 types based on failure characteristics:
 
 ### Type 1: `inference` — GPU Inference Engines (7 services)
-**Services**: vllm-primary (dockp01), vllm-embed (dockp01), vllm-rerank (dockp01),
-vllm-default (dockp02), vllm-subagent (dockp02), vllm-sonnet (dockp03), vllm-ocsf (dockp03)
+**Services**: vllm-primary (host-01), vllm-embed (host-01), vllm-rerank (host-01),
+vllm-default (host-02), vllm-subagent (host-02), vllm-sonnet (host-03), vllm-ocsf (host-03)
 
 **Characteristics**: GPU-bound, high VRAM usage, long startup (model loading),
 TP=2 configs span multiple GPUs, FP8 KV cache, specific parser requirements.
@@ -66,8 +66,8 @@ TP=2 configs span multiple GPUs, FP8 KV cache, specific parser requirements.
 ---
 
 ### Type 2: `database` — Databases (6 services)
-**Services**: litellm-postgres (dockp01), postgres (dockp04), prefect-postgres (dockp04),
-homeassistant-postgres (dockp04), nemoclaw-postgres (dockp04), blog-mysql (dockp04)
+**Services**: litellm-postgres (host-01), postgres (host-04), prefect-postgres (host-04),
+homeassistant-postgres (host-04), ops-agent-postgres (host-04), blog-mysql (host-04)
 
 **Characteristics**: Stateful, data integrity critical, WAL/binlog, connection pools,
 volume-dependent. Restart risk: potential data corruption.
@@ -92,13 +92,13 @@ volume-dependent. Restart risk: potential data corruption.
 **Remediation guardrails**:
 - ALWAYS escalate before restart (data integrity risk)
 - Exception: connection pool exhaustion with no stuck queries → restart OK
-- Never delete database volumes without explicit Todd approval
+- Never delete database volumes without explicit operator approval
 - Post-restart: verify data integrity (table count, recent writes)
 
 ---
 
 ### Type 3: `proxy` — Reverse Proxy / Load Balancer (1 service)
-**Services**: caddy (dockp04)
+**Services**: caddy (host-04)
 
 **Characteristics**: Critical infrastructure, affects ALL web-accessible services.
 Blast radius: external. Config reload vs full restart distinction matters.
@@ -159,7 +159,7 @@ that proxy API calls. Can restart freely.
 ---
 
 ### Type 5: `secrets` — Secrets Management (2 services)
-**Services**: op-connect-api (dockp04), op-connect-sync (dockp04)
+**Services**: op-connect-api (host-04), op-connect-sync (host-04)
 
 **Characteristics**: Critical infrastructure, affects ALL services that consume secrets.
 Restart can cause cascade (services can't fetch secrets during downtime).
@@ -185,8 +185,8 @@ Restart can cause cascade (services can't fetch secrets during downtime).
 ---
 
 ### Type 6: `iot_gateway` — IoT Gateways & Controllers (5 services)
-**Services**: zigbee2mqtt_up_mbr (dockp04), zigbee2mqtt_dn_kit (dockp04),
-zigbee2mqtt_gr_gar (dockp04), mqtt (dockp04), esphome (dockp04)
+**Services**: zigbee2mqtt_up_mbr (host-04), zigbee2mqtt_dn_kit (host-04),
+zigbee2mqtt_gr_gar (host-04), mqtt (host-04), esphome (host-04)
 
 **Characteristics**: Real-time device communication, hardware coordinator dependencies,
 paired devices, state synchronization.
@@ -214,7 +214,7 @@ paired devices, state synchronization.
 ---
 
 ### Type 7: `home_automation` — Home Automation Platform (1 service)
-**Services**: homeassistant (dockp04)
+**Services**: homeassistant (host-04)
 
 **Characteristics**: Critical for household, ipvlan networking, multiple integrations,
 HomeKit bridges, complex startup sequence.
@@ -229,8 +229,8 @@ HomeKit bridges, complex startup sequence.
 | H-5 | Database corruption | Startup failure | Critical | No — backup restore needed |
 
 **Investigation steps**:
-1. Check if HA is reachable on 192.168.20.222 (ipvlan IP)
-2. Check default route inside container (should be via 192.168.20.1, not Docker bridge)
+1. Check if HA is reachable on 10.0.1.222 (ipvlan IP)
+2. Check default route inside container (should be via 10.0.1.1, not Docker bridge)
 3. Check MQTT connectivity (mosquitto alias)
 4. Check `core.config_entries` for integration errors
 5. Check HomeKit bridge `advertise_ip` and `core.network` settings
@@ -239,13 +239,13 @@ HomeKit bridges, complex startup sequence.
 - Restart usually safe but may trigger HomeKit re-pairing
 - For network issues: check init script ran correctly
 - For MQTT: check `mqtt` container has `aliases: [mosquitto]`
-- ALWAYS notify Todd (household impact)
+- ALWAYS notify operator (household impact)
 
 ---
 
 ### Type 8: `media` — Media Services (8 services)
-**Services**: plex (dockp04), sonarr (dockp04), radarr (dockp04), radarr-4k (dockp04),
-prowlarr (dockp04), nzbget (dockp04), sabnzbd (dockp04), tautulli (dockp04), overseerr (dockp04)
+**Services**: plex (host-04), sonarr (host-04), radarr (host-04), radarr-4k (host-04),
+prowlarr (host-04), nzbget (host-04), sabnzbd (host-04), tautulli (host-04), overseerr (host-04)
 
 **Characteristics**: User-facing, external access (Plex), database-backed (SQLite),
 download queues, library scanning.
@@ -273,7 +273,7 @@ download queues, library scanning.
 ---
 
 ### Type 9: `monitoring` — Monitoring & Observability (4 services)
-**Services**: netdata (dockp04), splunk (dockp01), splunk-init (dockp01), uptime-kuma (dockp02)
+**Services**: netdata (host-04), splunk (host-01), splunk-init (host-01), uptime-kuma (host-02)
 
 **Characteristics**: Observability infrastructure, meta-circular dependency (monitoring
 the monitors), volume-dependent (Splunk), complex startup (Splunk init).
@@ -300,10 +300,10 @@ the monitors), volume-dependent (Splunk), complex startup (Splunk init).
 ---
 
 ### Type 10: `automation` — Workflow Orchestration (4 services)
-**Services**: prefect-server (dockp04), prefect-worker (dockp04), admin-api (dockp04),
-nemoclaw (dockp04)
+**Services**: prefect-server (host-04), prefect-worker (host-04), admin-api (host-04),
+ops-agent (host-04)
 
-**Characteristics**: Self-referential (NemoClaw monitoring itself), workflow state,
+**Characteristics**: Self-referential (ops-agent monitoring itself), workflow state,
 database-dependent.
 
 **Key failure modes**:
@@ -312,24 +312,24 @@ database-dependent.
 | A-1 | Prefect server DB connection lost | Worker can't register runs | High | Yes — check postgres |
 | A-2 | Worker deployment registration failure | Flows not available | Medium | Yes |
 | A-3 | Admin API auth failure | All MCP tools broken | High | No — check ADMIN_API_KEYS |
-| A-4 | NemoClaw self-failure | Meta: who watches the watchman? | Critical | Autoheal handles |
+| A-4 | ops-agent self-failure | Meta: who watches the watchman? | Critical | Autoheal handles |
 
 **Investigation steps**:
 1. Check prefect-postgres health first (dependency)
 2. Check admin-api health endpoint
-3. For NemoClaw: autoheal container handles restarts
+3. For ops-agent: autoheal container handles restarts
 4. Check if prefect deployments are registered after worker restart
 
 **Remediation guardrails**:
 - Prefect server restart = all running flows interrupted → check for active flows first
 - Admin API restart = brief MCP tool outage → NOTIFY
-- NemoClaw: autoheal handles, but if it fails 3x → escalate
+- ops-agent: autoheal handles, but if it fails 3x -> escalate
 
 ---
 
 ### Type 11: `dns` — DNS Infrastructure (external services, not containers)
 Monitored via infrastructure-registry but not Docker containers on these hosts.
-tmtnsp01/tmtnsp02 run PowerDNS Auth + Recursor.
+Dedicated DNS hosts run PowerDNS Auth + Recursor.
 
 **Key failure modes**:
 | # | Failure Mode | Detection | Severity | Restart Safe? |
@@ -342,7 +342,7 @@ tmtnsp01/tmtnsp02 run PowerDNS Auth + Recursor.
 
 ### Type 12: `utility` — Miscellaneous Stateless Services (remaining)
 **Services**: certbot, cloudflareddns, cloudflared, cloudflared-blog, cloudflared-media,
-autoheal, logai, logai-redis, redis, miller-jobs, scrypted, birdnet-go, homelab-docs,
+autoheal, logai, logai-redis, redis, scheduled-jobs, scrypted, birdnet-go, infra-docs,
 searxng, playwright-backend, comfyui, ocsf-training, ace-step, docling, qwen3-asr,
 qwen3-tts, portainer-agent, restic-backup, tetragon, test-hybrid, agitated_feynman,
 udp-relay-weatherflow
@@ -512,11 +512,11 @@ remediation:
 |-----------|-------------|---------------|----------|
 | CMDB service_type field | Contained | Trivial | AUTO |
 | Triage runbook YAMLs | None (config) | Trivial | AUTO |
-| Triage engine changes | Contained (NC) | Easy (revert PR) | APPROVE |
-| DiagnosticsEngine changes | Contained (NC) | Easy (revert PR) | APPROVE |
-| New investigation steps | Contained (NC) | Easy (revert PR) | APPROVE |
+| Triage engine changes | Contained (ops-agent) | Easy (revert PR) | APPROVE |
+| DiagnosticsEngine changes | Contained (ops-agent) | Easy (revert PR) | APPROVE |
+| New investigation steps | Contained (ops-agent) | Easy (revert PR) | APPROVE |
 
-Overall: **APPROVE** — modifies NemoClaw's decision-making pipeline, but fallback
+Overall: **APPROVE** — modifies ops-agent's decision-making pipeline, but fallback
 to existing generic investigation preserves current behavior if runbooks have issues.
 
 ## Rollback Plan
@@ -528,17 +528,17 @@ to existing generic investigation preserves current behavior if runbooks have is
 
 ## Dependency Map
 
-- **CMDB** (Project 019 Phase 3): needs `service_type` field added to schema
+- **CMDB** (SOP): needs `service_type` field added to schema
 - **Admin API**: needs `/ops/services/{name}` to return `service_type`
-- **NemoClaw triage.py**: modified to lookup and use runbooks
-- **NemoClaw investigator.py**: extended with new investigation step types
-- **NemoClaw diagnostics.py**: enhanced with runbook diagnosis hints
+- **ops-agent triage.py**: modified to lookup and use runbooks
+- **ops-agent investigator.py**: extended with new investigation step types
+- **ops-agent diagnostics.py**: enhanced with runbook diagnosis hints
 - **Infrastructure registry**: can be simplified once CMDB has service_type
 
 ## Lean Review
 
 Applied. Decisions:
-- **No new services**: Everything runs within existing NemoClaw + Admin API
+- **No new services**: Everything runs within existing ops-agent + Admin API
 - **No new databases**: service_type is a column on existing CMDB table
 - **YAML over Python**: Runbooks are declarative, not code. Editable without deploys
 - **Existing playbook engine**: Extend, don't replace. Same engine runs rotation + triage
@@ -564,7 +564,7 @@ Phase 1 includes a concrete bootstrap:
 5. Discovery enrichment: if label exists, use it; otherwise, default to `utility`
 
 ### F3: Host Command Allowlist — ACCEPTED
-`host.command` becomes `host.check` with an allowlist baked into NemoClaw code:
+`host.command` becomes `host.check` with an allowlist baked into ops-agent code:
 ```python
 ALLOWED_HOST_CHECKS = {
     "nfs_mount": "mount | grep /mnt/models",
@@ -582,7 +582,7 @@ engine: `gpu.nvidia_smi`, `containers.inspect`, `host.check`, `http.health`,
 `mqtt.check`. `diagnosis_hints` is a separate YAML section (post-processing, not
 step execution). No parallel execution path.
 
-### F5: NemoClaw Self-Investigation — ACCEPTED
+### F5: ops-agent Self-Investigation — ACCEPTED
 Runbook execution wrapped in try/except with 30-second timeout. On failure:
 ```python
 try:

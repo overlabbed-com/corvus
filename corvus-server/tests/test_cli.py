@@ -70,8 +70,8 @@ class TestBlastRadius:
             _mock_response(
                 {
                     "affected": [
-                        {"name": "litellm", "depth": 1, "host": "dockp01"},
-                        {"name": "openwebui", "depth": 2, "host": "dockp01"},
+                        {"name": "litellm", "depth": 1, "host": "host-01"},
+                        {"name": "openwebui", "depth": 2, "host": "host-01"},
                     ]
                 }
             )
@@ -289,8 +289,8 @@ class TestCMDB:
         client = _mock_client(
             _mock_response(
                 [
-                    {"name": "caddy", "service_type": "proxy", "host": "dockp01", "critical": True},
-                    {"name": "vllm", "service_type": "inference", "host": "dockp01", "critical": False},
+                    {"name": "caddy", "service_type": "proxy", "host": "host-01", "critical": True},
+                    {"name": "vllm", "service_type": "inference", "host": "host-01", "critical": False},
                 ]
             )
         )

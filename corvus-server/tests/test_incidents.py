@@ -12,7 +12,7 @@ async def test_create_incident(client):
             "title": "CUDA OOM",
             "description": "GPU VRAM exhausted",
             "severity": "critical",
-            "detected_by": "nemoclaw:health_sweep",
+            "detected_by": "ops-agent:health_sweep",
         },
     )
     assert resp.status_code == 201

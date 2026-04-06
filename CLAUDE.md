@@ -8,8 +8,6 @@ Corvus is operational governance for AI agent fleets. One deployment gives any a
 
 Corvus is NOT an agent framework. It doesn't care how your agents are built. If an agent can make HTTP calls, it's a Corvus citizen.
 
-Customer zero: TMT Homelab (NemoClaw + Claude Code, 92 services, 4 hosts, 9 GPUs).
-
 ## Repository Structure
 
 ```
@@ -211,7 +209,7 @@ For planned work:
 ## Deployment
 
 ```bash
-docker run -d -p 8000:8000 -v corvus-data:/data ghcr.io/tmttodd/corvus:latest
+docker run -d -p 8000:8000 -v corvus-data:/data ghcr.io/your-org/corvus:latest
 ```
 
 Point your agents at `http://corvus:8000`.

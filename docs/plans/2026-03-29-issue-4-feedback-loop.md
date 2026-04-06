@@ -107,7 +107,7 @@ async def test_triage_creates_log_entry(client):
     # Register a service in CMDB first
     await client.post("/ops/cmdb/register", json={
         "name": "vllm-primary",
-        "host": "dockp04",
+        "host": "host-04",
         "service_type": "inference",
         "critical": True,
     })
@@ -136,7 +136,7 @@ async def test_triage_outcome_success(client):
     """PATCH /ops/triage/{id} should record outcome."""
     await client.post("/ops/cmdb/register", json={
         "name": "vllm-primary",
-        "host": "dockp04",
+        "host": "host-04",
         "service_type": "inference",
         "critical": True,
     })
@@ -162,7 +162,7 @@ async def test_triage_outcome_failure(client):
     """PATCH /ops/triage/{id} with failure should record correctly."""
     await client.post("/ops/cmdb/register", json={
         "name": "redis-primary",
-        "host": "dockp04",
+        "host": "host-04",
         "service_type": "database",
         "critical": True,
     })
@@ -185,7 +185,7 @@ async def test_triage_list_filters(client):
     """GET /ops/triage should support filters."""
     await client.post("/ops/cmdb/register", json={
         "name": "vllm-primary",
-        "host": "dockp04",
+        "host": "host-04",
         "service_type": "inference",
         "critical": True,
     })
@@ -211,7 +211,7 @@ async def test_triage_no_runbook_still_logs(client):
     """Triage with no matching runbook should still create a log entry."""
     await client.post("/ops/cmdb/register", json={
         "name": "custom-svc",
-        "host": "dockp04",
+        "host": "host-04",
         "service_type": "custom_type",
     })
 
@@ -427,7 +427,7 @@ async def test_metrics_runbook_hit_rate(client):
     """Runbook hit rate should reflect diagnosis confidence."""
     await client.post("/ops/cmdb/register", json={
         "name": "vllm-primary",
-        "host": "dockp04",
+        "host": "host-04",
         "service_type": "inference",
         "critical": True,
     })

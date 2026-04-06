@@ -76,7 +76,7 @@ dependency — even if no `depends_on` exists.
 
 **Discovery method**:
 - **eBPF/Tetragon** (preferred): Kernel-level network event capture. Zero overhead,
-  sees every TCP connect/accept. Already deployed in the homelab.
+  sees every TCP connect/accept.
 - **conntrack**: Parse `/proc/net/nf_conntrack` or `conntrack -L` for active connections.
   Maps source container → destination container by IP.
 - **DNS logs**: Parse resolver query logs. If `sonarr` resolves `prowlarr`, that's
@@ -149,8 +149,8 @@ subscriptions, licenses, business relationships, application-internal state.
 
 | Reporter | What It Reports |
 |----------|----------------|
-| NemoClaw | Container health, discovered services, restart events |
-| Claude Code | Session discoveries ("certbot must be healthy before caddy"), design knowledge |
+| ops-agent | Container health, discovered services, restart events |
+| agent-a | Session discoveries ("certbot must be healthy before caddy"), design knowledge |
 | Application health endpoints | Internal dependency state, feature flags, connection pool stats |
 | CI/CD pipelines | Deploy events, image versions, config changes |
 | Startup hooks | "I depend on X, Y, Z" declared at boot |
@@ -257,8 +257,8 @@ exist only in people's heads — at the moments when that knowledge surfaces.
 | Moment | Knowledge Captured |
 |--------|-------------------|
 | Incident resolution | "This broke because X depends on Y" |
-| CC session discovery | "Certbot must be healthy before caddy starts" |
-| Slack conversation | "@norbit that's because prowlarr feeds sonarr" |
+| Agent session discovery | "Certbot must be healthy before caddy starts" |
+| Slack conversation | "@bot that's because prowlarr feeds sonarr" |
 | Post-mortem review | "The root cause was an expired Astraweb account" |
 | Onboarding / documentation | "This service has an undocumented dependency on NFS" |
 
@@ -266,12 +266,12 @@ exist only in people's heads — at the moments when that knowledge surfaces.
 - **Incident resolution prompt**: When an incident is resolved, Corvus asks:
   "Did this incident reveal any dependencies we didn't know about?" If yes,
   create the edge with `layer: "elicited"` and high confidence.
-- **Agent session capture**: CC and NemoClaw record discovered dependencies
+- **Agent session capture**: Agents record discovered dependencies
   during normal operations via `POST /ops/cmdb/ci` with
-  `discovered_by: "claude-code:session"`.
-- **Conversational capture**: NemoClaw's Slack bot recognizes dependency
+  `discovered_by: "<agent-name>:session"`.
+- **Conversational capture**: Chat bots recognize dependency
   statements in conversation ("X depends on Y", "X feeds Y", "X needs Y")
-  and proposes CI registration.
+  and propose CI registration.
 - **Knowledge base integration**: RAG pipeline ingests post-mortems, runbooks,
   and documentation. Dependency statements are extracted and proposed as edges.
 
@@ -400,7 +400,7 @@ sources:
   declared: docker-compose.yml (GitOps repo)
   observed: Docker network conntrack, Tetragon eBPF, Caddy access logs
   inspected: Docker API (inspect, stats, exec)
-  reported: Admin API events, NemoClaw registration, health endpoint scraping
+  reported: Admin API events, agent registration, health endpoint scraping
 
 service_mapping:
   container → Service node
@@ -459,7 +459,7 @@ POST /ops/discovery/scan
 ```json
 {
   "layers": ["declared", "inspected"],
-  "target": "tmtdockp01",
+  "target": "host-01",
   "full": false
 }
 ```

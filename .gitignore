@@ -32,6 +32,9 @@ Thumbs.db
 # MCP config (contains local URLs)
 .mcp.json
 
+# Claude Code local settings (contains user-specific paths)
+.claude/settings.local.json
+
 # Instance-specific infrastructure config (only .example is committed)
 corvus-server/config/infrastructure.yaml
 
