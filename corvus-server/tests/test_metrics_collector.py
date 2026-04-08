@@ -6,7 +6,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from src.database import get_db
-from src.tasks.metrics_collector import collect_value_stream_metrics
+from src.tasks.metrics_collector import (
+    collect_efficiency_metrics,
+    collect_throughput_metrics,
+    collect_value_stream_metrics,
+    store_snapshot,
+)
 
 
 @pytest.mark.asyncio
@@ -66,3 +71,38 @@ async def test_empty_window_returns_zero_counts(client):
     for key in ["incident_cycle_time", "plan_lead_time"]:
         if key in metrics:
             assert metrics[key]["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_throughput_metrics_include_wip(client):
+    """Throughput metrics include WIP (active incidents + changes + plans)."""
+    metrics = await collect_throughput_metrics(lookback_hours=24)
+    assert "wip" in metrics
+    assert isinstance(metrics["wip"], int)
+
+
+@pytest.mark.asyncio
+async def test_efficiency_metrics_include_timeout_rate(client):
+    """Efficiency metrics include plan step timeout rate."""
+    metrics = await collect_efficiency_metrics(lookback_hours=24)
+    assert "timeout_rate" in metrics
+
+
+@pytest.mark.asyncio
+async def test_store_snapshot_persists(client):
+    """Snapshots are stored in ops_metrics_snapshots."""
+    metrics = {"test_metric": {"p50": 10, "count": 1}}
+    await store_snapshot("value_stream", metrics)
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM ops_metrics_snapshots WHERE tier = 'value_stream' "
+            "ORDER BY timestamp DESC LIMIT 1"
+        )
+        row = await cursor.fetchone()
+        assert row is not None
+        data = json.loads(row["metrics"])
+        assert data["test_metric"]["p50"] == 10
+    finally:
+        await db.close()
