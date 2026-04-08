@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 EVENT_RETENTION_DAYS = int(os.getenv("CORVUS_EVENT_RETENTION_DAYS", "90"))
 AUDIT_RETENTION_DAYS = int(os.getenv("CORVUS_AUDIT_RETENTION_DAYS", "365"))
 TRIAGE_RETENTION_DAYS = int(os.getenv("CORVUS_TRIAGE_RETENTION_DAYS", "180"))
+METRICS_SNAPSHOT_RETENTION_DAYS = int(os.getenv("CORVUS_METRICS_SNAPSHOT_RETENTION_DAYS", "90"))
+METRICS_ADJUSTMENT_RETENTION_DAYS = int(os.getenv("CORVUS_METRICS_ADJUSTMENT_RETENTION_DAYS", "365"))
 ARCHIVE_BEFORE_DELETE = os.getenv("CORVUS_ARCHIVE_EVENTS", "true").lower() == "true"
 ARCHIVE_DIR = Path(os.getenv("CORVUS_ARCHIVE_DIR", "/data/archive"))
 CLEANUP_BATCH_SIZE = 500  # Delete in batches to avoid long locks
@@ -169,6 +171,44 @@ async def prune_triage_log(dry_run: bool = False) -> dict[str, int]:
         await db.close()
 
 
+async def prune_metrics_snapshots(dry_run: bool = False) -> dict[str, int]:
+    """Prune metrics snapshots older than retention period."""
+    cutoff = (datetime.now(UTC) - timedelta(days=METRICS_SNAPSHOT_RETENTION_DAYS)).isoformat()
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT COUNT(*) as cnt FROM ops_metrics_snapshots WHERE timestamp < ?",
+            (cutoff,),
+        )
+        total = (await cursor.fetchone())["cnt"]
+        if dry_run or total == 0:
+            return {"eligible": total, "deleted": 0}
+        await db.execute("DELETE FROM ops_metrics_snapshots WHERE timestamp < ?", (cutoff,))
+        await db.commit()
+        return {"eligible": total, "deleted": total}
+    finally:
+        await db.close()
+
+
+async def prune_metric_adjustments(dry_run: bool = False) -> dict[str, int]:
+    """Prune metric adjustments older than retention period."""
+    cutoff = (datetime.now(UTC) - timedelta(days=METRICS_ADJUSTMENT_RETENTION_DAYS)).isoformat()
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT COUNT(*) as cnt FROM ops_metric_adjustments WHERE timestamp < ?",
+            (cutoff,),
+        )
+        total = (await cursor.fetchone())["cnt"]
+        if dry_run or total == 0:
+            return {"eligible": total, "deleted": 0}
+        await db.execute("DELETE FROM ops_metric_adjustments WHERE timestamp < ?", (cutoff,))
+        await db.commit()
+        return {"eligible": total, "deleted": total}
+    finally:
+        await db.close()
+
+
 async def get_table_sizes() -> dict[str, int]:
     """Get row counts for all operational tables."""
     db = await get_db()
@@ -182,6 +222,8 @@ async def get_table_sizes() -> dict[str, int]:
             "ops_audit_log",
             "ops_triage_log",
             "ops_trust_ledger",
+            "ops_metrics_snapshots",
+            "ops_metric_adjustments",
         ]
         sizes: dict[str, int] = {}
         for table in tables:
@@ -225,14 +267,25 @@ async def run_cleanup_loop(interval_seconds: int = 86400):
                 events_result = await prune_events()
                 audit_result = await prune_audit_log()
                 triage_result = await prune_triage_log()
+                snapshots_result = await prune_metrics_snapshots()
+                adjustments_result = await prune_metric_adjustments()
                 ctx["count"] = sum(
-                    r.get("deleted", 0) for r in [events_result, audit_result, triage_result]
+                    r.get("deleted", 0)
+                    for r in [
+                        events_result,
+                        audit_result,
+                        triage_result,
+                        snapshots_result,
+                        adjustments_result,
+                    ]
                 )
             logger.info(
-                "Cleanup cycle complete: events=%s audit=%s triage=%s",
+                "Cleanup cycle complete: events=%s audit=%s triage=%s snapshots=%s adjustments=%s",
                 events_result,
                 audit_result,
                 triage_result,
+                snapshots_result,
+                adjustments_result,
             )
         except Exception:
             logger.exception("Error in cleanup task")

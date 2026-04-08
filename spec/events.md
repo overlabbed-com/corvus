@@ -61,6 +61,15 @@ forwarded to your SIEM.
 | `plan.rolling_back` | Rollback sequence started | warning |
 | `plan.rolled_back` | Rollback sequence completed | info |
 
+### Lean Metrics
+| Type | When | Severity |
+|------|------|----------|
+| `metrics.snapshot` | Metrics collection cycle completed | info |
+| `metrics.anomaly` | Metric crossed threshold | warning |
+| `metrics.adjustment` | Auto-tune applied a correction | warning |
+| `metrics.revert` | Auto-tune reverted a correction | warning |
+| `metrics.converged` | Parameter dampening factor < 0.05 | info |
+
 ### Correlation
 | Type | When | Severity |
 |------|------|----------|
@@ -124,6 +133,7 @@ Every event is transformed to OCSF 1.3.0 before SIEM forwarding:
 | `action.*` | API Activity | 6003 |
 | `session.*` | Application Lifecycle | 6002 |
 | `gap:*` | Compliance Finding | 2003 |
+| `metrics.*` | Compliance Finding | 2003 |
 
 Graph edge metadata (parent/child, caused_by, triggered) is stored in the
 `unmapped` field for traversal in your SIEM.
