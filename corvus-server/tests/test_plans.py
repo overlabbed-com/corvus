@@ -903,3 +903,71 @@ async def test_rollback_rejects_executing_plan(client):
 
     resp = await client.post(f"/ops/plans/{plan_id}/rollback")
     assert resp.status_code == 409
+
+
+# ---- E2E lifecycle test ----
+
+
+@pytest.mark.asyncio
+async def test_full_plan_lifecycle(client):
+    """End-to-end: create -> approve -> execute -> complete."""
+    # Create
+    create_resp = await client.post(
+        "/ops/plans",
+        json={
+            "title": "E2E test",
+            "created_by": "cc",
+            "steps": [
+                {
+                    "name": "deploy",
+                    "sequence": 1,
+                    "action_type": "change.deploy",
+                    "targets": ["svc"],
+                    "rollback": {"action_type": "change.deploy", "params": {"ref": "HEAD~1"}},
+                },
+                {
+                    "name": "verify",
+                    "sequence": 2,
+                    "depends_on": ["deploy"],
+                    "action_type": "health.check",
+                    "targets": ["svc"],
+                    "failure_policy": "skip",
+                },
+            ],
+        },
+    )
+    assert create_resp.status_code == 201
+    plan_id = create_resp.json()["id"]
+    steps = create_resp.json()["steps"]
+    deploy_id = next(s["id"] for s in steps if s["name"] == "deploy")
+    verify_id = next(s["id"] for s in steps if s["name"] == "verify")
+
+    # Approve (force)
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+
+    # Execute
+    exec_resp = await client.post(f"/ops/plans/{plan_id}/execute")
+    assert exec_resp.json()["status"] == "executing"
+    change_id = exec_resp.json()["change_id"]
+
+    # Pull ready (should be deploy only)
+    ready = await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    assert len(ready.json()) == 1
+    assert ready.json()[0]["name"] == "deploy"
+
+    # Complete deploy
+    await client.post(f"/ops/plans/{plan_id}/steps/{deploy_id}/result", json={"success": True})
+
+    # Pull ready (should be verify now)
+    ready = await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    assert len(ready.json()) == 1
+    assert ready.json()[0]["name"] == "verify"
+
+    # Complete verify
+    result = await client.post(f"/ops/plans/{plan_id}/steps/{verify_id}/result", json={"success": True})
+    assert result.json()["plan_status"] == "completed"
+
+    # Change window should be closed
+    changes = await client.get("/ops/changes", params={"status": "active"})
+    active_ids = [c["id"] for c in changes.json()]
+    assert change_id not in active_ids
