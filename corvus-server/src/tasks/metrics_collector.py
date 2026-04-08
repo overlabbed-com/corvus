@@ -357,8 +357,13 @@ async def run_metrics_collector_loop(interval_seconds: int = 900):
                     "Metrics collection took %.1fs — skipping auto-tuning", elapsed
                 )
             else:
-                # Auto-tuning hook (Task 7 will wire this)
-                pass
+                from src.tasks.auto_tuner import run_auto_tuner
+
+                count = await run_auto_tuner(
+                    {"value_stream": vs, "throughput": tp, "efficiency": ef}
+                )
+                if count:
+                    logger.info("Auto-tuner applied %d adjustments", count)
 
         except Exception:
             logger.exception("Error in metrics collector")
