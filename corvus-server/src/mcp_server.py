@@ -580,5 +580,51 @@ def ops_rollback_plan(plan_id: str) -> str:
         return json.dumps(resp.json(), indent=2)
 
 
+# ---- Lean metrics tools ----
+
+
+@mcp.tool()
+def ops_lean_metrics() -> str:
+    """Get current lean metrics snapshot — cycle times, throughput, efficiency.
+    Call at session start to understand operational health trends."""
+    with _client() as client:
+        resp = client.get("/ops/lean-metrics")
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_bottlenecks(top_n: int = 5) -> str:
+    """Identify the slowest processes ranked by cycle time deviation from baseline.
+    Shows where to focus improvement efforts."""
+    with _client() as client:
+        resp = client.get("/ops/lean-metrics/bottlenecks", params={"top_n": top_n})
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_throughput(entity: str = "incidents", hours: int = 168) -> str:
+    """Get demand vs capacity analysis — event counts bucketed by hour/day.
+    Entity: incidents, plans, triages, changes, steps."""
+    with _client() as client:
+        resp = client.get(
+            "/ops/lean-metrics/throughput",
+            params={"entity": entity, "hours": hours},
+        )
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_convergence() -> str:
+    """Check auto-tuning convergence status per parameter.
+    Shows whether parameters are still learning or have settled."""
+    with _client() as client:
+        resp = client.get("/ops/lean-metrics/convergence")
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
 if __name__ == "__main__":
     mcp.run()
