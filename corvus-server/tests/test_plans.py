@@ -228,3 +228,134 @@ async def test_depends_on_resolved_by_name(client):
     # "pull-image" has no dependencies
     pull_step = next(s for s in data["steps"] if s["name"] == "pull-image")
     assert pull_step["depends_on"] == []
+
+
+@pytest.mark.asyncio
+async def test_approve_plan_trust_ledger_auto(client):
+    """Plan auto-approves when all step action_types are AUTO in trust ledger."""
+    # Seed trust ledger with AUTO tier for health.check
+    from src.database import get_db
+
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT INTO ops_trust_ledger (action_type, total_count, success_count, failure_count, trust_tier) VALUES (?, 25, 25, 0, 'AUTO')",
+            ("health.check",),
+        )
+        # Also seed plan.execute as AUTO
+        await db.execute(
+            "INSERT INTO ops_trust_ledger (action_type, total_count, success_count, failure_count, trust_tier) VALUES (?, 25, 25, 0, 'AUTO')",
+            ("plan.execute",),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    create_resp = await client.post(
+        "/ops/plans",
+        json={
+            "title": "Auto plan",
+            "created_by": "nemoclaw",
+            "steps": [
+                {
+                    "name": "check",
+                    "sequence": 1,
+                    "action_type": "health.check",
+                    "targets": ["svc"],
+                }
+            ],
+        },
+    )
+    plan_id = create_resp.json()["id"]
+    resp = await client.post(
+        f"/ops/plans/{plan_id}/approve", json={"approved_by": "nemoclaw"}
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "approved"
+    assert data["approval_method"] == "trust_ledger"
+    assert data["approved_by"] == "nemoclaw"
+    assert data["approved_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_approve_plan_needs_human(client):
+    """Plan with ESCALATE-tier steps returns needs_approval."""
+    create_resp = await client.post(
+        "/ops/plans",
+        json={
+            "title": "Needs human",
+            "created_by": "nemoclaw",
+            "steps": [
+                {
+                    "name": "deploy",
+                    "sequence": 1,
+                    "action_type": "change.deploy",
+                    "targets": ["svc"],
+                }
+            ],
+        },
+    )
+    plan_id = create_resp.json()["id"]
+    resp = await client.post(
+        f"/ops/plans/{plan_id}/approve", json={"approved_by": "nemoclaw"}
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["needs_approval"] is True
+    assert len(data["escalated_steps"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_approve_plan_human_override(client):
+    """Todd can force-approve a plan with ESCALATE steps."""
+    create_resp = await client.post(
+        "/ops/plans",
+        json={
+            "title": "Force",
+            "created_by": "nemoclaw",
+            "steps": [
+                {
+                    "name": "deploy",
+                    "sequence": 1,
+                    "action_type": "change.deploy",
+                    "targets": ["svc"],
+                }
+            ],
+        },
+    )
+    plan_id = create_resp.json()["id"]
+    resp = await client.post(
+        f"/ops/plans/{plan_id}/approve",
+        json={"approved_by": "todd", "force": True},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "approved"
+    assert resp.json()["approval_method"] == "human"
+
+
+@pytest.mark.asyncio
+async def test_approve_non_draft_fails(client):
+    """Cannot approve a plan that isn't in draft status."""
+    create_resp = await client.post(
+        "/ops/plans",
+        json={
+            "title": "Cancel then approve",
+            "created_by": "agent",
+            "steps": [
+                {
+                    "name": "s1",
+                    "sequence": 1,
+                    "action_type": "health.check",
+                    "targets": ["svc"],
+                }
+            ],
+        },
+    )
+    plan_id = create_resp.json()["id"]
+    await client.post(f"/ops/plans/{plan_id}/cancel")
+    resp = await client.post(
+        f"/ops/plans/{plan_id}/approve",
+        json={"approved_by": "todd", "force": True},
+    )
+    assert resp.status_code == 409

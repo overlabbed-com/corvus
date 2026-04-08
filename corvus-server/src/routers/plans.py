@@ -2,12 +2,13 @@
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 
 from src.database import get_db
-from src.models.plans import PlanCreate, PlanResponse, PlanStepResponse
+from src.models.plans import PlanApproveRequest, PlanCreate, PlanResponse, PlanStepResponse
+from src.tasks.trust_ledger import get_trust_tier
 
 router = APIRouter(prefix="/ops/plans", tags=["plans"])
 
@@ -238,6 +239,111 @@ async def cancel_plan(plan_id: str):
         await db.execute(
             "UPDATE ops_plans SET status = 'cancelled', completed_at = ? WHERE id = ?",
             (now, plan_id),
+        )
+        await db.commit()
+
+        return await _fetch_plan_with_steps(db, plan_id)
+    finally:
+        await db.close()
+
+
+@router.post("/{plan_id}/approve")
+async def approve_plan(plan_id: str, request: PlanApproveRequest):
+    """Approve a plan using trust ledger gating.
+
+    Checks each step's action_type (plus plan.execute) against the trust ledger.
+    If all are AUTO or SUPERVISED, auto-approves. If any are ESCALATE, requires
+    force=True for human override.
+    """
+    db = await get_db()
+    try:
+        # 1. Verify plan exists and is in draft status
+        cursor = await db.execute("SELECT * FROM ops_plans WHERE id = ?", (plan_id,))
+        plan_row = await cursor.fetchone()
+        if not plan_row:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        if plan_row["status"] != "draft":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot approve plan with status '{plan_row['status']}'. "
+                "Only draft plans can be approved.",
+            )
+
+        # 2. Collect unique action_types from all steps
+        cursor = await db.execute(
+            "SELECT * FROM ops_plan_steps WHERE plan_id = ? ORDER BY sequence ASC",
+            (plan_id,),
+        )
+        step_rows = await cursor.fetchall()
+        steps = [_step_row_to_response(r) for r in step_rows]
+
+        action_types: set[str] = set()
+        for step in steps:
+            action_types.add(step.action_type)
+        # Include plan.execute (Advocate finding #6) — gates right to start execution
+        action_types.add("plan.execute")
+
+        # 3. Query trust ledger for each action_type
+        tier_map: dict[str, str] = {}
+        for action_type in action_types:
+            tier_info = await get_trust_tier(action_type)
+            tier_map[action_type] = tier_info["trust_tier"]
+
+        # 4. Decision logic
+        escalated_action_types = {
+            at for at, tier in tier_map.items() if tier == "ESCALATE"
+        }
+
+        if escalated_action_types:
+            if request.force:
+                # Human override — approve with method "human"
+                approval_method = "human"
+            else:
+                # Return needs_approval response with escalated steps
+                escalated_steps = [
+                    {
+                        "step_id": s.id,
+                        "step_name": s.name,
+                        "action_type": s.action_type,
+                        "trust_tier": tier_map[s.action_type],
+                    }
+                    for s in steps
+                    if s.action_type in escalated_action_types
+                ]
+                # Also include plan.execute if it's escalated
+                if "plan.execute" in escalated_action_types:
+                    escalated_steps.append(
+                        {
+                            "step_id": None,
+                            "step_name": "plan.execute",
+                            "action_type": "plan.execute",
+                            "trust_tier": "ESCALATE",
+                        }
+                    )
+                return {
+                    "needs_approval": True,
+                    "plan_id": plan_id,
+                    "escalated_steps": escalated_steps,
+                }
+        else:
+            # All AUTO or SUPERVISED — auto-approve
+            approval_method = "trust_ledger"
+
+        # Approve the plan
+        now = datetime.now(UTC)
+        approved_at = now.isoformat()
+        expires_at = (now + timedelta(hours=plan_row["expires_hours"])).isoformat()
+
+        await db.execute(
+            """UPDATE ops_plans
+               SET status = 'approved',
+                   approval_method = ?,
+                   approved_at = ?,
+                   approved_by = ?,
+                   expires_at = ?
+               WHERE id = ?""",
+            (approval_method, approved_at, request.approved_by, expires_at, plan_id),
         )
         await db.commit()
 
