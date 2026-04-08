@@ -1,5 +1,7 @@
 """Plan execution subsystem tests."""
 
+import json
+
 import pytest
 
 
@@ -971,3 +973,150 @@ async def test_full_plan_lifecycle(client):
     changes = await client.get("/ops/changes", params={"status": "active"})
     active_ids = [c["id"] for c in changes.json()]
     assert change_id not in active_ids
+
+
+# ---- Edge case tests ----
+
+
+@pytest.mark.asyncio
+async def test_execute_draft_plan_returns_409(client):
+    """Executing a non-approved (draft) plan returns 409 with descriptive message."""
+    payload = _make_plan_payload(title="Draft only")
+    create_resp = await client.post("/ops/plans", json=payload)
+    assert create_resp.status_code == 201
+    plan_id = create_resp.json()["id"]
+    assert create_resp.json()["status"] == "draft"
+
+    # Try to execute without approving
+    resp = await client.post(f"/ops/plans/{plan_id}/execute")
+    assert resp.status_code == 409
+    assert "approved" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_step_result_wrong_plan_returns_404(client):
+    """Submitting a result for a step that belongs to a different plan returns 404."""
+    # Create two separate plans
+    resp_a = await client.post(
+        "/ops/plans",
+        json=_make_plan_payload(title="Plan A"),
+    )
+    resp_b = await client.post(
+        "/ops/plans",
+        json=_make_plan_payload(title="Plan B"),
+    )
+    plan_a_id = resp_a.json()["id"]
+    plan_b_id = resp_b.json()["id"]
+    plan_b_step_id = resp_b.json()["steps"][0]["id"]
+
+    # Approve and execute plan A
+    await client.post(
+        f"/ops/plans/{plan_a_id}/approve",
+        json={"approved_by": "todd", "force": True},
+    )
+    await client.post(f"/ops/plans/{plan_a_id}/execute")
+
+    # Try to submit plan B's step_id against plan A's plan_id
+    resp = await client.post(
+        f"/ops/plans/{plan_a_id}/steps/{plan_b_step_id}/result",
+        json={"success": True},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_plan_targets_equal_union_of_step_targets(client):
+    """Plan targets are the union of all step targets."""
+    payload = {
+        "title": "Multi-target plan",
+        "created_by": "claude-code",
+        "steps": [
+            {
+                "name": "check-a",
+                "sequence": 1,
+                "action_type": "health_check",
+                "targets": ["svc-a"],
+            },
+            {
+                "name": "check-b",
+                "sequence": 2,
+                "action_type": "health_check",
+                "targets": ["svc-b"],
+            },
+            {
+                "name": "check-both",
+                "sequence": 3,
+                "depends_on": ["check-a", "check-b"],
+                "action_type": "health_check",
+                "targets": ["svc-a", "svc-b"],
+            },
+        ],
+    }
+    resp = await client.post("/ops/plans", json=payload)
+    assert resp.status_code == 201
+    data = resp.json()
+
+    # Plan targets should be exactly {"svc-a", "svc-b"}
+    assert set(data["targets"]) == {"svc-a", "svc-b"}
+
+
+@pytest.mark.asyncio
+async def test_plan_expiry_not_enforced_on_execute(client):
+    """Document: expired plans can still execute if status is approved (v1 gap).
+
+    The current implementation sets expires_at on approval but does not check
+    it at execution time. This test documents that behavior.
+    """
+    plan = await _create_and_approve(client, title="Expiry test")
+    plan_id = plan["id"]
+
+    # Manually set expires_at to a past time
+    from src.database import get_db
+
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE ops_plans SET expires_at = '2020-01-01T00:00:00' WHERE id = ?",
+            (plan_id,),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    # Execute should still succeed -- expiry is not enforced at execution time
+    resp = await client.post(f"/ops/plans/{plan_id}/execute")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "executing"
+    # NOTE: This is a known v1 gap. Expiry enforcement on execute is YAGNI for now.
+
+
+@pytest.mark.asyncio
+async def test_plan_started_event_emitted(client):
+    """Executing a plan emits a plan.started event with the plan_id in data."""
+    plan = await _create_and_approve(client, title="Event check plan")
+    plan_id = plan["id"]
+
+    # Execute the plan
+    exec_resp = await client.post(f"/ops/plans/{plan_id}/execute")
+    assert exec_resp.status_code == 200
+
+    # Query events for plan.started
+    events_resp = await client.get(
+        "/ops/events", params={"event_type": "plan.started"}
+    )
+    assert events_resp.status_code == 200
+    events = events_resp.json()
+
+    # Find the event for our plan
+    def _parse_data(raw):
+        return json.loads(raw) if isinstance(raw, str) else raw
+
+    matching = [
+        e for e in events if _parse_data(e["data"]).get("plan_id") == plan_id
+    ]
+    assert len(matching) >= 1
+
+    event = matching[0]
+    event_data = _parse_data(event["data"])
+    assert event_data["plan_id"] == plan_id
+    assert event["type"] == "plan.started"
