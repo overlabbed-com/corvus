@@ -359,3 +359,228 @@ async def test_approve_non_draft_fails(client):
         json={"approved_by": "todd", "force": True},
     )
     assert resp.status_code == 409
+
+
+# ---- Execution tests ----
+
+
+async def _create_and_approve(client, **plan_overrides):
+    """Helper: create a plan then force-approve it. Returns the plan dict."""
+    payload = _make_plan_payload(**plan_overrides)
+    create_resp = await client.post("/ops/plans", json=payload)
+    assert create_resp.status_code == 201
+    plan_id = create_resp.json()["id"]
+
+    approve_resp = await client.post(
+        f"/ops/plans/{plan_id}/approve",
+        json={"approved_by": "todd", "force": True},
+    )
+    data = approve_resp.json()
+    # Handle both auto-approve and force-approve responses
+    if "needs_approval" in data:
+        approve_resp = await client.post(
+            f"/ops/plans/{plan_id}/approve",
+            json={"approved_by": "todd", "force": True},
+        )
+        data = approve_resp.json()
+    assert data["status"] == "approved"
+    return data
+
+
+@pytest.mark.asyncio
+async def test_execute_plan_creates_change_window(client):
+    """Executing a plan creates a change window covering all targets."""
+    plan = await _create_and_approve(client)
+    plan_id = plan["id"]
+
+    resp = await client.post(f"/ops/plans/{plan_id}/execute")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Plan should now be executing with a change_id
+    assert data["status"] == "executing"
+    assert data["change_id"] is not None
+    assert data["change_id"].startswith("CHG-")
+
+    # Verify the change window exists
+    chg_resp = await client.get("/ops/changes", params={"status": "active"})
+    changes = chg_resp.json()
+    matching = [c for c in changes if c["id"] == data["change_id"]]
+    assert len(matching) == 1
+    assert set(matching[0]["targets"]) == set(plan["targets"])
+
+
+@pytest.mark.asyncio
+async def test_ready_steps_returns_dag_roots(client):
+    """Ready steps endpoint returns only steps whose dependencies are met."""
+    plan = await _create_and_approve(client)
+    plan_id = plan["id"]
+
+    # Execute the plan to mark root steps ready
+    await client.post(f"/ops/plans/{plan_id}/execute")
+
+    # Pull ready steps -- should be only "pull-image" (no deps)
+    resp = await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    assert resp.status_code == 200
+    ready = resp.json()
+    assert len(ready) == 1
+    assert ready[0]["name"] == "pull-image"
+    assert ready[0]["status"] == "executing"  # claimed on pull
+
+
+@pytest.mark.asyncio
+async def test_step_completion_advances_dag(client):
+    """Completing a step makes dependent steps ready."""
+    plan = await _create_and_approve(client)
+    plan_id = plan["id"]
+    await client.post(f"/ops/plans/{plan_id}/execute")
+
+    # Pull and complete root step
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    root_step_id = ready[0]["id"]
+
+    result_resp = await client.post(
+        f"/ops/plans/{plan_id}/steps/{root_step_id}/result",
+        json={"success": True, "output": {"msg": "pulled"}},
+    )
+    assert result_resp.status_code == 200
+    result = result_resp.json()
+    assert result["step_status"] == "completed"
+    assert len(result["next_ready_steps"]) == 1
+    assert result["next_ready_steps"][0]["name"] == "restart-service"
+
+
+@pytest.mark.asyncio
+async def test_plan_completes_when_all_steps_done(client):
+    """Plan status becomes completed when all steps succeed."""
+    plan = await _create_and_approve(client)
+    plan_id = plan["id"]
+    await client.post(f"/ops/plans/{plan_id}/execute")
+
+    # Walk the DAG: pull-image -> restart-service -> verify-health
+    for _ in range(3):
+        ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+        assert len(ready) == 1
+        step_id = ready[0]["id"]
+        await client.post(
+            f"/ops/plans/{plan_id}/steps/{step_id}/result",
+            json={"success": True},
+        )
+
+    # Check plan status
+    status_resp = await client.get(f"/ops/plans/{plan_id}/status")
+    assert status_resp.status_code == 200
+    status = status_resp.json()
+    assert status["status"] == "completed"
+    assert status["completed"] == 3
+    assert status["progress_pct"] == 100.0
+
+    # Change window should also be closed
+    plan_resp = await client.get(f"/ops/plans/{plan_id}")
+    change_id = plan_resp.json()["change_id"]
+    chg_resp = await client.get("/ops/changes", params={"status": "completed"})
+    matching = [c for c in chg_resp.json() if c["id"] == change_id]
+    assert len(matching) == 1
+    assert matching[0]["outcome"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_plan_status_endpoint(client):
+    """Status endpoint returns step counts and progress."""
+    plan = await _create_and_approve(client)
+    plan_id = plan["id"]
+    await client.post(f"/ops/plans/{plan_id}/execute")
+
+    resp = await client.get(f"/ops/plans/{plan_id}/status")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["id"] == plan_id
+    assert data["status"] == "executing"
+    assert data["total_steps"] == 3
+    assert data["ready"] == 1  # pull-image
+    assert data["pending"] == 2  # restart-service, verify-health
+    assert data["executing"] == 0
+    assert data["completed"] == 0
+    assert data["progress_pct"] == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_execute_non_approved_plan_fails(client):
+    """Cannot execute a plan that isn't approved."""
+    payload = _make_plan_payload()
+    create_resp = await client.post("/ops/plans", json=payload)
+    plan_id = create_resp.json()["id"]
+
+    # Plan is in draft status -- execution should be rejected
+    resp = await client.post(f"/ops/plans/{plan_id}/execute")
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_parallel_roots_both_ready(client):
+    """Multiple root steps (no deps) are all ready simultaneously."""
+    payload = {
+        "title": "Parallel roots",
+        "created_by": "claude-code",
+        "steps": [
+            {
+                "name": "root-a",
+                "sequence": 1,
+                "action_type": "health_check",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+            },
+            {
+                "name": "root-b",
+                "sequence": 2,
+                "action_type": "health_check",
+                "targets": ["svc-b"],
+                "failure_policy": "halt",
+            },
+            {
+                "name": "join",
+                "sequence": 3,
+                "depends_on": ["root-a", "root-b"],
+                "action_type": "health_check",
+                "targets": ["svc-a", "svc-b"],
+                "failure_policy": "halt",
+            },
+        ],
+    }
+    create_resp = await client.post("/ops/plans", json=payload)
+    assert create_resp.status_code == 201
+    plan_id = create_resp.json()["id"]
+
+    # Force-approve
+    approve_resp = await client.post(
+        f"/ops/plans/{plan_id}/approve",
+        json={"approved_by": "todd", "force": True},
+    )
+    data = approve_resp.json()
+    if "needs_approval" in data:
+        approve_resp = await client.post(
+            f"/ops/plans/{plan_id}/approve",
+            json={"approved_by": "todd", "force": True},
+        )
+    assert approve_resp.json()["status"] == "approved"
+
+    # Execute
+    await client.post(f"/ops/plans/{plan_id}/execute")
+
+    # Both roots should be ready
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready_names = {s["name"] for s in ready}
+    assert ready_names == {"root-a", "root-b"}
+
+    # Complete both roots
+    for step in ready:
+        await client.post(
+            f"/ops/plans/{plan_id}/steps/{step['id']}/result",
+            json={"success": True},
+        )
+
+    # Now the join step should be ready
+    ready2 = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    assert len(ready2) == 1
+    assert ready2[0]["name"] == "join"

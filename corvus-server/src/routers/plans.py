@@ -6,8 +6,16 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 
+from src.config import CHANGE_EXPIRY_HOURS
 from src.database import get_db
-from src.models.plans import PlanApproveRequest, PlanCreate, PlanResponse, PlanStepResponse
+from src.models.plans import (
+    PlanApproveRequest,
+    PlanCreate,
+    PlanResponse,
+    PlanStatusResponse,
+    PlanStepResponse,
+    StepResultRequest,
+)
 from src.tasks.trust_ledger import get_trust_tier
 
 router = APIRouter(prefix="/ops/plans", tags=["plans"])
@@ -348,5 +356,303 @@ async def approve_plan(plan_id: str, request: PlanApproveRequest):
         await db.commit()
 
         return await _fetch_plan_with_steps(db, plan_id)
+    finally:
+        await db.close()
+
+
+# ---- DAG helper ----
+
+
+async def _evaluate_dag(db, plan_id: str) -> list[dict]:
+    """Find pending steps whose dependencies are all completed/skipped.
+
+    Mark them as ready. Return list of newly-ready step dicts.
+    """
+    cursor = await db.execute(
+        "SELECT * FROM ops_plan_steps WHERE plan_id = ? ORDER BY sequence ASC",
+        (plan_id,),
+    )
+    all_steps = await cursor.fetchall()
+
+    # Build set of completed/skipped step IDs
+    done_ids: set[str] = set()
+    for s in all_steps:
+        if s["status"] in ("completed", "skipped"):
+            done_ids.add(s["id"])
+
+    newly_ready: list[dict] = []
+    for s in all_steps:
+        if s["status"] != "pending":
+            continue
+        deps = json.loads(s["depends_on"])
+        if all(dep_id in done_ids for dep_id in deps):
+            await db.execute(
+                "UPDATE ops_plan_steps SET status = 'ready' WHERE id = ?",
+                (s["id"],),
+            )
+            newly_ready.append(dict(s))
+
+    return newly_ready
+
+
+async def _check_plan_completion(db, plan_id: str) -> bool:
+    """Check if all steps are terminal (completed/skipped/failed).
+
+    If so, mark plan completed and close the change window. Returns True if plan completed.
+    """
+    cursor = await db.execute(
+        "SELECT status FROM ops_plan_steps WHERE plan_id = ?",
+        (plan_id,),
+    )
+    step_rows = await cursor.fetchall()
+    statuses = [r["status"] for r in step_rows]
+
+    terminal = {"completed", "skipped", "failed"}
+    if all(s in terminal for s in statuses):
+        now = datetime.now(UTC).isoformat()
+        has_failures = "failed" in statuses
+        outcome = "partial" if has_failures else "success"
+
+        await db.execute(
+            "UPDATE ops_plans SET status = 'completed', completed_at = ?, outcome = ? WHERE id = ?",
+            (now, outcome, plan_id),
+        )
+
+        # Close the change window
+        cursor = await db.execute("SELECT change_id FROM ops_plans WHERE id = ?", (plan_id,))
+        plan_row = await cursor.fetchone()
+        if plan_row and plan_row["change_id"]:
+            await db.execute(
+                "UPDATE ops_changes SET status = 'completed', completed_at = ?, outcome = ? WHERE id = ?",
+                (now, outcome, plan_row["change_id"]),
+            )
+
+        return True
+    return False
+
+
+# ---- Execution endpoints ----
+
+
+@router.post("/{plan_id}/execute", response_model=PlanResponse)
+async def execute_plan(plan_id: str):
+    """Execute an approved plan: create change window, mark root steps ready."""
+    db = await get_db()
+    try:
+        # Verify plan exists and is approved
+        cursor = await db.execute("SELECT * FROM ops_plans WHERE id = ?", (plan_id,))
+        plan_row = await cursor.fetchone()
+        if not plan_row:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        if plan_row["status"] != "approved":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot execute plan with status '{plan_row['status']}'. "
+                "Only approved plans can be executed.",
+            )
+
+        now = datetime.now(UTC)
+        now_iso = now.isoformat()
+        targets = json.loads(plan_row["targets"])
+
+        # Create change window (same pattern as changes.py create_change)
+        change_id = f"CHG-{uuid.uuid4().hex[:8].upper()}"
+        expires_at = (now + timedelta(hours=plan_row["expires_hours"])).isoformat()
+
+        await db.execute(
+            """INSERT INTO ops_changes
+               (id, created_at, created_by, status, targets, description,
+                auto_expire, expires_at)
+               VALUES (?, ?, ?, 'active', ?, ?, 1, ?)""",
+            (
+                change_id,
+                now_iso,
+                plan_row["created_by"],
+                json.dumps(targets),
+                f"Plan execution: {plan_row['title']}",
+                expires_at,
+            ),
+        )
+
+        # Update plan: set change_id, status = executing
+        await db.execute(
+            "UPDATE ops_plans SET status = 'executing', change_id = ? WHERE id = ?",
+            (change_id, plan_id),
+        )
+
+        # Mark root steps (empty depends_on) as ready
+        cursor = await db.execute(
+            "SELECT * FROM ops_plan_steps WHERE plan_id = ?",
+            (plan_id,),
+        )
+        step_rows = await cursor.fetchall()
+        for s in step_rows:
+            deps = json.loads(s["depends_on"])
+            if not deps:
+                await db.execute(
+                    "UPDATE ops_plan_steps SET status = 'ready' WHERE id = ?",
+                    (s["id"],),
+                )
+
+        # Emit plan.started event (same pattern as events.py)
+        event_id = f"EVT-{uuid.uuid4().hex[:8].upper()}"
+        await db.execute(
+            """INSERT INTO ops_events
+               (id, timestamp, source, type, target, severity, data, related_change_id)
+               VALUES (?, ?, 'corvus', 'plan.started', ?, 'info', ?, ?)""",
+            (
+                event_id,
+                now_iso,
+                plan_row["title"],
+                json.dumps({"summary": f"Plan '{plan_row['title']}' execution started", "plan_id": plan_id}),
+                change_id,
+            ),
+        )
+
+        await db.commit()
+        return await _fetch_plan_with_steps(db, plan_id)
+    finally:
+        await db.close()
+
+
+@router.get("/{plan_id}/steps/ready", response_model=list[PlanStepResponse])
+async def get_ready_steps(plan_id: str):
+    """Return steps that are ready and claim them by marking as executing."""
+    db = await get_db()
+    try:
+        # Verify plan exists
+        cursor = await db.execute("SELECT id FROM ops_plans WHERE id = ?", (plan_id,))
+        if not await cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        now_iso = datetime.now(UTC).isoformat()
+
+        cursor = await db.execute(
+            "SELECT * FROM ops_plan_steps WHERE plan_id = ? AND status = 'ready' ORDER BY sequence ASC",
+            (plan_id,),
+        )
+        ready_rows = await cursor.fetchall()
+
+        # Claim: mark each as executing with started_at
+        for r in ready_rows:
+            await db.execute(
+                "UPDATE ops_plan_steps SET status = 'executing', started_at = ? WHERE id = ?",
+                (now_iso, r["id"]),
+            )
+        await db.commit()
+
+        # Re-fetch to get updated status
+        step_ids = [r["id"] for r in ready_rows]
+        results = []
+        for sid in step_ids:
+            cursor = await db.execute("SELECT * FROM ops_plan_steps WHERE id = ?", (sid,))
+            row = await cursor.fetchone()
+            results.append(_step_row_to_response(row))
+
+        return results
+    finally:
+        await db.close()
+
+
+@router.post("/{plan_id}/steps/{step_id}/result")
+async def report_step_result(plan_id: str, step_id: str, req: StepResultRequest):
+    """Report step completion/failure and advance the DAG."""
+    db = await get_db()
+    try:
+        # Verify plan and step exist
+        cursor = await db.execute("SELECT id, status FROM ops_plans WHERE id = ?", (plan_id,))
+        plan_row = await cursor.fetchone()
+        if not plan_row:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        cursor = await db.execute(
+            "SELECT * FROM ops_plan_steps WHERE id = ? AND plan_id = ?",
+            (step_id, plan_id),
+        )
+        step_row = await cursor.fetchone()
+        if not step_row:
+            raise HTTPException(status_code=404, detail="Step not found")
+
+        now_iso = datetime.now(UTC).isoformat()
+        new_status = "completed" if req.success else "failed"
+
+        await db.execute(
+            "UPDATE ops_plan_steps SET status = ?, completed_at = ?, output = ?, error = ? WHERE id = ?",
+            (
+                new_status,
+                now_iso,
+                json.dumps(req.output) if req.output else None,
+                req.error,
+                step_id,
+            ),
+        )
+
+        # Evaluate DAG to find newly-ready steps
+        newly_ready = []
+        if req.success:
+            newly_ready = await _evaluate_dag(db, plan_id)
+
+        # Check if plan is complete
+        await _check_plan_completion(db, plan_id)
+
+        await db.commit()
+
+        # Determine current plan status
+        cursor = await db.execute("SELECT status FROM ops_plans WHERE id = ?", (plan_id,))
+        updated_plan = await cursor.fetchone()
+
+        return {
+            "step_id": step_id,
+            "step_status": new_status,
+            "plan_status": updated_plan["status"],
+            "next_ready_steps": [
+                {"id": s["id"], "name": s["name"], "action_type": s["action_type"]}
+                for s in newly_ready
+            ],
+        }
+    finally:
+        await db.close()
+
+
+@router.get("/{plan_id}/status", response_model=PlanStatusResponse)
+async def get_plan_status(plan_id: str):
+    """Get plan execution status with step counts and progress."""
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT * FROM ops_plans WHERE id = ?", (plan_id,))
+        plan_row = await cursor.fetchone()
+        if not plan_row:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        cursor = await db.execute(
+            "SELECT status FROM ops_plan_steps WHERE plan_id = ?",
+            (plan_id,),
+        )
+        step_rows = await cursor.fetchall()
+        statuses = [r["status"] for r in step_rows]
+
+        total = len(statuses)
+        counts = {
+            "pending": statuses.count("pending"),
+            "ready": statuses.count("ready"),
+            "executing": statuses.count("executing"),
+            "completed": statuses.count("completed"),
+            "failed": statuses.count("failed"),
+            "skipped": statuses.count("skipped"),
+            "rolled_back": statuses.count("rolled_back"),
+        }
+        done = counts["completed"] + counts["skipped"]
+        progress_pct = (done / total * 100) if total > 0 else 0.0
+
+        return PlanStatusResponse(
+            id=plan_id,
+            status=plan_row["status"],
+            title=plan_row["title"],
+            change_id=plan_row["change_id"],
+            total_steps=total,
+            progress_pct=round(progress_pct, 1),
+            **counts,
+        )
     finally:
         await db.close()
