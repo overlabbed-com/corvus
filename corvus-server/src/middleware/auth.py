@@ -34,7 +34,7 @@ PUBLIC_PATHS = frozenset({
     "/docs",
     "/openapi.json",
     "/redoc",
-    "/mcp/sse",
+    "/mcp",
 })
 
 # Path prefixes that require authentication

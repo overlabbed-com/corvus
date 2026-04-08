@@ -1,7 +1,8 @@
 """Embedded MCP server for Corvus.
 
-Exposes Corvus operations as MCP tools via SSE transport, mounted directly
-on the FastAPI app.  Agents connect to /mcp/sse and get native tool access.
+Exposes Corvus operations as MCP tools via Streamable HTTP transport,
+mounted directly on the FastAPI app. Clients send POST requests to /mcp
+with JSON-RPC bodies.
 
 Internal calls use httpx.AsyncClient with ASGITransport — zero network
 overhead, full request/response fidelity, and clean separation from router
@@ -929,14 +930,13 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
 
 # ---------------------------------------------------------------------------
-# SSE transport + Starlette routes
+# Streamable HTTP transport + Starlette routes
 # ---------------------------------------------------------------------------
 def create_mcp_routes(fastapi_app: Any) -> Starlette:
-    """Build a Starlette sub-application that serves the MCP SSE endpoint.
+    """Build a Starlette sub-application serving the MCP Streamable HTTP endpoint.
 
     The returned app is mounted on the FastAPI app at ``/mcp``.
-    Clients connect to ``/mcp/sse`` (GET, event stream) and post messages
-    to ``/mcp/messages`` (POST).
+    Clients send POST requests to ``/mcp`` with JSON-RPC bodies.
 
     Args:
         fastapi_app: The FastAPI ``app`` instance — used to create an internal
@@ -945,9 +945,7 @@ def create_mcp_routes(fastapi_app: Any) -> Starlette:
     """
     global _internal_client
 
-    from mcp.server.sse import SseServerTransport
-
-    sse_transport = SseServerTransport("/messages")
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
     # Internal client — ASGI transport means zero network overhead
     _internal_client = httpx.AsyncClient(
@@ -955,26 +953,23 @@ def create_mcp_routes(fastapi_app: Any) -> Starlette:
         base_url="http://internal",
     )
 
-    async def handle_sse(scope, receive, send):
-        """SSE connection endpoint (GET /mcp/sse) — raw ASGI handler."""
-        async with sse_transport.connect_sse(scope, receive, send) as streams:
-            await mcp_server.run(
-                streams[0],
-                streams[1],
-                mcp_server.create_initialization_options(),
-            )
+    # Stateless session manager — each request creates a fresh session.
+    # JSON response mode for simpler HTTP semantics (no SSE streaming).
+    http_manager = StreamableHTTPSessionManager(
+        app=mcp_server,
+        stateless=True,
+        json_response=True,
+    )
 
-    async def handle_messages(scope, receive, send):
-        """Message post endpoint (POST /mcp/messages) — raw ASGI handler."""
-        await sse_transport.handle_post_message(scope, receive, send)
+    async def handle_mcp(scope, receive, send):
+        """Streamable HTTP endpoint — handles POST/GET/DELETE at /mcp."""
+        await http_manager.handle_request(scope, receive, send)
 
-    # Use Mount with raw ASGI apps (not Route which wraps into Request objects)
     mcp_app = Starlette(
         routes=[
-            Mount("/sse", app=handle_sse),
-            Mount("/messages", app=handle_messages),
+            Mount("/", app=handle_mcp),
         ],
     )
 
-    logger.info("MCP SSE endpoint created (%d tools registered)", len(TOOL_DEFINITIONS))
+    logger.info("MCP Streamable HTTP endpoint created (%d tools registered)", len(TOOL_DEFINITIONS))
     return mcp_app

@@ -165,12 +165,12 @@ app.include_router(graph_queries.router, prefix="/ops/graph", tags=["graph"])
 app.include_router(dashboard_router)
 
 
-# MCP SSE endpoint (conditionally mounted)
+# MCP Streamable HTTP endpoint (conditionally mounted)
 if MCP_ENABLED:
     from src.mcp_endpoint import create_mcp_routes
 
     app.mount("/mcp", create_mcp_routes(app))
-    logger.info("MCP endpoint enabled at /mcp/sse")
+    logger.info("MCP endpoint enabled at /mcp (Streamable HTTP)")
 
 
 @app.get("/")
