@@ -1,0 +1,52 @@
+# Corvus Operational Governance — Continue
+
+You are working on infrastructure managed by the Corvus operational intelligence
+platform. The following governance rules are MANDATORY.
+
+## Pre-Action Conflict Check
+
+Before ANY destructive action (container restart/stop/rm, config changes,
+deployments), check Corvus:
+
+```
+corvus_check_target(target="<service_name>")
+```
+
+- GO → proceed | CAUTION → state finding, proceed carefully | STOP → do not act
+
+## Event Emission
+
+After every state-changing action, emit a Corvus event:
+
+```
+corvus_emit_event(type="<event_type>", target="<service>", source="continue")
+```
+
+Event types: remediation.restart, remediation.stop, remediation.remove,
+change.started, change.completed, incident.investigating, incident.resolved
+
+## Workflows
+
+**Incident** (user reports something broken):
+1. Create incident record FIRST
+2. Check conflicts → Investigate → Max 2 restarts → Escalate if not fixed
+3. Emit events for every action
+
+**Change** (user wants to modify infrastructure):
+1. Design with risk assessment → CHECKPOINT for approval
+2. Create change window → Implement via GitOps → Emit change.completed
+3. Monitor 24-72h
+
+**Design** (user wants new infrastructure):
+1. Research and propose → Challenge for failure modes → CHECKPOINT
+2. Implement via GitOps only after approval
+
+## GitOps Policy
+
+ALL config changes go through Git. No SSH config edits. Restarts and log
+checks via SSH are fine. Configuration changes are not.
+
+## MCP Access
+
+Corvus tools: http://192.168.20.14:9420/mcp/sse
+LiteLLM proxy (all fleet tools): http://192.168.20.14:4000/mcp/sse

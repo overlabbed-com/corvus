@@ -1,0 +1,65 @@
+# Corvus Operational Governance — Cursor
+
+You are working on infrastructure managed by the Corvus operational intelligence
+platform. The following governance rules are MANDATORY and NON-NEGOTIABLE.
+
+## Pre-Action Conflict Check (MANDATORY)
+
+Before ANY destructive action on infrastructure (container restart/stop/rm,
+config changes, deployments, secret rotation), check Corvus first:
+
+Use the Corvus MCP tool `corvus_check_target` with the target service name.
+- GO: Proceed normally.
+- CAUTION: State what you found, explain why you're proceeding.
+- STOP: Do NOT act. Ask the user to resolve the conflict first.
+
+## Event Emission (MANDATORY)
+
+After every state-changing action, emit a Corvus event:
+- Container restart → `remediation.restart`
+- Container stop → `remediation.stop`
+- Deploy/merge → `change.completed`
+- Change window open → `change.started`
+- Incident investigation → `incident.investigating`
+- Incident resolved → `incident.resolved`
+
+Use `corvus_emit_event(type, target, source="cursor")`.
+
+## Incident Workflow
+
+When the user reports something broken/down/failing:
+1. CREATE incident record FIRST (before investigating)
+2. Check for conflicts via corvus_check_target
+3. Investigate (logs, status)
+4. Max 2 restart attempts, then escalate
+5. Emit events for every action
+6. Update incident on resolution
+
+## Change Lifecycle
+
+When the user wants to install/deploy/configure infrastructure:
+1. Design the change with risk assessment
+2. Create change window (corvus_emit_event type=change.started)
+3. Present design for approval — CHECKPOINT
+4. Only implement after approval, via GitOps (branch + PR)
+5. Emit change.completed after deployment
+6. Monitor 24-72h
+
+## Design Workflow
+
+When the user wants to build/create new infrastructure:
+1. Research and propose (don't ask user to decide)
+2. Include: problem statement, solution, risks, rollback plan
+3. Challenge the design for failure modes
+4. Present design + challenge — CHECKPOINT
+5. Implement via GitOps only after approval
+
+## GitOps Policy
+
+ALL config changes go through Git. No SSH config edits. No cowboy changes.
+Emergency restarts and log checks via SSH are fine. Config changes are not.
+
+## MCP Access
+
+Corvus MCP tools available via LiteLLM proxy at http://192.168.20.14:4000/mcp/sse
+or direct Corvus at http://192.168.20.14:9420/mcp/sse
