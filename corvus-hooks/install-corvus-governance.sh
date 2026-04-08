@@ -51,6 +51,8 @@ info() { echo -e "${BLUE}[i]${NC} $1"; }
 err()  { echo -e "${RED}[x]${NC} $1"; }
 
 do_cmd() {
+    # $1 = description, $2 = shell command string
+    # eval is safe here: all callers pass hardcoded strings, never external input
     if $DRY_RUN; then
         info "DRY RUN: $1"
     else

@@ -19,15 +19,16 @@ import re
 import subprocess
 import urllib.error
 import urllib.request
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-CORVUS_BASE_URL = os.environ.get(
-    "CORVUS_GOVERNANCE_URL", "http://localhost:9420"
-)
+_raw_url = os.environ.get("CORVUS_GOVERNANCE_URL", "http://localhost:9420")
+if not _raw_url.startswith(("http://", "https://")):
+    raise ValueError(f"CORVUS_GOVERNANCE_URL must use http:// or https:// (got: {_raw_url!r})")
+CORVUS_BASE_URL = _raw_url.rstrip("/")
 TIMEOUT_SECONDS = 5
 
 # Keychain config (macOS). Non-macOS uses env var fallback.
