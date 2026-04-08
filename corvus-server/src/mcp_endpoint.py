@@ -9,7 +9,6 @@ overhead, full request/response fidelity, and clean separation from router
 internals.
 """
 
-import contextlib
 import json
 import logging
 from typing import Any
@@ -933,18 +932,30 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 # ---------------------------------------------------------------------------
 # Streamable HTTP transport + Starlette routes
 # ---------------------------------------------------------------------------
+_http_manager = None
+
+
+def get_http_manager():
+    """Return the session manager for lifespan management by the host app."""
+    return _http_manager
+
+
 def create_mcp_routes(fastapi_app: Any) -> Starlette:
     """Build a Starlette sub-application serving the MCP Streamable HTTP endpoint.
 
     The returned app is mounted on the FastAPI app at ``/mcp``.
     Clients send POST requests to ``/mcp`` with JSON-RPC bodies.
 
+    The session manager's lifecycle (``run()``) must be managed by the host
+    app's lifespan — Starlette sub-app lifespans are NOT called when mounted.
+    Use ``get_http_manager()`` to access it from the FastAPI lifespan.
+
     Args:
         fastapi_app: The FastAPI ``app`` instance — used to create an internal
             ASGI HTTP client so MCP tool handlers can call Corvus endpoints
             without a network round-trip.
     """
-    global _internal_client
+    global _internal_client, _http_manager
 
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
@@ -956,7 +967,7 @@ def create_mcp_routes(fastapi_app: Any) -> Starlette:
 
     # Stateless session manager — each request creates a fresh session.
     # JSON response mode for simpler HTTP semantics (no SSE streaming).
-    http_manager = StreamableHTTPSessionManager(
+    _http_manager = StreamableHTTPSessionManager(
         app=mcp_server,
         stateless=True,
         json_response=True,
@@ -964,19 +975,12 @@ def create_mcp_routes(fastapi_app: Any) -> Starlette:
 
     async def handle_mcp(scope, receive, send):
         """Streamable HTTP endpoint — handles POST/GET/DELETE at /mcp."""
-        await http_manager.handle_request(scope, receive, send)
-
-    @contextlib.asynccontextmanager
-    async def lifespan(app):
-        """Initialize the session manager's task group before serving requests."""
-        async with http_manager.run():
-            yield
+        await _http_manager.handle_request(scope, receive, send)
 
     mcp_app = Starlette(
         routes=[
             Mount("/", app=handle_mcp),
         ],
-        lifespan=lifespan,
     )
 
     logger.info("MCP Streamable HTTP endpoint created (%d tools registered)", len(TOOL_DEFINITIONS))

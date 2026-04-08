@@ -13,6 +13,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from src.config import API_KEYS, CORVUS_DEV_MODE, MCP_ENABLED, OIDC_ENABLED
+from src.mcp_endpoint import get_http_manager
 from src.dashboard.router import router as dashboard_router
 from src.database import init_db
 from src.discovery.collector import start_collector, stop_collector
@@ -102,7 +103,13 @@ async def lifespan(app: FastAPI):
     # Start Layer 2 collector (if Docker hosts configured)
     start_collector()
 
-    yield
+    # MCP session manager lifecycle — must be active before requests arrive.
+    # Uses AsyncExitStack so cleanup runs regardless of MCP state.
+    async with contextlib.AsyncExitStack() as stack:
+        mcp_mgr = get_http_manager()
+        if mcp_mgr:
+            await stack.enter_async_context(mcp_mgr.run())
+        yield
 
     stop_collector()
     await close_graph()
