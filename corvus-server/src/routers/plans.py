@@ -105,6 +105,15 @@ async def create_plan(plan: PlanCreate):
                 f"Must be one of: {', '.join(sorted(VALID_FAILURE_POLICIES))}",
             )
 
+    # Validate unique step names
+    step_names = [s.name for s in plan.steps]
+    if len(step_names) != len(set(step_names)):
+        dupes = [n for n in step_names if step_names.count(n) > 1]
+        raise HTTPException(
+            status_code=422,
+            detail=f"Duplicate step names: {', '.join(set(dupes))}",
+        )
+
     db = await get_db()
     try:
         now = datetime.now(UTC).isoformat()
@@ -120,6 +129,29 @@ async def create_plan(plan: PlanCreate):
         all_targets: set[str] = set()
         for step in plan.steps:
             all_targets.update(step.targets)
+
+        # Cycle detection (Kahn's algorithm for topological sort)
+        adjacency: dict[str, list[str]] = {s.name: list(s.depends_on) for s in plan.steps}
+        in_degree: dict[str, int] = {name: 0 for name in adjacency}
+        for deps in adjacency.values():
+            for dep in deps:
+                if dep in in_degree:
+                    in_degree[dep] += 1
+        queue = [name for name, deg in in_degree.items() if deg == 0]
+        visited = 0
+        while queue:
+            node = queue.pop()
+            visited += 1
+            for dep in adjacency.get(node, []):
+                if dep in in_degree:
+                    in_degree[dep] -= 1
+                    if in_degree[dep] == 0:
+                        queue.append(dep)
+        if visited != len(adjacency):
+            raise HTTPException(
+                status_code=422,
+                detail="Circular dependency detected in steps",
+            )
 
         # Insert the plan
         await db.execute(
@@ -527,7 +559,7 @@ async def execute_plan(plan_id: str):
         await db.close()
 
 
-@router.get("/{plan_id}/steps/ready", response_model=list[PlanStepResponse])
+@router.post("/{plan_id}/steps/ready", response_model=list[PlanStepResponse])
 async def get_ready_steps(plan_id: str):
     """Return steps that are ready and claim them by marking as executing."""
     db = await get_db()
@@ -576,7 +608,7 @@ async def report_step_result(plan_id: str, step_id: str, req: StepResultRequest)
     db = await get_db()
     try:
         # Verify plan and step exist
-        cursor = await db.execute("SELECT id, status FROM ops_plans WHERE id = ?", (plan_id,))
+        cursor = await db.execute("SELECT id, status, change_id FROM ops_plans WHERE id = ?", (plan_id,))
         plan_row = await cursor.fetchone()
         if not plan_row:
             raise HTTPException(status_code=404, detail="Plan not found")
@@ -588,6 +620,14 @@ async def report_step_result(plan_id: str, step_id: str, req: StepResultRequest)
         step_row = await cursor.fetchone()
         if not step_row:
             raise HTTPException(status_code=404, detail="Step not found")
+
+        # Guard: only executing or ready steps can receive results
+        if step_row["status"] not in ("executing", "ready"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot report result for step with status '{step_row['status']}'. "
+                "Step must be in 'executing' or 'ready' status.",
+            )
 
         now_iso = datetime.now(UTC).isoformat()
         newly_ready: list[dict] = []
@@ -672,7 +712,7 @@ async def report_step_result(plan_id: str, step_id: str, req: StepResultRequest)
                             "step_id": step_id,
                             "error": req.error,
                         }),
-                        plan_row["status"] if plan_row["status"] != "blocked" else None,
+                        plan_row["change_id"],
                     ),
                 )
 

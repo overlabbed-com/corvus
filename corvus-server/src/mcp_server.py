@@ -508,7 +508,7 @@ def ops_pull_ready_steps(plan_id: str) -> str:
         plan_id: Plan ID to pull steps from
     """
     with _client() as client:
-        resp = client.get(f"/ops/plans/{plan_id}/steps/ready")
+        resp = client.post(f"/ops/plans/{plan_id}/steps/ready")
         resp.raise_for_status()
         return json.dumps(resp.json(), indent=2)
 

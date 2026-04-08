@@ -37,7 +37,7 @@ async def test_reap_timed_out_step(client):
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
     # Pull to claim (sets to executing)
-    await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    await client.post(f"/ops/plans/{plan_id}/steps/ready")
 
     # Backdate started_at to 10 minutes ago
     db = await get_db()
@@ -94,7 +94,7 @@ async def test_reap_exhausted_retries_blocks_plan(client):
         json={"approved_by": "todd", "force": True},
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
-    await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    await client.post(f"/ops/plans/{plan_id}/steps/ready")
 
     db = await get_db()
     try:
@@ -139,7 +139,7 @@ async def test_reap_ignores_non_timed_out(client):
         json={"approved_by": "todd", "force": True},
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
-    await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    await client.post(f"/ops/plans/{plan_id}/steps/ready")
 
     count = await reap_timed_out_steps()
     assert count == 0
@@ -172,7 +172,7 @@ async def test_reap_emits_event_on_block(client):
         json={"approved_by": "todd", "force": True},
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
-    await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    await client.post(f"/ops/plans/{plan_id}/steps/ready")
 
     db = await get_db()
     try:
@@ -223,7 +223,7 @@ async def test_reap_skip_policy_does_not_block(client):
         json={"approved_by": "todd", "force": True},
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
-    await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    await client.post(f"/ops/plans/{plan_id}/steps/ready")
 
     db = await get_db()
     try:

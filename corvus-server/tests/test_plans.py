@@ -422,7 +422,7 @@ async def test_ready_steps_returns_dag_roots(client):
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     # Pull ready steps -- should be only "pull-image" (no deps)
-    resp = await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    resp = await client.post(f"/ops/plans/{plan_id}/steps/ready")
     assert resp.status_code == 200
     ready = resp.json()
     assert len(ready) == 1
@@ -438,7 +438,7 @@ async def test_step_completion_advances_dag(client):
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     # Pull and complete root step
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     root_step_id = ready[0]["id"]
 
     result_resp = await client.post(
@@ -461,7 +461,7 @@ async def test_plan_completes_when_all_steps_done(client):
 
     # Walk the DAG: pull-image -> restart-service -> verify-health
     for _ in range(3):
-        ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+        ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
         assert len(ready) == 1
         step_id = ready[0]["id"]
         await client.post(
@@ -571,7 +571,7 @@ async def test_parallel_roots_both_ready(client):
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     # Both roots should be ready
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     ready_names = {s["name"] for s in ready}
     assert ready_names == {"root-a", "root-b"}
 
@@ -583,7 +583,7 @@ async def test_parallel_roots_both_ready(client):
         )
 
     # Now the join step should be ready
-    ready2 = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready2 = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     assert len(ready2) == 1
     assert ready2[0]["name"] == "join"
 
@@ -626,7 +626,7 @@ async def test_halt_policy_blocks_plan(client):
     plan_id = plan["id"]
 
     # Claim root step
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     assert len(ready) == 1
     step_a_id = ready[0]["id"]
 
@@ -674,7 +674,7 @@ async def test_skip_policy_continues(client):
     plan_id = plan["id"]
 
     # Claim and fail step-a (skip policy)
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     step_a_id = ready[0]["id"]
 
     result = await client.post(
@@ -719,7 +719,7 @@ async def test_retry_policy(client):
     plan_id = plan["id"]
 
     # Retry 1: claim and fail
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     step_id = ready[0]["id"]
 
     result = await client.post(
@@ -732,7 +732,7 @@ async def test_retry_policy(client):
     assert data["plan_status"] == "executing"
 
     # Retry 2: claim and fail again
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     assert len(ready) == 1
     step_id = ready[0]["id"]
 
@@ -746,7 +746,7 @@ async def test_retry_policy(client):
     assert data["plan_status"] == "executing"
 
     # Retry 3: max reached -- should halt
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     step_id = ready[0]["id"]
 
     result = await client.post(
@@ -797,7 +797,7 @@ async def test_rollback_reverses_completed_steps(client):
 
     # Complete steps 1 and 2, fail step 3
     for _ in range(2):
-        ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+        ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
         step_id = ready[0]["id"]
         await client.post(
             f"/ops/plans/{plan_id}/steps/{step_id}/result",
@@ -805,7 +805,7 @@ async def test_rollback_reverses_completed_steps(client):
         )
 
     # Fail step 3 (halt policy) -> plan blocked
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     step_id = ready[0]["id"]
     await client.post(
         f"/ops/plans/{plan_id}/steps/{step_id}/result",
@@ -865,13 +865,13 @@ async def test_rollback_completes_plan_as_rolled_back(client):
     plan_id = plan["id"]
 
     # Complete step 1, fail step 2 -> blocked
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     await client.post(
         f"/ops/plans/{plan_id}/steps/{ready[0]['id']}/result",
         json={"success": True},
     )
 
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     await client.post(
         f"/ops/plans/{plan_id}/steps/{ready[0]['id']}/result",
         json={"success": False, "error": "health check failed"},
@@ -881,7 +881,7 @@ async def test_rollback_completes_plan_as_rolled_back(client):
     await client.post(f"/ops/plans/{plan_id}/rollback")
 
     # Complete all rollback steps
-    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    ready = (await client.post(f"/ops/plans/{plan_id}/steps/ready")).json()
     assert len(ready) == 1
     assert ready[0]["name"].startswith("rollback:")
 
@@ -953,7 +953,7 @@ async def test_full_plan_lifecycle(client):
     change_id = exec_resp.json()["change_id"]
 
     # Pull ready (should be deploy only)
-    ready = await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    ready = await client.post(f"/ops/plans/{plan_id}/steps/ready")
     assert len(ready.json()) == 1
     assert ready.json()[0]["name"] == "deploy"
 
@@ -961,7 +961,7 @@ async def test_full_plan_lifecycle(client):
     await client.post(f"/ops/plans/{plan_id}/steps/{deploy_id}/result", json={"success": True})
 
     # Pull ready (should be verify now)
-    ready = await client.get(f"/ops/plans/{plan_id}/steps/ready")
+    ready = await client.post(f"/ops/plans/{plan_id}/steps/ready")
     assert len(ready.json()) == 1
     assert ready.json()[0]["name"] == "verify"
 
@@ -1120,3 +1120,69 @@ async def test_plan_started_event_emitted(client):
     event_data = _parse_data(event["data"])
     assert event_data["plan_id"] == plan_id
     assert event["type"] == "plan.started"
+
+
+# ---- Validation tests (code review fixes) ----
+
+
+@pytest.mark.asyncio
+async def test_create_plan_with_circular_deps_returns_422(client):
+    """Plans with circular dependencies are rejected at creation."""
+    resp = await client.post(
+        "/ops/plans",
+        json={
+            "title": "Cycle test",
+            "created_by": "cc",
+            "steps": [
+                {"name": "a", "sequence": 1, "action_type": "health.check", "targets": ["svc"], "depends_on": ["b"]},
+                {"name": "b", "sequence": 2, "action_type": "health.check", "targets": ["svc"], "depends_on": ["a"]},
+            ],
+        },
+    )
+    assert resp.status_code == 422
+    assert "circular" in resp.json()["detail"].lower() or "cycle" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_result_on_completed_step_returns_409(client):
+    """Cannot submit result for an already completed step."""
+    create_resp = await client.post(
+        "/ops/plans",
+        json={
+            "title": "Double result test",
+            "created_by": "cc",
+            "steps": [
+                {"name": "s1", "sequence": 1, "action_type": "health.check", "targets": ["svc"]},
+            ],
+        },
+    )
+    plan_id = create_resp.json()["id"]
+    step_id = create_resp.json()["steps"][0]["id"]
+
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/execute")
+    # Claim and complete the step
+    await client.post(f"/ops/plans/{plan_id}/steps/ready")
+    await client.post(f"/ops/plans/{plan_id}/steps/{step_id}/result", json={"success": True})
+
+    # Second result should be rejected
+    resp = await client.post(f"/ops/plans/{plan_id}/steps/{step_id}/result", json={"success": True})
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_create_plan_with_duplicate_step_names_returns_422(client):
+    """Duplicate step names are rejected."""
+    resp = await client.post(
+        "/ops/plans",
+        json={
+            "title": "Dupe test",
+            "created_by": "cc",
+            "steps": [
+                {"name": "deploy", "sequence": 1, "action_type": "health.check", "targets": ["svc"]},
+                {"name": "deploy", "sequence": 2, "action_type": "health.check", "targets": ["svc"]},
+            ],
+        },
+    )
+    assert resp.status_code == 422
+    assert "duplicate" in resp.json()["detail"].lower()
