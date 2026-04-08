@@ -1,0 +1,59 @@
+{
+  "$comment": "Merge this into ~/.claude/settings.json under the 'hooks' key. The installer does this automatically.",
+  "PreToolUse": [
+    {
+      "matcher": "Bash",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/.claude/hooks/corvus-governance.py",
+          "timeout": 10
+        }
+      ]
+    },
+    {
+      "matcher": "mcp__*__docker-container_restart|mcp__*__docker-container_stop|mcp__*__docker-container_start|mcp__*__portainer-container_restart|mcp__*__portainer-container_stop|mcp__*__portainer-container_start|mcp__*__portainer-stack_deploy|mcp__*__portainer-stack_remove",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/.claude/hooks/corvus-governance.py",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
+  "UserPromptSubmit": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/.claude/hooks/corvus-lifecycle.py",
+          "timeout": 5
+        }
+      ]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "Bash",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/.claude/hooks/corvus-event-emit.py",
+          "timeout": 10
+        }
+      ]
+    },
+    {
+      "matcher": "mcp__*__docker-container_restart|mcp__*__docker-container_stop|mcp__*__docker-container_start|mcp__*__portainer-container_restart|mcp__*__portainer-container_stop|mcp__*__portainer-container_start|mcp__*__portainer-stack_deploy|mcp__*__portainer-stack_remove",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 ~/.claude/hooks/corvus-event-emit.py",
+          "timeout": 10
+        }
+      ]
+    }
+  ]
+}

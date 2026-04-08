@@ -5,18 +5,23 @@
 # Detects which tools are installed and configures each one appropriately.
 #
 # Usage:
-#   ./install-corvus-governance.sh [--project-dir /path/to/project] [--api-key KEY]
+#   ./install-corvus-governance.sh [options]
 #
 # Options:
 #   --project-dir DIR   Install project-level rules to DIR (default: current dir)
 #   --api-key KEY       Set Corvus API key (or set CORVUS_API_KEY env var)
-#   --hooks-dir DIR     Location of hooks source (default: ~/.claude/hooks)
+#   --source-dir DIR    Location of corvus-hooks source (default: script's directory)
 #   --dry-run           Show what would be done without doing it
 #   --help              Show this help
+#
+# The installer copies hooks and rules FROM the corvus-hooks source directory
+# TO each tool's expected location. Nothing is symlinked.
 
 set -euo pipefail
 
-HOOKS_DIR="${HOME}/.claude/hooks"
+# Source dir defaults to wherever this script lives
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE_DIR="${SCRIPT_DIR}"
 PROJECT_DIR="."
 API_KEY=""
 DRY_RUN=false
@@ -26,9 +31,9 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --project-dir) PROJECT_DIR="$2"; shift 2 ;;
         --api-key) API_KEY="$2"; shift 2 ;;
-        --hooks-dir) HOOKS_DIR="$2"; shift 2 ;;
+        --source-dir) SOURCE_DIR="$2"; shift 2 ;;
         --dry-run) DRY_RUN=true; shift ;;
-        --help) head -17 "$0" | tail -14; exit 0 ;;
+        --help) head -20 "$0" | tail -17; exit 0 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -63,12 +68,14 @@ echo "  Corvus Governance Installer"
 echo "=========================================="
 echo ""
 
-# Check hooks source exists
-if [[ ! -f "${HOOKS_DIR}/corvus_core.py" ]]; then
-    err "corvus_core.py not found at ${HOOKS_DIR}/"
-    err "Clone the hooks directory first or specify --hooks-dir"
+# Check source exists
+if [[ ! -f "${SOURCE_DIR}/corvus_core.py" ]]; then
+    err "corvus_core.py not found at ${SOURCE_DIR}/"
+    err "Run this script from the corvus-hooks directory or specify --source-dir"
     exit 1
 fi
+
+info "Source: ${SOURCE_DIR}/"
 
 # Check/set API key
 if [[ -z "$API_KEY" ]]; then
@@ -78,7 +85,10 @@ fi
 if [[ -z "$API_KEY" ]]; then
     # Try macOS keychain
     if command -v security &>/dev/null; then
-        API_KEY=$(security find-generic-password -s "${CORVUS_KEYCHAIN_SERVICE:-corvus}" -a "${CORVUS_KEYCHAIN_ACCOUNT:-api-key}" -w 2>/dev/null || true)
+        API_KEY=$(security find-generic-password \
+            -s "${CORVUS_KEYCHAIN_SERVICE:-corvus}" \
+            -a "${CORVUS_KEYCHAIN_ACCOUNT:-api-key}" \
+            -w 2>/dev/null || true)
     fi
 fi
 
@@ -165,24 +175,68 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Install hooks for tools with hook systems
+# Claude Code — full hook deployment
 # ---------------------------------------------------------------------------
-
-# Claude Code (hooks in settings.json — already configured if using this repo)
 if [[ " ${INSTALLED_TOOLS[*]} " =~ " claude-code " ]]; then
-    info "Claude Code: hooks configured in ~/.claude/settings.json"
-    info "  PreToolUse  -> corvus-governance.py (conflict check)"
-    info "  PostToolUse -> corvus-event-emit.py (auto event emission)"
-    info "  UserPromptSubmit -> corvus-lifecycle.py (intent classification)"
+    info "Installing Claude Code hooks and rules..."
+    CC_HOOKS_DIR="${HOME}/.claude/hooks"
+    CC_RULES_DIR="${HOME}/.claude/rules"
+    CC_SETTINGS="${HOME}/.claude/settings.json"
+
+    # Copy hook scripts
+    do_cmd "Claude Code: hooks → ${CC_HOOKS_DIR}/" \
+        "mkdir -p '${CC_HOOKS_DIR}' && cp '${SOURCE_DIR}/corvus_core.py' '${SOURCE_DIR}/corvus-governance.py' '${SOURCE_DIR}/corvus-event-emit.py' '${SOURCE_DIR}/corvus-lifecycle.py' '${CC_HOOKS_DIR}/'"
+
+    # Copy adapters (used by Codex/Cline too, but CC hooks dir is the standard location)
+    do_cmd "Claude Code: adapters → ${CC_HOOKS_DIR}/adapters/" \
+        "mkdir -p '${CC_HOOKS_DIR}/adapters' && cp '${SOURCE_DIR}/adapters/'*.py '${CC_HOOKS_DIR}/adapters/'"
+
+    # Copy governance rules
+    if [[ -d "${SOURCE_DIR}/claude-code/rules" ]]; then
+        do_cmd "Claude Code: governance rules → ${CC_RULES_DIR}/" \
+            "mkdir -p '${CC_RULES_DIR}/agents' '${CC_RULES_DIR}/tasks' && cp '${SOURCE_DIR}/claude-code/rules/governance.md' '${CC_RULES_DIR}/' && cp '${SOURCE_DIR}/claude-code/rules/agents/'*.md '${CC_RULES_DIR}/agents/' && cp '${SOURCE_DIR}/claude-code/rules/tasks/'*.md '${CC_RULES_DIR}/tasks/'"
+    fi
+
+    # Merge hooks config into settings.json
+    if [[ -f "${SOURCE_DIR}/claude-code/hooks.json" ]]; then
+        if [[ -f "$CC_SETTINGS" ]]; then
+            # Check if hooks are already configured
+            if python3 -c "import json; d=json.load(open('${CC_SETTINGS}')); exit(0 if 'hooks' in d and 'PreToolUse' in d['hooks'] else 1)" 2>/dev/null; then
+                info "Claude Code: hooks already configured in ${CC_SETTINGS}"
+            else
+                do_cmd "Claude Code: merge hooks config into ${CC_SETTINGS}" \
+                    "python3 -c \"
+import json
+with open('${CC_SETTINGS}') as f: settings = json.load(f)
+with open('${SOURCE_DIR}/claude-code/hooks.json') as f: hooks = json.load(f)
+hooks.pop('\\\$comment', None)
+settings['hooks'] = hooks
+with open('${CC_SETTINGS}', 'w') as f: json.dump(settings, f, indent=2)
+\""
+            fi
+        else
+            do_cmd "Claude Code: create ${CC_SETTINGS} with hooks config" \
+                "mkdir -p '${HOME}/.claude' && python3 -c \"
+import json
+with open('${SOURCE_DIR}/claude-code/hooks.json') as f: hooks = json.load(f)
+hooks.pop('\\\$comment', None)
+with open('${CC_SETTINGS}', 'w') as f: json.dump({'hooks': hooks}, f, indent=2)
+\""
+        fi
+    fi
+
+    echo ""
 fi
 
+# ---------------------------------------------------------------------------
 # Codex CLI
+# ---------------------------------------------------------------------------
 if [[ " ${INSTALLED_TOOLS[*]} " =~ " codex " ]]; then
     CODEX_CONFIG="${HOME}/.codex/config.toml"
     if [[ -f "$CODEX_CONFIG" ]] && grep -q "corvus" "$CODEX_CONFIG" 2>/dev/null; then
         info "Codex CLI: Corvus hooks already configured in $CODEX_CONFIG"
     else
-        info "Codex CLI: Add to ${CODEX_CONFIG}:"
+        warn "Codex CLI: Add to ${CODEX_CONFIG}:"
         cat <<'TOML'
 
   [hooks.PreToolUse]
@@ -202,31 +256,32 @@ TOML
     fi
 fi
 
+# ---------------------------------------------------------------------------
 # Cline
+# ---------------------------------------------------------------------------
 if [[ " ${INSTALLED_TOOLS[*]} " =~ " cline " ]]; then
     CLINE_GLOBAL="${HOME}/Documents/Cline/Hooks"
-    if [[ -d "$CLINE_GLOBAL" ]] && [[ -L "${CLINE_GLOBAL}/corvus-governance.py" ]]; then
-        info "Cline: Global hook already linked"
+    if [[ -d "$CLINE_GLOBAL" ]] && [[ -f "${CLINE_GLOBAL}/corvus-governance.py" ]]; then
+        info "Cline: Global hook already installed"
     else
-        do_cmd "Cline: Link global hook" \
-            "mkdir -p '${CLINE_GLOBAL}' && ln -sf '${HOOKS_DIR}/adapters/cline_hooks.py' '${CLINE_GLOBAL}/corvus-governance.py'"
+        do_cmd "Cline: Copy hook to ${CLINE_GLOBAL}/" \
+            "mkdir -p '${CLINE_GLOBAL}' && cp '${SOURCE_DIR}/adapters/cline_hooks.py' '${CLINE_GLOBAL}/corvus-governance.py'"
     fi
 fi
 
 echo ""
 
 # ---------------------------------------------------------------------------
-# Install project-level rules
+# Project-level rules (tool-agnostic governance docs)
 # ---------------------------------------------------------------------------
-
 info "Installing project-level governance rules to: ${PROJECT_DIR}"
 echo ""
 
-RULES_SRC="${HOOKS_DIR}/rules"
+RULES_SRC="${SOURCE_DIR}/rules"
 
-# AGENTS.md (Cline, Augment, Codex CLI, Continue)
+# AGENTS.md (Cline, Augment, Codex CLI, Continue, Amazon Q)
 if [[ ! -f "${PROJECT_DIR}/AGENTS.md" ]]; then
-    do_cmd "AGENTS.md (Cline, Augment, Codex, Continue)" \
+    do_cmd "AGENTS.md (Cline, Augment, Codex, Continue, Amazon Q)" \
         "cp '${RULES_SRC}/AGENTS.md' '${PROJECT_DIR}/AGENTS.md'"
 else
     warn "AGENTS.md already exists in ${PROJECT_DIR} — skipping"
@@ -298,10 +353,12 @@ echo ""
 # Store API key if provided and on macOS
 # ---------------------------------------------------------------------------
 if [[ -n "$API_KEY" ]] && command -v security &>/dev/null; then
-    EXISTING=$(security find-generic-password -s "${CORVUS_KEYCHAIN_SERVICE:-corvus}" -a "${CORVUS_KEYCHAIN_ACCOUNT:-api-key}" -w 2>/dev/null || true)
+    KC_SVC="${CORVUS_KEYCHAIN_SERVICE:-corvus}"
+    KC_ACCT="${CORVUS_KEYCHAIN_ACCOUNT:-api-key}"
+    EXISTING=$(security find-generic-password -s "$KC_SVC" -a "$KC_ACCT" -w 2>/dev/null || true)
     if [[ "$EXISTING" != "$API_KEY" ]]; then
-        do_cmd "Store API key in macOS keychain" \
-            "security add-generic-password -s '${CORVUS_KEYCHAIN_SERVICE:-corvus}' -a '${CORVUS_KEYCHAIN_ACCOUNT:-api-key}' -w '${API_KEY}' -U"
+        do_cmd "Store API key in macOS keychain (service=${KC_SVC})" \
+            "security add-generic-password -s '${KC_SVC}' -a '${KC_ACCT}' -w '${API_KEY}' -U"
     else
         info "API key already in keychain"
     fi
@@ -315,9 +372,18 @@ echo "=========================================="
 echo "  Installation Complete"
 echo "=========================================="
 echo ""
-info "Hooks source: ${HOOKS_DIR}/"
-info "Project rules: ${PROJECT_DIR}/"
-info "Tools configured: ${INSTALLED_TOOLS[*]:-none detected}"
+info "Source:         ${SOURCE_DIR}/"
+info "Project rules:  ${PROJECT_DIR}/"
+info "Tools detected: ${INSTALLED_TOOLS[*]:-none}"
+echo ""
+
+if [[ " ${INSTALLED_TOOLS[*]} " =~ " claude-code " ]]; then
+    info "Claude Code:"
+    info "  Hooks:  ~/.claude/hooks/ (corvus_core + 3 hook scripts + adapters)"
+    info "  Rules:  ~/.claude/rules/ (governance + agents + ops-protocol)"
+    info "  Config: ~/.claude/settings.json (hooks section)"
+fi
+
 echo ""
 info "All tools share the same Corvus governance:"
 info "  - Pre-action conflict check (MANDATORY)"
