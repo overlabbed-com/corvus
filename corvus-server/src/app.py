@@ -32,6 +32,7 @@ from src.routers import (
     incidents,
     knowledge,
     metrics,
+    plans,
     problems,
     runbooks,
     steps,
@@ -156,6 +157,7 @@ app.include_router(runbooks.triage_router)
 app.include_router(metrics.router)
 app.include_router(backup.router)
 app.include_router(steps.router)
+app.include_router(plans.router)
 app.include_router(trust.router)
 app.include_router(knowledge.router)
 app.include_router(agent_instructions.router)
