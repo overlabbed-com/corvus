@@ -47,6 +47,20 @@ forwarded to your SIEM.
 | `session.started` | Agent session begins | info |
 | `session.ended` | Agent session ends | info |
 
+### Plan Lifecycle
+| Type | When | Severity |
+|------|------|----------|
+| `plan.created` | Plan submitted as draft | info |
+| `plan.approved` | Plan approved for execution | info |
+| `plan.started` | Execution began, change window opened | info |
+| `plan.step_completed` | Individual step succeeded | info |
+| `plan.step_failed` | Individual step failed | warning |
+| `plan.completed` | All steps succeeded | info |
+| `plan.failed` | Step failure, rollback completed | warning |
+| `plan.blocked` | Step failure, awaiting human decision | warning |
+| `plan.rolling_back` | Rollback sequence started | warning |
+| `plan.rolled_back` | Rollback sequence completed | info |
+
 ### Correlation
 | Type | When | Severity |
 |------|------|----------|
@@ -104,6 +118,7 @@ Every event is transformed to OCSF 1.3.0 before SIEM forwarding:
 |----------|-----------|-----------|
 | `incident.*` | Incident Finding | 2005 |
 | `change.*` | Device Config State Change | 5019 |
+| `plan.*` | Device Config State Change | 5019 |
 | `remediation.*` | Remediation Activity | 7001 |
 | `sweep.*` | Scan Activity / Detection Finding | 6007/2004 |
 | `action.*` | API Activity | 6003 |
