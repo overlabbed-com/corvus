@@ -123,12 +123,14 @@ class RuntimeConfig:
     @classmethod
     def set(cls, key: str, value: float | int | str) -> None:
         """Set a tunable parameter, clamping to bounds if registered."""
+        if key not in cls._defaults:
+            raise KeyError(f"Unknown config key: {key}")
         min_val, max_val = cls._bounds.get(key, (None, None))
         if isinstance(value, (int, float)):
-            if min_val is not None and value < min_val:
-                value = type(value)(min_val)
-            if max_val is not None and value > max_val:
-                value = type(value)(max_val)
+            if min_val is not None:
+                value = max(value, min_val)
+            if max_val is not None:
+                value = min(value, max_val)
         cls._values[key] = value
 
     @classmethod
