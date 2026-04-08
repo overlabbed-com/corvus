@@ -11,6 +11,7 @@ import uuid
 from datetime import UTC, datetime
 
 from src.database import get_db
+from src.tasks.task_metrics import track_task
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,9 @@ async def run_step_timeout_loop(interval_seconds: int = 60):
     """Run step timeout check every interval_seconds (default 1 min)."""
     while True:
         try:
-            count = await reap_timed_out_steps()
+            with track_task("step_timeout") as ctx:
+                count = await reap_timed_out_steps()
+                ctx["count"] = count
             if count:
                 logger.info("Reaped %d timed-out steps", count)
         except Exception:

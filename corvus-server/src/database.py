@@ -238,6 +238,42 @@ CREATE INDEX IF NOT EXISTS idx_plan_steps_plan ON ops_plan_steps(plan_id);
 CREATE INDEX IF NOT EXISTS idx_plan_steps_status ON ops_plan_steps(status);
 CREATE INDEX IF NOT EXISTS idx_plan_steps_action_type ON ops_plan_steps(action_type);
 
+CREATE TABLE IF NOT EXISTS ops_metrics_snapshots (
+    id              TEXT PRIMARY KEY,
+    timestamp       TEXT NOT NULL,
+    period_start    TEXT NOT NULL,
+    period_end      TEXT NOT NULL,
+    tier            TEXT NOT NULL,
+    metrics         TEXT NOT NULL,
+    node_id         TEXT DEFAULT 'local',
+    hlc_timestamp   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_metrics_snapshots_timestamp ON ops_metrics_snapshots(timestamp);
+CREATE INDEX IF NOT EXISTS idx_metrics_snapshots_tier ON ops_metrics_snapshots(tier);
+
+CREATE TABLE IF NOT EXISTS ops_metric_adjustments (
+    id                  TEXT PRIMARY KEY,
+    timestamp           TEXT NOT NULL,
+    parameter           TEXT NOT NULL,
+    old_value           TEXT NOT NULL,
+    new_value           TEXT NOT NULL,
+    trigger_metric      TEXT NOT NULL,
+    trigger_value       REAL NOT NULL,
+    trigger_threshold   REAL NOT NULL,
+    adjustment_number   INTEGER NOT NULL,
+    dampening_factor    REAL NOT NULL,
+    reasoning           TEXT NOT NULL,
+    reverted            INTEGER NOT NULL DEFAULT 0,
+    reverted_at         TEXT,
+    revert_reason       TEXT,
+    node_id             TEXT DEFAULT 'local',
+    hlc_timestamp       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_metric_adjustments_parameter ON ops_metric_adjustments(parameter);
+CREATE INDEX IF NOT EXISTS idx_metric_adjustments_timestamp ON ops_metric_adjustments(timestamp);
+
 CREATE TABLE IF NOT EXISTS ops_trust_ledger (
     action_type TEXT PRIMARY KEY,
     total_count INTEGER DEFAULT 0,
@@ -281,6 +317,16 @@ async def init_db() -> None:
     db = await get_db()
     try:
         await db.executescript(SCHEMA)
+        # Column patches -- idempotent; silently skip if column already exists.
+        for alter_sql in [
+            "ALTER TABLE ops_incidents ADD COLUMN investigating_at TEXT",
+            "ALTER TABLE ops_trust_ledger ADD COLUMN first_seen_at TEXT",
+            "ALTER TABLE ops_triage_log ADD COLUMN resolution_time_seconds REAL",
+        ]:
+            try:
+                await db.execute(alter_sql)
+            except Exception:
+                pass  # Column already exists
         await db.commit()
     finally:
         await db.close()

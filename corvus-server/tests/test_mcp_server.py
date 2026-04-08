@@ -27,6 +27,10 @@ def test_mcp_tools_registered():
         "ops_report_step_result",
         "ops_cancel_plan",
         "ops_rollback_plan",
+        "ops_lean_metrics",
+        "ops_bottlenecks",
+        "ops_throughput",
+        "ops_convergence",
     }
     assert expected == set(tools.keys()), (
         f"Missing: {expected - set(tools.keys())}, Extra: {set(tools.keys()) - expected}"
@@ -96,3 +100,28 @@ def test_ops_cancel_plan_schema():
 def test_ops_rollback_plan_schema():
     tool = mcp._tool_manager._tools["ops_rollback_plan"]
     assert "reverse" in tool.description.lower()
+
+
+def test_ops_lean_metrics_schema():
+    tool = mcp._tool_manager._tools["ops_lean_metrics"]
+    assert "cycle times" in tool.description.lower()
+
+
+def test_ops_bottlenecks_schema():
+    tool = mcp._tool_manager._tools["ops_bottlenecks"]
+    assert "slowest" in tool.description.lower()
+    props = tool.parameters.get("properties", {})
+    assert "top_n" in props
+
+
+def test_ops_throughput_schema():
+    tool = mcp._tool_manager._tools["ops_throughput"]
+    assert "demand" in tool.description.lower()
+    props = tool.parameters.get("properties", {})
+    assert "entity" in props
+    assert "hours" in props
+
+
+def test_ops_convergence_schema():
+    tool = mcp._tool_manager._tools["ops_convergence"]
+    assert "auto-tuning" in tool.description.lower()

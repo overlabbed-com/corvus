@@ -15,6 +15,7 @@ os.environ["CORVUS_DATA_DIR"] = _test_dir
 # Tests that need auth (test_auth_middleware.py) configure keys via monkeypatch.
 os.environ["CORVUS_DEV_MODE"] = "true"
 
+from src.config import RuntimeConfig  # noqa: E402
 from src import config  # noqa: E402
 from src.app import app  # noqa: E402
 from src.database import init_db  # noqa: E402
@@ -57,6 +58,8 @@ async def client():
             "ops_audit_log",
             "ops_triage_log",
             "ops_pending_steps",
+            "ops_metrics_snapshots",
+            "ops_metric_adjustments",
             "ops_plan_steps",
             "ops_plans",
             "ops_trust_ledger",
@@ -71,3 +74,11 @@ async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def _isolate_runtime_config():
+    """Save and restore RuntimeConfig state so tests don't leak across files."""
+    saved = (dict(RuntimeConfig._values), dict(RuntimeConfig._defaults), dict(RuntimeConfig._bounds))
+    yield
+    RuntimeConfig._values, RuntimeConfig._defaults, RuntimeConfig._bounds = saved

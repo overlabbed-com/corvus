@@ -85,3 +85,82 @@ _infra = _load_infra_config()
 INFRA_HOSTS: list[dict] = _infra.get("hosts", [])
 INFRA_GPUS: list[dict] = _infra.get("gpus", [])
 INFRA_STACK_HOST_MAP: dict[str, str] = _infra.get("stack_host_map", {})
+
+
+class RuntimeConfig:
+    """Mutable runtime configuration with atomic get/set/revert.
+
+    Background tasks and routers read tunable parameters from here
+    instead of module-level constants. The auto-tuner writes here.
+    Defaults match the original hardcoded values.
+    """
+
+    _values: dict[str, float | int | str] = {}
+    _defaults: dict[str, float | int | str] = {}
+    _bounds: dict[str, tuple[float | int | None, float | int | None]] = {}
+
+    @classmethod
+    def register_default(
+        cls,
+        key: str,
+        value: float | int | str,
+        min_val: float | int | None = None,
+        max_val: float | int | None = None,
+    ) -> None:
+        """Register a tunable parameter with its default and optional bounds."""
+        cls._defaults[key] = value
+        cls._bounds[key] = (min_val, max_val)
+        if key not in cls._values:
+            cls._values[key] = value
+
+    @classmethod
+    def get(cls, key: str) -> float | int | str:
+        """Get current value of a tunable parameter."""
+        if key not in cls._defaults:
+            raise KeyError(f"Unknown config key: {key}")
+        return cls._values.get(key, cls._defaults[key])
+
+    @classmethod
+    def set(cls, key: str, value: float | int | str) -> None:
+        """Set a tunable parameter, clamping to bounds if registered."""
+        if key not in cls._defaults:
+            raise KeyError(f"Unknown config key: {key}")
+        min_val, max_val = cls._bounds.get(key, (None, None))
+        if isinstance(value, (int, float)):
+            if min_val is not None:
+                value = max(value, min_val)
+            if max_val is not None:
+                value = min(value, max_val)
+        cls._values[key] = value
+
+    @classmethod
+    def revert(cls, key: str) -> None:
+        """Restore a parameter to its registered default."""
+        if key in cls._defaults:
+            cls._values[key] = cls._defaults[key]
+
+    @classmethod
+    def snapshot(cls) -> dict[str, float | int | str]:
+        """Return current values of all registered parameters."""
+        return {k: cls._values.get(k, v) for k, v in cls._defaults.items()}
+
+    @classmethod
+    def defaults(cls) -> dict[str, float | int | str]:
+        """Return the registered defaults (not overrides)."""
+        return dict(cls._defaults)
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset all state. For testing only."""
+        cls._values.clear()
+        cls._defaults.clear()
+        cls._bounds.clear()
+
+
+# Register tunable operational parameters
+RuntimeConfig.register_default("trust.promotion_threshold", 0.95, min_val=0.80, max_val=0.99)
+RuntimeConfig.register_default("trust.min_executions", 20, min_val=5, max_val=100)
+RuntimeConfig.register_default("change_expiry.hours", CHANGE_EXPIRY_HOURS, min_val=1, max_val=24)
+RuntimeConfig.register_default("step_timeout.default", 300, min_val=30, max_val=3600)
+RuntimeConfig.register_default("step_timeout.reaper_interval", 60, min_val=15, max_val=300)
+RuntimeConfig.register_default("triage.confidence_threshold", 0.5, min_val=0.2, max_val=0.9)

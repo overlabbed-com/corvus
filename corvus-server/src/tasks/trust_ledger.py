@@ -10,6 +10,7 @@ Demotion: Any failure at AUTO -> back to SUPERVISED.
 from datetime import UTC, datetime
 from typing import Any
 
+from src.config import RuntimeConfig
 from src.database import get_db
 
 TIER_ESCALATE = "ESCALATE"
@@ -17,9 +18,6 @@ TIER_SUPERVISED = "SUPERVISED"
 TIER_AUTO = "AUTO"
 
 TIER_ORDER = [TIER_ESCALATE, TIER_SUPERVISED, TIER_AUTO]
-
-PROMOTION_THRESHOLD = 0.95  # 95% success rate
-PROMOTION_MIN_COUNT = 20  # minimum executions before promotion
 
 
 async def record_outcome(action_type: str, outcome: str) -> dict[str, Any]:
@@ -39,9 +37,9 @@ async def record_outcome(action_type: str, outcome: str) -> dict[str, Any]:
         # Atomic upsert: create entry if not exists
         await db.execute(
             """INSERT OR IGNORE INTO ops_trust_ledger
-               (action_type, total_count, success_count, failure_count, trust_tier)
-               VALUES (?, 0, 0, 0, ?)""",
-            (action_type, TIER_ESCALATE),
+               (action_type, total_count, success_count, failure_count, trust_tier, first_seen_at)
+               VALUES (?, 0, 0, 0, ?, ?)""",
+            (action_type, TIER_ESCALATE, now),
         )
 
         # Increment counters
@@ -79,9 +77,9 @@ async def record_outcome(action_type: str, outcome: str) -> dict[str, Any]:
                 (TIER_SUPERVISED, now, action_type),
             )
         # Evaluate promotion (only on success outcomes)
-        elif outcome == "success" and total >= PROMOTION_MIN_COUNT:
+        elif outcome == "success" and total >= RuntimeConfig.get("trust.min_executions"):
             success_rate = successes / total
-            if success_rate >= PROMOTION_THRESHOLD:
+            if success_rate >= RuntimeConfig.get("trust.promotion_threshold"):
                 tier_idx = TIER_ORDER.index(current_tier)
                 if tier_idx < len(TIER_ORDER) - 1:
                     new_tier = TIER_ORDER[tier_idx + 1]
@@ -153,11 +151,11 @@ async def run_promotion_sweep() -> dict[str, Any]:
             successes = entry["success_count"]
             current_tier = entry["trust_tier"]
 
-            if total < PROMOTION_MIN_COUNT:
+            if total < RuntimeConfig.get("trust.min_executions"):
                 continue
 
             success_rate = successes / total
-            if success_rate < PROMOTION_THRESHOLD:
+            if success_rate < RuntimeConfig.get("trust.promotion_threshold"):
                 continue
 
             tier_idx = TIER_ORDER.index(current_tier)
