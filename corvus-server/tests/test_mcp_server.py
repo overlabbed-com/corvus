@@ -4,7 +4,7 @@ from src.mcp_server import mcp
 
 
 def test_mcp_tools_registered():
-    """Verify all 12 expected tools are registered."""
+    """Verify all 20 expected tools are registered."""
     tools = mcp._tool_manager._tools
     expected = {
         "ops_check_target",
@@ -19,6 +19,14 @@ def test_mcp_tools_registered():
         "ops_run_triage",
         "ops_get_metrics",
         "ops_report_gap",
+        "ops_create_plan",
+        "ops_approve_plan",
+        "ops_execute_plan",
+        "ops_plan_status",
+        "ops_pull_ready_steps",
+        "ops_report_step_result",
+        "ops_cancel_plan",
+        "ops_rollback_plan",
     }
     assert expected == set(tools.keys()), (
         f"Missing: {expected - set(tools.keys())}, Extra: {set(tools.keys()) - expected}"
@@ -48,3 +56,43 @@ def test_ops_run_triage_schema():
 def test_ops_report_gap_schema():
     tool = mcp._tool_manager._tools["ops_report_gap"]
     assert "blind spot" in tool.description.lower()
+
+
+def test_ops_create_plan_schema():
+    tool = mcp._tool_manager._tools["ops_create_plan"]
+    assert "DAG-ordered" in tool.description
+
+
+def test_ops_approve_plan_schema():
+    tool = mcp._tool_manager._tools["ops_approve_plan"]
+    assert "trust ledger" in tool.description.lower()
+
+
+def test_ops_execute_plan_schema():
+    tool = mcp._tool_manager._tools["ops_execute_plan"]
+    assert "change window" in tool.description.lower()
+
+
+def test_ops_plan_status_schema():
+    tool = mcp._tool_manager._tools["ops_plan_status"]
+    assert "progress" in tool.description.lower()
+
+
+def test_ops_pull_ready_steps_schema():
+    tool = mcp._tool_manager._tools["ops_pull_ready_steps"]
+    assert "dependencies" in tool.description.lower()
+
+
+def test_ops_report_step_result_schema():
+    tool = mcp._tool_manager._tools["ops_report_step_result"]
+    assert "failure_policy" in tool.description
+
+
+def test_ops_cancel_plan_schema():
+    tool = mcp._tool_manager._tools["ops_cancel_plan"]
+    assert "cancel" in tool.description.lower()
+
+
+def test_ops_rollback_plan_schema():
+    tool = mcp._tool_manager._tools["ops_rollback_plan"]
+    assert "reverse" in tool.description.lower()

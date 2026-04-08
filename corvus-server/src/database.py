@@ -185,6 +185,59 @@ CREATE VIRTUAL TABLE IF NOT EXISTS ops_knowledge_fts USING fts5(
     target
 );
 
+CREATE TABLE IF NOT EXISTS ops_plans (
+    id              TEXT PRIMARY KEY,
+    created_at      TEXT NOT NULL,
+    created_by      TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    status          TEXT NOT NULL DEFAULT 'draft',
+    targets         TEXT NOT NULL DEFAULT '[]',
+    change_id       TEXT,
+    approval_method TEXT,
+    approved_at     TEXT,
+    approved_by     TEXT,
+    completed_at    TEXT,
+    outcome         TEXT,
+    rollback_to     TEXT,
+    expires_hours   INTEGER NOT NULL DEFAULT 24,
+    expires_at      TEXT,
+    node_id         TEXT DEFAULT 'local',
+    hlc_timestamp   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_plans_status ON ops_plans(status);
+CREATE INDEX IF NOT EXISTS idx_plans_created_by ON ops_plans(created_by);
+CREATE INDEX IF NOT EXISTS idx_plans_change_id ON ops_plans(change_id);
+
+CREATE TABLE IF NOT EXISTS ops_plan_steps (
+    id              TEXT PRIMARY KEY,
+    plan_id         TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    sequence        INTEGER NOT NULL,
+    depends_on      TEXT NOT NULL DEFAULT '[]',
+    action_type     TEXT NOT NULL,
+    targets         TEXT NOT NULL DEFAULT '[]',
+    params          TEXT NOT NULL DEFAULT '{}',
+    failure_policy  TEXT NOT NULL DEFAULT 'halt',
+    max_retries     INTEGER NOT NULL DEFAULT 0,
+    rollback        TEXT,
+    timeout         INTEGER NOT NULL DEFAULT 300,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    output          TEXT,
+    error           TEXT,
+    executed_by     TEXT,
+    started_at      TEXT,
+    completed_at    TEXT,
+    retry_count     INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (plan_id) REFERENCES ops_plans(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_plan_steps_plan ON ops_plan_steps(plan_id);
+CREATE INDEX IF NOT EXISTS idx_plan_steps_status ON ops_plan_steps(status);
+CREATE INDEX IF NOT EXISTS idx_plan_steps_action_type ON ops_plan_steps(action_type);
+
 CREATE TABLE IF NOT EXISTS ops_trust_ledger (
     action_type TEXT PRIMARY KEY,
     total_count INTEGER DEFAULT 0,

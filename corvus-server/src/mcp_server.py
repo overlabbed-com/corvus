@@ -389,5 +389,196 @@ def ops_report_gap(
         return json.dumps(resp.json(), indent=2)
 
 
+# ---- Plan execution tools ----
+
+
+@mcp.tool()
+def ops_create_plan(
+    title: str,
+    description: str,
+    steps: list[dict],
+    created_by: str = "mcp-agent",
+) -> str:
+    """Create a structured execution plan with DAG-ordered steps.
+
+    Plans enable CC to design multi-step work orders that NemoClaw executes
+    asynchronously. Steps can run in parallel (fleet fan-out) or sequentially
+    (DAG dependencies).
+
+    Args:
+        title: Human-readable plan title
+        description: What this plan accomplishes
+        steps: List of step definitions. Each step dict should contain:
+            - name: Step name (used for depends_on references)
+            - sequence: Execution order within dependency group
+            - action_type: Trust ledger key (e.g., "change.deploy", "health.check")
+            - targets: List of target services/containers
+            - depends_on: List of step names this depends on (optional, default [])
+            - failure_policy: "halt" (default), "skip", or "retry"
+            - max_retries: Max retry attempts (default 0, only used with retry policy)
+            - rollback: Rollback definition dict (required for mutations)
+            - timeout: Step timeout in seconds (default 300)
+        created_by: Your agent identity
+    """
+    with _client() as client:
+        resp = client.post(
+            "/ops/plans",
+            json={
+                "title": title,
+                "description": description,
+                "steps": steps,
+                "created_by": created_by,
+            },
+        )
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_approve_plan(
+    plan_id: str,
+    approved_by: str = "mcp-agent",
+    force: bool = False,
+) -> str:
+    """Approve a plan for execution using trust ledger gating.
+
+    Checks each step's action_type against the trust ledger:
+    - All AUTO/SUPERVISED: auto-approves
+    - Any ESCALATE: returns needs_approval with escalated steps list
+    - force=True: human override, approves regardless of trust tiers
+
+    Args:
+        plan_id: Plan ID (e.g., "PLN-A1B2C3D4")
+        approved_by: Identity of approver
+        force: Human override — approve despite ESCALATE steps
+    """
+    with _client() as client:
+        resp = client.post(
+            f"/ops/plans/{plan_id}/approve",
+            json={
+                "approved_by": approved_by,
+                "force": force,
+            },
+        )
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_execute_plan(plan_id: str) -> str:
+    """Start plan execution: creates change window, marks root steps ready.
+
+    Only approved plans can be executed. Creates a change window covering
+    all plan targets and emits plan.started event.
+
+    Args:
+        plan_id: Plan ID to execute
+    """
+    with _client() as client:
+        resp = client.post(f"/ops/plans/{plan_id}/execute")
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_plan_status(plan_id: str) -> str:
+    """Get plan execution summary with step counts and progress.
+
+    Returns total steps, counts by status (pending/ready/executing/completed/
+    failed/skipped), progress percentage, and change window ID.
+
+    Args:
+        plan_id: Plan ID to check
+    """
+    with _client() as client:
+        resp = client.get(f"/ops/plans/{plan_id}/status")
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_pull_ready_steps(plan_id: str) -> str:
+    """Pull steps ready for execution. Claims them by marking as executing.
+
+    Returns steps whose dependencies are all satisfied. Each returned step
+    is atomically claimed (status: executing, started_at set). Call this
+    to get work, execute it, then report results.
+
+    Args:
+        plan_id: Plan ID to pull steps from
+    """
+    with _client() as client:
+        resp = client.post(f"/ops/plans/{plan_id}/steps/ready")
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_report_step_result(
+    plan_id: str,
+    step_id: str,
+    success: bool,
+    output: dict | None = None,
+    error: str | None = None,
+) -> str:
+    """Report step execution result and advance the DAG.
+
+    On success: marks step completed, evaluates DAG for next ready steps.
+    On failure: applies step's failure_policy (halt/skip/retry).
+
+    Returns step status, plan status, retry count, and next ready steps.
+
+    Args:
+        plan_id: Plan ID
+        step_id: Step ID that was executed
+        success: Whether execution succeeded
+        output: Execution output data (optional)
+        error: Error message if failed (optional)
+    """
+    body: dict = {"success": success}
+    if output is not None:
+        body["output"] = output
+    if error is not None:
+        body["error"] = error
+
+    with _client() as client:
+        resp = client.post(
+            f"/ops/plans/{plan_id}/steps/{step_id}/result",
+            json=body,
+        )
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_cancel_plan(plan_id: str) -> str:
+    """Cancel a plan. Only draft, approved, or blocked plans can be cancelled.
+
+    Args:
+        plan_id: Plan ID to cancel
+    """
+    with _client() as client:
+        resp = client.post(f"/ops/plans/{plan_id}/cancel")
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
+@mcp.tool()
+def ops_rollback_plan(plan_id: str) -> str:
+    """Trigger plan rollback: creates reverse-order rollback steps.
+
+    Only completed or blocked plans can be rolled back. Creates rollback
+    steps for each completed step that has a rollback definition, chained
+    in reverse sequence order.
+
+    Args:
+        plan_id: Plan ID to roll back
+    """
+    with _client() as client:
+        resp = client.post(f"/ops/plans/{plan_id}/rollback")
+        resp.raise_for_status()
+        return json.dumps(resp.json(), indent=2)
+
+
 if __name__ == "__main__":
     mcp.run()
