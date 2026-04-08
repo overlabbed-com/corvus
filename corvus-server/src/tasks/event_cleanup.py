@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from src.database import get_db
+from src.tasks.task_metrics import track_task
 
 logger = logging.getLogger(__name__)
 
@@ -220,9 +221,13 @@ async def run_cleanup_loop(interval_seconds: int = 86400):
     """
     while True:
         try:
-            events_result = await prune_events()
-            audit_result = await prune_audit_log()
-            triage_result = await prune_triage_log()
+            with track_task("event_cleanup") as ctx:
+                events_result = await prune_events()
+                audit_result = await prune_audit_log()
+                triage_result = await prune_triage_log()
+                ctx["count"] = sum(
+                    r.get("deleted", 0) for r in [events_result, audit_result, triage_result]
+                )
             logger.info(
                 "Cleanup cycle complete: events=%s audit=%s triage=%s",
                 events_result,

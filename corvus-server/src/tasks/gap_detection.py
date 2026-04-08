@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 
 from src.config import RuntimeConfig
 from src.database import get_db
+from src.tasks.task_metrics import track_task
 
 logger = logging.getLogger(__name__)
 
@@ -556,7 +557,9 @@ async def run_gap_sweep_loop(interval_seconds: int = 3600):
     """Run gap sweep every hour (default)."""
     while True:
         try:
-            await run_gap_sweep()
+            with track_task("gap_sweep") as ctx:
+                result = await run_gap_sweep()
+                ctx["count"] = sum(result.values()) if result else 0
         except Exception:
             logger.exception("Error in gap sweep task")
         await asyncio.sleep(interval_seconds)

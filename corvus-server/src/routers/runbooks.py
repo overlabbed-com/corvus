@@ -228,10 +228,11 @@ async def record_triage_outcome(triage_id: str, outcome_req: TriageOutcome):
 
         now = datetime.now(UTC)
         created = datetime.fromisoformat(entry["timestamp"])
-        minutes = int((now - created).total_seconds() / 60)
+        seconds = (now - created).total_seconds()
+        minutes = int(seconds / 60)
 
-        sets = ["outcome = ?", "outcome_at = ?", "resolution_time_minutes = ?"]
-        params: list = [outcome_req.outcome, now.isoformat(), minutes]
+        sets = ["outcome = ?", "outcome_at = ?", "resolution_time_minutes = ?", "resolution_time_seconds = ?"]
+        params: list = [outcome_req.outcome, now.isoformat(), minutes, seconds]
 
         if outcome_req.related_incident_id:
             sets.append("related_incident_id = ?")

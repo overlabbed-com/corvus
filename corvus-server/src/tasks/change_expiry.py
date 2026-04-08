@@ -11,6 +11,7 @@ import uuid
 from datetime import UTC, datetime
 
 from src.database import get_db
+from src.tasks.task_metrics import track_task
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,9 @@ async def run_change_expiry_loop(interval_seconds: int = 300):
     """Run change expiry check every interval_seconds (default 5 min)."""
     while True:
         try:
-            count = await expire_stale_changes()
+            with track_task("change_expiry") as ctx:
+                count = await expire_stale_changes()
+                ctx["count"] = count
             if count:
                 logger.info("Expired %d stale change windows", count)
         except Exception:

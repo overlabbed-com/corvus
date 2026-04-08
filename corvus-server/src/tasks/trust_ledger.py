@@ -37,9 +37,9 @@ async def record_outcome(action_type: str, outcome: str) -> dict[str, Any]:
         # Atomic upsert: create entry if not exists
         await db.execute(
             """INSERT OR IGNORE INTO ops_trust_ledger
-               (action_type, total_count, success_count, failure_count, trust_tier)
-               VALUES (?, 0, 0, 0, ?)""",
-            (action_type, TIER_ESCALATE),
+               (action_type, total_count, success_count, failure_count, trust_tier, first_seen_at)
+               VALUES (?, 0, 0, 0, ?, ?)""",
+            (action_type, TIER_ESCALATE, now),
         )
 
         # Increment counters

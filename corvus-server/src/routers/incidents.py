@@ -146,6 +146,11 @@ async def update_incident(incident_id: str, update: IncidentUpdate):
                 sets.append(f"{field} = ?")
                 params.append(value)
 
+        if update.status == "investigating":
+            if not existing["investigating_at"]:
+                sets.append("investigating_at = ?")
+                params.append(datetime.now(UTC).isoformat())
+
         if update.status == "resolved":
             now = datetime.now(UTC).isoformat()
             sets.append("resolved_at = ?")

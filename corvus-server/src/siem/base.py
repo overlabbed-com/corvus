@@ -6,10 +6,13 @@ The base class provides shared retry logic, dead-letter queue, and metrics.
 
 import asyncio
 import logging
+import time as time_module
 from abc import ABC, abstractmethod
 from collections import deque
 from datetime import UTC, datetime
 from typing import Any
+
+from src.tasks.task_metrics import record_siem_latency
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +59,10 @@ class SIEMAdapter(ABC):
 
         for attempt in range(self.max_retries):
             try:
+                start = time_module.monotonic()
                 if await self._send(ocsf_event):
+                    elapsed_ms = (time_module.monotonic() - start) * 1000
+                    record_siem_latency(elapsed_ms)
                     self._stats["forwarded"] += 1
                     return True
             except Exception as e:
