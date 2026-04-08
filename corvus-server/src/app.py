@@ -42,6 +42,7 @@ from src.runbooks.loader import registry as runbook_registry
 from src.tasks.change_expiry import run_change_expiry_loop
 from src.tasks.event_cleanup import run_cleanup_loop
 from src.tasks.gap_detection import run_gap_sweep_loop
+from src.tasks.step_timeout import run_step_timeout_loop
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,6 +100,7 @@ async def lifespan(app: FastAPI):
     expiry_task = asyncio.create_task(run_change_expiry_loop())
     cleanup_task = asyncio.create_task(run_cleanup_loop())
     gap_sweep_task = asyncio.create_task(run_gap_sweep_loop())
+    step_timeout_task = asyncio.create_task(run_step_timeout_loop())
 
     # Start Layer 2 collector (if Docker hosts configured)
     start_collector()
@@ -107,7 +109,7 @@ async def lifespan(app: FastAPI):
 
     stop_collector()
     await close_graph()
-    for task in (expiry_task, cleanup_task, gap_sweep_task):
+    for task in (expiry_task, cleanup_task, gap_sweep_task, step_timeout_task):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
