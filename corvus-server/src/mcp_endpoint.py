@@ -9,6 +9,7 @@ overhead, full request/response fidelity, and clean separation from router
 internals.
 """
 
+import contextlib
 import json
 import logging
 from typing import Any
@@ -965,10 +966,17 @@ def create_mcp_routes(fastapi_app: Any) -> Starlette:
         """Streamable HTTP endpoint — handles POST/GET/DELETE at /mcp."""
         await http_manager.handle_request(scope, receive, send)
 
+    @contextlib.asynccontextmanager
+    async def lifespan(app):
+        """Initialize the session manager's task group before serving requests."""
+        async with http_manager.run():
+            yield
+
     mcp_app = Starlette(
         routes=[
             Mount("/", app=handle_mcp),
         ],
+        lifespan=lifespan,
     )
 
     logger.info("MCP Streamable HTTP endpoint created (%d tools registered)", len(TOOL_DEFINITIONS))
