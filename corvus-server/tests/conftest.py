@@ -57,6 +57,8 @@ async def client():
             "ops_audit_log",
             "ops_triage_log",
             "ops_pending_steps",
+            "ops_metrics_snapshots",
+            "ops_metric_adjustments",
             "ops_plan_steps",
             "ops_plans",
             "ops_trust_ledger",
