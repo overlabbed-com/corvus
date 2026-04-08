@@ -37,7 +37,7 @@ the Incident Workflow (governance.md). These steps are NON-NEGOTIABLE:
      detected_by="claude-code")
 3. CHECK for conflicts: corvus_check_target(target="<service>")
 4. INVESTIGATE — check logs, status, dependencies
-5. If restart needed: MAX 2 attempts, then escalate to Todd
+5. If restart needed: MAX 2 attempts, then escalate to the operator
 6. EMIT events for every action: corvus_emit_event(...)
 7. When resolved: update the incident and emit resolution event
 
@@ -57,8 +57,8 @@ NON-NEGOTIABLE:
    corvus_emit_event(type="change.started", target="<service>",
      source="claude-code", data={"description": "..."})
 3. Architect design -> Lean Review -> Advocate challenge
-4. CHECKPOINT — present design + challenge to Todd for approval
-5. ONLY after Todd approves: Changemaker creates branch + MR
+4. CHECKPOINT — present design + challenge to the operator for approval
+5. ONLY after the operator approves: Changemaker creates branch + MR
 6. GitOps ONLY — no SSH config edits, no cowboy changes
 7. After deployment: corvus_emit_event(type="change.completed", ...)
 8. Sentinel monitors for 24-72h
@@ -74,12 +74,12 @@ The user's request involves creating new infrastructure. You MUST
 follow the full Standard Workflow (governance.md):
 
 1. Create project directory if needed (project gate)
-2. Architect designs — research and PROPOSE (don't ask Todd to decide)
+2. Architect designs — research and PROPOSE (don't ask the operator to decide)
 3. Design MUST include: problem statement, proposed solution, risk
    assessment, rollback plan, dependency map, phased rollout
 4. Lean Review — simplest solution? YAGNI? Existing code?
 5. Advocate challenges the design (MANDATORY, no exceptions)
-6. CHECKPOINT — present BOTH design + challenge to Todd
+6. CHECKPOINT — present BOTH design + challenge to the operator
 7. Only after approval: Changemaker implements via GitOps
 
 DO NOT implement before designing. DO NOT present a design without

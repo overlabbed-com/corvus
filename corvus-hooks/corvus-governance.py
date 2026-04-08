@@ -71,8 +71,7 @@ def main():
     if result is None:
         print(
             f"Warning: Corvus governance: could not reach Corvus at {core.CORVUS_BASE_URL}. "
-            "Proceeding without conflict check. "
-            "Verify Corvus is running on dockp04.",
+            "Proceeding without conflict check.",
             file=sys.stderr,
         )
         sys.exit(0)
@@ -94,7 +93,7 @@ def main():
             f"   This action has been BLOCKED by the Corvus governance hook.\n"
             f"   There is an active critical incident or conflicting change window\n"
             f"   on this target. Resolve the conflict before retrying.\n"
-            f"   Ask Todd if you believe this is incorrect.",
+            f"   Ask the operator if you believe this is incorrect.",
             file=sys.stderr,
         )
         sys.exit(2)

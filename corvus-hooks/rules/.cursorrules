@@ -61,5 +61,5 @@ Emergency restarts and log checks via SSH are fine. Config changes are not.
 
 ## MCP Access
 
-Corvus MCP tools available via LiteLLM proxy at http://192.168.20.14:4000/mcp/sse
-or direct Corvus at http://192.168.20.14:9420/mcp/sse
+Corvus MCP tools available via LiteLLM proxy at http://your-litellm-host:4000/mcp/sse
+or direct Corvus at http://your-corvus-host:9420/mcp/sse

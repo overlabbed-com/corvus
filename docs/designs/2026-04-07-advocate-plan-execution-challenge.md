@@ -27,7 +27,7 @@ failure per the step's `failure_policy`.
 
 ### 3. @host fan-out expansion responsibility (LOW)
 
-The `tetragon@tmtdockp01` convention is a string format, not a schema feature.
+The `tetragon@host-01` convention is a string format, not a schema feature.
 Who expands a logical target into host-scoped targets?
 
 **Recommendation**: CC expands at plan creation time. The plan is the contract —

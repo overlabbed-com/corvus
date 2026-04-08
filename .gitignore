@@ -26,14 +26,16 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Claude Code worktrees
+# Claude Code
 .claude/worktrees/
+.claude/settings.local.json
 
-# MCP config (contains local URLs)
+# MCP config (contains local URLs and paths)
 .mcp.json
 
-# Claude Code local settings (contains user-specific paths)
-.claude/settings.local.json
+# Instance-specific hooks config (customer deployments)
+corvus-hooks/config.local.*
+corvus-hooks/.env
 
 # Instance-specific infrastructure config (only .example is committed)
 corvus-server/config/infrastructure.yaml

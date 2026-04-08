@@ -129,7 +129,7 @@ To access Corvus tools, add to your MCP configuration:
 {
   "mcpServers": {
     "corvus": {
-      "url": "http://192.168.20.14:9420/mcp/sse"
+      "url": "http://your-corvus-host:9420/mcp/sse"
     }
   }
 }
@@ -141,7 +141,7 @@ Or via LiteLLM proxy (includes all fleet MCP tools):
 {
   "mcpServers": {
     "litellm-mcp": {
-      "url": "http://192.168.20.14:4000/mcp/sse"
+      "url": "http://your-litellm-host:4000/mcp/sse"
     }
   }
 }

@@ -54,7 +54,7 @@ async def test_plan_lead_time(client):
     )
     plan_id = resp.json()["id"]
     step_id = resp.json()["steps"][0]["id"]
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
     await client.post(f"/ops/plans/{plan_id}/steps/ready")
     await client.post(f"/ops/plans/{plan_id}/steps/{step_id}/result", json={"success": True})

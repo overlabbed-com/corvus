@@ -218,7 +218,7 @@ Background task `run_metrics_collector_loop` every 15 minutes:
 | Tool | Purpose | Consumer |
 |------|---------|----------|
 | `ops_lean_metrics` | Current lean metrics snapshot | CC sessions |
-| `ops_bottlenecks` | Where are processes slow? | CC (Todd, Planner) |
+| `ops_bottlenecks` | Where are processes slow? | CC (the operator, Planner) |
 | `ops_throughput` | Demand vs. capacity | CC (Planner) |
 | `ops_convergence` | Is auto-tuning converging? | CC (Sentinel) |
 

@@ -183,13 +183,13 @@ In `corvus-server/tests/conftest.py`, add `"ops_plans"` and `"ops_plan_steps"` t
 
 **Step 4: Run existing tests to verify schema addition doesn't break anything**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_changes.py tests/test_events.py -v --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_changes.py tests/test_events.py -v --timeout=30`
 Expected: All PASS (schema is additive)
 
 **Step 5: Commit**
 
 ```bash
-cd ~/git/tmttodd/corvus
+cd ~/corvus
 git add corvus-server/src/models/plans.py corvus-server/src/database.py corvus-server/tests/conftest.py
 git commit -m "feat(plans): add plan and step data models and schema"
 ```
@@ -224,19 +224,19 @@ async def test_create_plan(client):
             "created_by": "claude-code",
             "steps": [
                 {
-                    "name": "deploy-dockp01",
+                    "name": "deploy-host-01",
                     "sequence": 1,
                     "action_type": "change.deploy",
-                    "targets": ["tetragon@tmtdockp01"],
-                    "params": {"host": "tmtdockp01"},
+                    "targets": ["tetragon@host-01"],
+                    "params": {"host": "host-01"},
                     "rollback": {"action_type": "change.deploy", "params": {"ref": "HEAD~1"}},
                 },
                 {
-                    "name": "deploy-dockp02",
+                    "name": "deploy-host-02",
                     "sequence": 1,
                     "action_type": "change.deploy",
-                    "targets": ["tetragon@tmtdockp02"],
-                    "params": {"host": "tmtdockp02"},
+                    "targets": ["tetragon@host-02"],
+                    "params": {"host": "host-02"},
                     "rollback": {"action_type": "change.deploy", "params": {"ref": "HEAD~1"}},
                 },
                 {
@@ -244,7 +244,7 @@ async def test_create_plan(client):
                     "sequence": 2,
                     "depends_on": [],  # will be filled with step IDs after creation
                     "action_type": "health.check",
-                    "targets": ["tetragon@tmtdockp01", "tetragon@tmtdockp02"],
+                    "targets": ["tetragon@host-01", "tetragon@host-02"],
                     "params": {"command": "docker exec tetragon tetra status"},
                     "failure_policy": "skip",
                 },
@@ -258,7 +258,7 @@ async def test_create_plan(client):
     assert len(data["steps"]) == 3
     assert data["id"].startswith("PLN-")
     # All plan targets are the union of step targets
-    assert set(data["targets"]) == {"tetragon@tmtdockp01", "tetragon@tmtdockp02"}
+    assert set(data["targets"]) == {"tetragon@host-01", "tetragon@host-02"}
 
 
 @pytest.mark.asyncio
@@ -332,7 +332,7 @@ async def test_cancel_draft_plan(client):
 
 **Step 2: Run tests to verify they fail**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
 Expected: FAIL (router not implemented)
 
 **Step 3: Implement the plans router**
@@ -361,18 +361,18 @@ In `corvus-server/src/app.py`:
 
 **Step 5: Run tests to verify they pass**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
 Expected: All PASS
 
 **Step 6: Run full test suite to verify no regressions**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/ -v --timeout=60`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/ -v --timeout=60`
 Expected: All PASS
 
 **Step 7: Commit**
 
 ```bash
-cd ~/git/tmttodd/corvus
+cd ~/corvus
 git add corvus-server/src/routers/plans.py corvus-server/src/app.py corvus-server/tests/test_plans.py
 git commit -m "feat(plans): plan CRUD router with create, list, get, cancel"
 ```
@@ -454,7 +454,7 @@ async def test_approve_plan_needs_human(client):
 
 @pytest.mark.asyncio
 async def test_approve_plan_human_override(client):
-    """Todd can force-approve a plan with ESCALATE steps."""
+    """Operator can force-approve a plan with ESCALATE steps."""
     create_resp = await client.post(
         "/ops/plans",
         json={
@@ -468,7 +468,7 @@ async def test_approve_plan_human_override(client):
     plan_id = create_resp.json()["id"]
     resp = await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "approved"
@@ -492,7 +492,7 @@ async def test_approve_non_draft_fails(client):
     await client.post(f"/ops/plans/{plan_id}/cancel")
     resp = await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     assert resp.status_code == 409
 
@@ -512,7 +512,7 @@ async def test_plan_execute_trust_gated(client):
     )
     plan_id = create_resp.json()["id"]
     # Force approve the plan
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     # plan.execute defaults to ESCALATE — execution should indicate it needs approval
     resp = await client.post(f"/ops/plans/{plan_id}/execute")
     assert resp.status_code == 200
@@ -522,7 +522,7 @@ async def test_plan_execute_trust_gated(client):
 
 **Step 2: Run tests to verify they fail**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_plans.py -v -k "approve or execute_trust" --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_plans.py -v -k "approve or execute_trust" --timeout=30`
 Expected: FAIL
 
 **Step 3: Implement approval endpoint**
@@ -539,13 +539,13 @@ Add to `plans.py`:
 
 **Step 4: Run tests**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
 Expected: All PASS
 
 **Step 5: Commit**
 
 ```bash
-cd ~/git/tmttodd/corvus
+cd ~/corvus
 git add corvus-server/src/routers/plans.py corvus-server/src/models/plans.py corvus-server/tests/test_plans.py
 git commit -m "feat(plans): approval with trust ledger gating and human override"
 ```
@@ -577,7 +577,7 @@ async def test_execute_plan_creates_change_window(client):
         },
     )
     plan_id = create_resp.json()["id"]
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
 
     resp = await client.post(f"/ops/plans/{plan_id}/execute")
     assert resp.status_code == 200
@@ -608,7 +608,7 @@ async def test_ready_steps_returns_dag_roots(client):
         },
     )
     plan_id = create_resp.json()["id"]
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     resp = await client.get(f"/ops/plans/{plan_id}/steps/ready")
@@ -638,7 +638,7 @@ async def test_step_completion_advances_dag(client):
     steps = create_resp.json()["steps"]
     root_id = next(s["id"] for s in steps if s["name"] == "root")
 
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     # Complete root step
@@ -670,7 +670,7 @@ async def test_plan_completes_when_all_steps_done(client):
     plan_id = create_resp.json()["id"]
     step_id = create_resp.json()["steps"][0]["id"]
 
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     resp = await client.post(
@@ -701,7 +701,7 @@ async def test_plan_status_endpoint(client):
         },
     )
     plan_id = create_resp.json()["id"]
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     resp = await client.get(f"/ops/plans/{plan_id}/status")
@@ -714,7 +714,7 @@ async def test_plan_status_endpoint(client):
 
 **Step 2: Run tests to verify they fail**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_plans.py -v -k "execute or ready or advance or completes or status" --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_plans.py -v -k "execute or ready or advance or completes or status" --timeout=30`
 Expected: FAIL
 
 **Step 3: Implement execution endpoints**
@@ -736,13 +736,13 @@ async def _evaluate_dag(db, plan_id: str) -> list[dict]:
 
 **Step 4: Run tests**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
 Expected: All PASS
 
 **Step 5: Commit**
 
 ```bash
-cd ~/git/tmttodd/corvus
+cd ~/corvus
 git add corvus-server/src/routers/plans.py corvus-server/tests/test_plans.py
 git commit -m "feat(plans): execution with DAG scheduling and change window integration"
 ```
@@ -784,7 +784,7 @@ async def test_halt_policy_blocks_plan(client):
     plan_id = create_resp.json()["id"]
     fail_step_id = next(s["id"] for s in create_resp.json()["steps"] if s["name"] == "will-fail")
 
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     resp = await client.post(
@@ -816,7 +816,7 @@ async def test_skip_policy_continues(client):
     plan_id = create_resp.json()["id"]
     fail_step_id = next(s["id"] for s in create_resp.json()["steps"] if s["name"] == "will-fail")
 
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     await client.post(
@@ -862,7 +862,7 @@ async def test_rollback_reverses_completed_steps(client):
     s1_id = next(s["id"] for s in steps if s["name"] == "step-1")
     s2_id = next(s["id"] for s in steps if s["name"] == "step-2")
 
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     # Complete both steps
@@ -902,7 +902,7 @@ async def test_retry_policy(client):
     plan_id = create_resp.json()["id"]
     step_id = create_resp.json()["steps"][0]["id"]
 
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     # First failure — should re-queue
@@ -932,7 +932,7 @@ async def test_retry_policy(client):
 
 **Step 2: Run tests to verify they fail**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_plans.py -v -k "halt or skip or rollback or retry" --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_plans.py -v -k "halt or skip or rollback or retry" --timeout=30`
 Expected: FAIL
 
 **Step 3: Implement failure handling and rollback**
@@ -951,13 +951,13 @@ Extend `plans.py`:
 
 **Step 4: Run tests**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_plans.py -v --timeout=30`
 Expected: All PASS
 
 **Step 5: Commit**
 
 ```bash
-cd ~/git/tmttodd/corvus
+cd ~/corvus
 git add corvus-server/src/routers/plans.py corvus-server/tests/test_plans.py
 git commit -m "feat(plans): failure policies (halt/skip/retry) and per-step rollback"
 ```
@@ -1004,7 +1004,7 @@ async def test_reap_timed_out_step(client):
     plan_id = create_resp.json()["id"]
     step_id = create_resp.json()["steps"][0]["id"]
 
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     # Manually set started_at to 10 minutes ago and status to executing
@@ -1050,7 +1050,7 @@ async def test_reap_exhausted_retries_blocks_plan(client):
     plan_id = create_resp.json()["id"]
     step_id = create_resp.json()["steps"][0]["id"]
 
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
 
     db = await get_db()
@@ -1074,7 +1074,7 @@ async def test_reap_exhausted_retries_blocks_plan(client):
 
 **Step 2: Run tests to verify they fail**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_step_timeout.py -v --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_step_timeout.py -v --timeout=30`
 Expected: FAIL
 
 **Step 3: Implement the reaper**
@@ -1099,18 +1099,18 @@ Import and add `asyncio.create_task(run_step_timeout_loop())` in the lifespan fu
 
 **Step 5: Run tests**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_step_timeout.py -v --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_step_timeout.py -v --timeout=30`
 Expected: All PASS
 
 **Step 6: Run full suite**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/ -v --timeout=60`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/ -v --timeout=60`
 Expected: All PASS
 
 **Step 7: Commit**
 
 ```bash
-cd ~/git/tmttodd/corvus
+cd ~/corvus
 git add corvus-server/src/tasks/step_timeout.py corvus-server/src/app.py corvus-server/tests/test_step_timeout.py
 git commit -m "feat(plans): background step timeout reaper (Advocate finding #2)"
 ```
@@ -1165,7 +1165,7 @@ async def test_full_plan_lifecycle(client):
     verify_id = next(s["id"] for s in steps if s["name"] == "verify")
 
     # Approve (force)
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
 
     # Execute
     exec_resp = await client.post(f"/ops/plans/{plan_id}/execute")
@@ -1237,13 +1237,13 @@ Each tool is a thin HTTP wrapper following the existing pattern (httpx client, J
 
 **Step 3: Run tests**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/test_plans.py tests/test_mcp_server.py -v --timeout=30`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/test_plans.py tests/test_mcp_server.py -v --timeout=30`
 Expected: All PASS
 
 **Step 4: Commit**
 
 ```bash
-cd ~/git/tmttodd/corvus
+cd ~/corvus
 git add corvus-server/src/mcp_server.py corvus-server/tests/test_plans.py
 git commit -m "feat(plans): MCP tools for plan lifecycle and step execution"
 ```
@@ -1294,7 +1294,7 @@ Add OCSF mapping row: `plan.*` → Device Config State Change (5019).
 **Step 3: Commit**
 
 ```bash
-cd ~/git/tmttodd/corvus
+cd ~/corvus
 git add spec/plans.md spec/events.md
 git commit -m "docs(plans): spec file and event type additions"
 ```
@@ -1316,13 +1316,13 @@ git commit -m "docs(plans): spec file and event type additions"
 
 **Step 2: Run full test suite**
 
-Run: `cd ~/git/tmttodd/corvus/corvus-server && python -m pytest tests/ -v --timeout=120`
+Run: `cd ~/corvus/corvus-server && python -m pytest tests/ -v --timeout=120`
 Expected: All PASS, zero regressions
 
 **Step 3: Commit**
 
 ```bash
-cd ~/git/tmttodd/corvus
+cd ~/corvus
 git add corvus-server/tests/test_plans.py
 git commit -m "test(plans): edge cases and integration validation"
 ```

@@ -310,7 +310,7 @@ async def test_approve_plan_needs_human(client):
 
 @pytest.mark.asyncio
 async def test_approve_plan_human_override(client):
-    """Todd can force-approve a plan with ESCALATE steps."""
+    """Operator can force-approve a plan with ESCALATE steps."""
     create_resp = await client.post(
         "/ops/plans",
         json={
@@ -329,7 +329,7 @@ async def test_approve_plan_human_override(client):
     plan_id = create_resp.json()["id"]
     resp = await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "approved"
@@ -358,7 +358,7 @@ async def test_approve_non_draft_fails(client):
     await client.post(f"/ops/plans/{plan_id}/cancel")
     resp = await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     assert resp.status_code == 409
 
@@ -375,14 +375,14 @@ async def _create_and_approve(client, **plan_overrides):
 
     approve_resp = await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     data = approve_resp.json()
     # Handle both auto-approve and force-approve responses
     if "needs_approval" in data:
         approve_resp = await client.post(
             f"/ops/plans/{plan_id}/approve",
-            json={"approved_by": "todd", "force": True},
+            json={"approved_by": "operator", "force": True},
         )
         data = approve_resp.json()
     assert data["status"] == "approved"
@@ -557,13 +557,13 @@ async def test_parallel_roots_both_ready(client):
     # Force-approve
     approve_resp = await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     data = approve_resp.json()
     if "needs_approval" in data:
         approve_resp = await client.post(
             f"/ops/plans/{plan_id}/approve",
-            json={"approved_by": "todd", "force": True},
+            json={"approved_by": "operator", "force": True},
         )
     assert approve_resp.json()["status"] == "approved"
 
@@ -945,7 +945,7 @@ async def test_full_plan_lifecycle(client):
     verify_id = next(s["id"] for s in steps if s["name"] == "verify")
 
     # Approve (force)
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
 
     # Execute
     exec_resp = await client.post(f"/ops/plans/{plan_id}/execute")
@@ -1012,7 +1012,7 @@ async def test_step_result_wrong_plan_returns_404(client):
     # Approve and execute plan A
     await client.post(
         f"/ops/plans/{plan_a_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     await client.post(f"/ops/plans/{plan_a_id}/execute")
 
@@ -1159,7 +1159,7 @@ async def test_result_on_completed_step_returns_409(client):
     plan_id = create_resp.json()["id"]
     step_id = create_resp.json()["steps"][0]["id"]
 
-    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "todd", "force": True})
+    await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "operator", "force": True})
     await client.post(f"/ops/plans/{plan_id}/execute")
     # Claim and complete the step
     await client.post(f"/ops/plans/{plan_id}/steps/ready")

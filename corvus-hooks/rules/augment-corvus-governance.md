@@ -42,5 +42,5 @@ ALL config changes through Git. No SSH config edits. Restarts/logs via SSH OK.
 
 ## MCP Access
 
-Corvus: `http://192.168.20.14:9420/mcp/sse`
-LiteLLM (all tools): `http://192.168.20.14:4000/mcp/sse`
+Corvus: `http://your-corvus-host:9420/mcp/sse`
+LiteLLM (all tools): `http://your-litellm-host:4000/mcp/sse`

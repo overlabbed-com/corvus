@@ -26,13 +26,13 @@ from typing import Any, Dict, List, Optional, Tuple
 # ---------------------------------------------------------------------------
 
 CORVUS_BASE_URL = os.environ.get(
-    "CORVUS_GOVERNANCE_URL", "http://192.168.20.14:9420"
+    "CORVUS_GOVERNANCE_URL", "http://localhost:9420"
 )
 TIMEOUT_SECONDS = 5
 
 # Keychain config (macOS). Non-macOS uses env var fallback.
-KEYCHAIN_SERVICE = "corvus.themillertribe-int.org"
-KEYCHAIN_ACCOUNT = "claude-code-api-key"
+KEYCHAIN_SERVICE = os.environ.get("CORVUS_KEYCHAIN_SERVICE", "corvus")
+KEYCHAIN_ACCOUNT = os.environ.get("CORVUS_KEYCHAIN_ACCOUNT", "api-key")
 ENV_API_KEY = "CORVUS_API_KEY"  # fallback for Linux/CI
 
 # ---------------------------------------------------------------------------
@@ -311,8 +311,6 @@ _INFRA_NOUNS = (
     r"ollama|homeassistant|zigbee|tetragon|comfyui|mosquitto|mqtt"
 )
 
-_HOSTS = r"dockp0[1-4]|tmtdockp0[1-4]|tmtnsp0[12]|tmtaip01"
-
 INCIDENT_PATTERNS = [
     re.compile(
         r"\b(?:broken|down|failing|crashed|stuck|unresponsive|"
@@ -350,11 +348,6 @@ CHANGE_PATTERNS = [
     re.compile(
         r"\b(?:docker\s+compose|ansible|gitops|merge|pr|pull\s+request)\b"
         r".*\b(?:change|update|deploy|create)\b",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"\b(?:install|deploy|set\s+up|configure)\b"
-        r".*\b(?:" + _HOSTS + r")\b",
         re.IGNORECASE,
     ),
 ]

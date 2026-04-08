@@ -48,5 +48,5 @@ checks via SSH are fine. Configuration changes are not.
 
 ## MCP Access
 
-Corvus tools: http://192.168.20.14:9420/mcp/sse
-LiteLLM proxy (all fleet tools): http://192.168.20.14:4000/mcp/sse
+Corvus tools: http://your-corvus-host:9420/mcp/sse
+LiteLLM proxy (all fleet tools): http://your-litellm-host:4000/mcp/sse

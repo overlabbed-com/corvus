@@ -78,7 +78,7 @@ fi
 if [[ -z "$API_KEY" ]]; then
     # Try macOS keychain
     if command -v security &>/dev/null; then
-        API_KEY=$(security find-generic-password -s "corvus.themillertribe-int.org" -a "claude-code-api-key" -w 2>/dev/null || true)
+        API_KEY=$(security find-generic-password -s "${CORVUS_KEYCHAIN_SERVICE:-corvus}" -a "${CORVUS_KEYCHAIN_ACCOUNT:-api-key}" -w 2>/dev/null || true)
     fi
 fi
 
@@ -298,10 +298,10 @@ echo ""
 # Store API key if provided and on macOS
 # ---------------------------------------------------------------------------
 if [[ -n "$API_KEY" ]] && command -v security &>/dev/null; then
-    EXISTING=$(security find-generic-password -s "corvus.themillertribe-int.org" -a "claude-code-api-key" -w 2>/dev/null || true)
+    EXISTING=$(security find-generic-password -s "${CORVUS_KEYCHAIN_SERVICE:-corvus}" -a "${CORVUS_KEYCHAIN_ACCOUNT:-api-key}" -w 2>/dev/null || true)
     if [[ "$EXISTING" != "$API_KEY" ]]; then
         do_cmd "Store API key in macOS keychain" \
-            "security add-generic-password -s 'corvus.themillertribe-int.org' -a 'claude-code-api-key' -w '${API_KEY}' -U"
+            "security add-generic-password -s '${CORVUS_KEYCHAIN_SERVICE:-corvus}' -a '${CORVUS_KEYCHAIN_ACCOUNT:-api-key}' -w '${API_KEY}' -U"
     else
         info "API key already in keychain"
     fi

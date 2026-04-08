@@ -12,7 +12,7 @@ config changes, deployments, secret rotation), you MUST check Corvus for
 conflicts. Use the Corvus MCP tools if available, or call the REST API:
 
 ```bash
-curl -s "http://192.168.20.14:9420/ops/events/targets/<target>/status" \
+curl -s "http://your-corvus-host:9420/ops/events/targets/<target>/status" \
   -H "Authorization: Bearer $CORVUS_API_KEY"
 ```
 
@@ -25,7 +25,7 @@ curl -s "http://192.168.20.14:9420/ops/events/targets/<target>/status" \
 After every state-changing action, emit a Corvus event:
 
 ```bash
-curl -s -X POST "http://192.168.20.14:9420/ops/events" \
+curl -s -X POST "http://your-corvus-host:9420/ops/events" \
   -H "Authorization: Bearer $CORVUS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"type":"<event_type>","target":"<service>","source":"copilot","severity":"info"}'

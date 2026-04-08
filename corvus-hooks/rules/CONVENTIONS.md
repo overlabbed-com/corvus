@@ -13,7 +13,7 @@ Before ANY destructive action (container restart/stop/rm, config changes,
 deployments), check Corvus for conflicts:
 
 ```bash
-curl -s "http://192.168.20.14:9420/ops/events/targets/<target>/status" \
+curl -s "http://your-corvus-host:9420/ops/events/targets/<target>/status" \
   -H "Authorization: Bearer $CORVUS_API_KEY" \
   -H "Accept: application/json"
 ```
@@ -26,7 +26,7 @@ STOP (do not act without operator approval).
 After every state-changing action, emit an event:
 
 ```bash
-curl -s -X POST "http://192.168.20.14:9420/ops/events" \
+curl -s -X POST "http://your-corvus-host:9420/ops/events" \
   -H "Authorization: Bearer $CORVUS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"type":"<type>","target":"<service>","source":"aider","severity":"info"}'

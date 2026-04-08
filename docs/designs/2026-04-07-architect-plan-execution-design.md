@@ -12,7 +12,7 @@ triage runbooks. But there is no concept of a **plan** — a structured, multi-s
 work order that one agent creates and another executes. Today, CC interactively
 designs and implements changes in a single session. This means:
 
-1. Todd must be present for the entire cycle (plan + execute + verify)
+1. the operator must be present for the entire cycle (plan + execute + verify)
 2. Fleet-wide operations (same action across N hosts) execute serially
 3. Complex DAG-ordered deployments have no formal structure — they're ad-hoc
 4. NemoClaw has no way to receive structured work from CC
@@ -122,7 +122,7 @@ Steps that reference targets not in the plan's `targets` array are rejected at
 creation time. This prevents scope creep after approval — the plan's target list
 is the contract.
 
-The `@host` convention (e.g., `tetragon@tmtdockp01`) enables fleet fan-out:
+The `@host` convention (e.g., `tetragon@host-01`) enables fleet fan-out:
 one logical step can expand to N parallel host-scoped executions while keeping
 all targets in the declared scope.
 
@@ -197,7 +197,7 @@ Plan submitted → for each step:
 This means NemoClaw's graduated autonomy (spiral slices) naturally gates what
 plans it can self-execute:
 
-| Slice | Can Self-Approve | Needs Todd |
+| Slice | Can Self-Approve | Needs the operator |
 |-------|-----------------|------------|
 | 1-2 (eyes+hands) | health.check, remediation.restart | change.deploy, change.config |
 | 3 (muscle) | + change.deploy (after trust earned) | change.config on critical services |
@@ -249,14 +249,14 @@ The plan subsystem integrates into the existing CC governance workflow:
 ```
 1. CC (Architect) designs the change
 2. CC (Advocate) challenges the design
-3. Todd approves the design (existing CHECKPOINT)
+3. the operator approves the design (existing CHECKPOINT)
 4. CC (Changemaker) calls ops_create_plan() with structured steps
 5. CC calls ops_approve_plan() — trust ledger gates
    - All AUTO: proceeds
-   - Any ESCALATE: presents to Todd with blast radius per step
-6. Todd approves → CC calls ops_execute_plan()
+   - Any ESCALATE: presents to the operator with blast radius per step
+6. the operator approves → CC calls ops_execute_plan()
 7. NemoClaw polls ops_pull_ready_steps(), executes, reports results
-8. CC or Todd monitors via ops_plan_status()
+8. CC or the operator monitors via ops_plan_status()
 9. On completion: change window auto-closes, plan.completed event emitted
 ```
 
@@ -273,7 +273,7 @@ CC adjusts plan granularity based on NemoClaw's current capabilities:
 | Risk | Blast Radius | Reversibility | Mitigation |
 |------|-------------|---------------|------------|
 | Plan targets wrong services | Multi-service | Moderate (rollback) | Target validation against CMDB, human approval for non-AUTO steps |
-| Rollback step fails | Contained | Difficult | Plan enters `blocked`, escalates to Todd. Rollback failures never auto-retry |
+| Rollback step fails | Contained | Difficult | Plan enters `blocked`, escalates to the operator. Rollback failures never auto-retry |
 | Stale plan executed after environment changed | Multi-service | Moderate | Plans auto-expire after 24h in `approved` state. CMDB drift check on execute |
 | Agent claims step but crashes mid-execution | Contained | Easy (re-queue) | Step timeout → re-queued as `pending`. Max 1 retry from timeout |
 | Trust ledger bypassed | Infrastructure | Difficult | Approval check is server-side, not agent-side. No client can skip it |

@@ -39,11 +39,11 @@ POST /ops/plans
   "expires_hours": 24,
   "steps": [
     {
-      "name": "deploy-dockp01",
+      "name": "deploy-host-01",
       "sequence": 1,
       "depends_on": [],
       "action_type": "remediation.config_fix",
-      "targets": ["tetragon@tmtdockp01"],
+      "targets": ["tetragon@tmthost-01"],
       "params": {"compose_path": "stacks/security/tetragon"},
       "failure_policy": "halt",
       "max_retries": 0,
@@ -51,11 +51,11 @@ POST /ops/plans
       "timeout": 300
     },
     {
-      "name": "verify-dockp01",
+      "name": "verify-host-01",
       "sequence": 2,
-      "depends_on": ["deploy-dockp01"],
+      "depends_on": ["deploy-host-01"],
       "action_type": "sweep.health_check",
-      "targets": ["tetragon@tmtdockp01"],
+      "targets": ["tetragon@tmthost-01"],
       "params": {"expect_policies": 27},
       "failure_policy": "halt",
       "max_retries": 1,
@@ -85,7 +85,7 @@ POST /ops/plans/{id}/approve
 ```
 ```json
 {
-  "approved_by": "todd",
+  "approved_by": "operator",
   "force": false
 }
 ```
@@ -99,7 +99,7 @@ If any are ESCALATE, returns:
   "needs_approval": true,
   "plan_id": "PLN-A1B2C3D4",
   "escalated_steps": [
-    {"step_id": "PSTEP-E5F6G7H8", "step_name": "deploy-dockp01", "action_type": "remediation.config_fix", "trust_tier": "ESCALATE"}
+    {"step_id": "PSTEP-E5F6G7H8", "step_name": "deploy-host-01", "action_type": "remediation.config_fix", "trust_tier": "ESCALATE"}
   ]
 }
 ```
@@ -154,7 +154,7 @@ Returns current plan status and any newly-ready steps:
   "plan_status": "executing",
   "retry_count": 0,
   "next_ready_steps": [
-    {"id": "PSTEP-I9J0K1L2", "name": "verify-dockp01", "action_type": "sweep.health_check"}
+    {"id": "PSTEP-I9J0K1L2", "name": "verify-host-01", "action_type": "sweep.health_check"}
   ]
 }
 ```
@@ -264,10 +264,10 @@ all plan targets (union of all step targets). This ensures:
 Multi-host operations use the `service@host` naming convention:
 
 ```
-tetragon@tmtdockp01
-tetragon@tmtdockp02
-tetragon@tmtdockp03
-tetragon@tmtdockp04
+tetragon@tmthost-01
+tetragon@tmthost-02
+tetragon@tmthost-03
+tetragon@tmthost-04
 ```
 
 The creating agent (CC) expands `@host` targets at plan creation time.

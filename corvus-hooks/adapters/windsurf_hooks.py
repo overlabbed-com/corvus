@@ -28,7 +28,7 @@ Windsurf MCP integration:
         "command": "npx",
         "args": ["-y", "@anthropic/litellm-mcp-proxy"],
         "env": {
-          "LITELLM_BASE_URL": "http://192.168.20.14:4000",
+          "LITELLM_BASE_URL": "http://your-litellm-host:4000",
           "LITELLM_API_KEY": "<your-key>"
         }
       }

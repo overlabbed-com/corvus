@@ -33,7 +33,7 @@ async def test_reap_timed_out_step(client):
     step_id = create_resp.json()["steps"][0]["id"]
     await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
     # Pull to claim (sets to executing)
@@ -91,7 +91,7 @@ async def test_reap_exhausted_retries_blocks_plan(client):
     step_id = create_resp.json()["steps"][0]["id"]
     await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
     await client.post(f"/ops/plans/{plan_id}/steps/ready")
@@ -136,7 +136,7 @@ async def test_reap_ignores_non_timed_out(client):
     plan_id = create_resp.json()["id"]
     await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
     await client.post(f"/ops/plans/{plan_id}/steps/ready")
@@ -169,7 +169,7 @@ async def test_reap_emits_event_on_block(client):
     step_id = create_resp.json()["steps"][0]["id"]
     await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
     await client.post(f"/ops/plans/{plan_id}/steps/ready")
@@ -220,7 +220,7 @@ async def test_reap_skip_policy_does_not_block(client):
     step_id = create_resp.json()["steps"][0]["id"]
     await client.post(
         f"/ops/plans/{plan_id}/approve",
-        json={"approved_by": "todd", "force": True},
+        json={"approved_by": "operator", "force": True},
     )
     await client.post(f"/ops/plans/{plan_id}/execute")
     await client.post(f"/ops/plans/{plan_id}/steps/ready")
