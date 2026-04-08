@@ -12,6 +12,7 @@ Key properties:
 - should_revert() detects worsening trends for rollback.
 """
 
+import json
 import logging
 import math
 import uuid
@@ -225,6 +226,98 @@ TUNING_RULES = [
 ]
 
 
+async def _check_and_revert(rules_by_param: dict[str, TuningRule]) -> int:
+    """Check recent adjustments for worsening metrics and revert if needed.
+
+    Returns count of reverts applied.
+    """
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT id, parameter, old_value, trigger_metric, trigger_value, "
+            "timestamp FROM ops_metric_adjustments "
+            "WHERE reverted = 0 ORDER BY timestamp DESC",
+        )
+        rows = await cursor.fetchall()
+    finally:
+        await db.close()
+
+    # Deduplicate: only check the most recent non-reverted adjustment per parameter
+    seen_params: set[str] = set()
+    candidates = []
+    for row in rows:
+        if row["parameter"] not in seen_params:
+            seen_params.add(row["parameter"])
+            candidates.append(row)
+
+    reverts = 0
+    for row in candidates:
+        param = row["parameter"]
+        rule = rules_by_param.get(param)
+        if not rule:
+            continue
+
+        adj_time = row["timestamp"]
+        trigger_before = row["trigger_value"]
+
+        # Get metric snapshots taken after this adjustment (last 2 cycles)
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT metrics FROM ops_metrics_snapshots "
+                "WHERE timestamp > ? ORDER BY timestamp DESC LIMIT 2",
+                (adj_time,),
+            )
+            snap_rows = await cursor.fetchall()
+        finally:
+            await db.close()
+
+        if len(snap_rows) < 2:
+            continue
+
+        # Extract trigger metric values from snapshots
+        trigger_values_after: list[float] = []
+        for snap_row in reversed(snap_rows):  # oldest first
+            snap_metrics = json.loads(snap_row["metrics"])
+            # Check flat key and percentile sub-keys
+            val = snap_metrics.get(rule.trigger_metric)
+            if val is None:
+                # Try as a percentile metric (e.g. change_lead_time.p95)
+                parts = rule.trigger_metric.rsplit(".", 1)
+                if len(parts) == 2:
+                    parent = snap_metrics.get(parts[0])
+                    if isinstance(parent, dict):
+                        val = parent.get(parts[1])
+            if isinstance(val, (int, float)):
+                trigger_values_after.append(float(val))
+
+        if should_revert(trigger_values_after, trigger_before, rule.direction):
+            RuntimeConfig.revert(param)
+            reverted_value = RuntimeConfig.get(param)
+            now = datetime.now(UTC).isoformat()
+            reason = (
+                f"{rule.trigger_metric} worsened after adjustment: "
+                f"before={trigger_before}, after={trigger_values_after}; "
+                f"reverting {param} to default {reverted_value}"
+            )
+
+            db = await get_db()
+            try:
+                await db.execute(
+                    "UPDATE ops_metric_adjustments SET reverted = 1, "
+                    "reverted_at = ?, revert_reason = ? WHERE id = ?",
+                    (now, reason, row["id"]),
+                )
+                await db.commit()
+            finally:
+                await db.close()
+
+            logger.info("Auto-tuner revert: %s", reason)
+            reverts += 1
+
+    return reverts
+
+
 async def run_auto_tuner(all_metrics: dict) -> int:
     """Evaluate all tuning rules and apply corrections. Returns count of adjustments."""
     # Flatten metrics from all tiers into one dict
@@ -246,4 +339,14 @@ async def run_auto_tuner(all_metrics: dict) -> int:
                 adjustments += 1
         except Exception:
             logger.exception("Auto-tuner error for rule %s", rule.parameter)
+
+    # Revert check phase: detect worsening metrics and roll back bad adjustments
+    rules_by_param = {r.parameter: r for r in TUNING_RULES}
+    try:
+        reverts = await _check_and_revert(rules_by_param)
+        if reverts:
+            logger.info("Auto-tuner reverted %d parameter(s)", reverts)
+    except Exception:
+        logger.exception("Auto-tuner error during revert check")
+
     return adjustments

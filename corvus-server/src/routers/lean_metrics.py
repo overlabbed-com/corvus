@@ -7,7 +7,7 @@ auto-tuner adjustments, and convergence status.
 import json
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from src.config import RuntimeConfig
 from src.database import get_db
@@ -90,7 +90,7 @@ async def get_throughput(
 ):
     """Bucketed counts per day for a given entity type."""
     if entity not in _ENTITY_CONFIG:
-        return {"error": f"Unknown entity: {entity}. Valid: {', '.join(_ENTITY_CONFIG)}"}
+        raise HTTPException(status_code=422, detail=f"Unknown entity: {entity}. Valid: {', '.join(_ENTITY_CONFIG)}")
 
     table, ts_col, where_clause = _ENTITY_CONFIG[entity]
     since = (datetime.now(UTC) - timedelta(hours=hours)).isoformat()

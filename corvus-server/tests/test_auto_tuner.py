@@ -9,23 +9,13 @@ import pytest
 from src.config import RuntimeConfig
 from src.database import get_db
 from src.tasks.auto_tuner import (
+    TUNING_RULES,
     TuningRule,
     compute_dampened_correction,
     evaluate_and_adjust,
+    run_auto_tuner,
     should_revert,
 )
-
-
-@pytest.fixture(autouse=True)
-def _restore_runtime_config():
-    """Save and restore RuntimeConfig state so reset() in tests doesn't leak."""
-    saved_values = dict(RuntimeConfig._values)
-    saved_defaults = dict(RuntimeConfig._defaults)
-    saved_bounds = dict(RuntimeConfig._bounds)
-    yield
-    RuntimeConfig._values = saved_values
-    RuntimeConfig._defaults = saved_defaults
-    RuntimeConfig._bounds = saved_bounds
 
 
 def test_dampening_factor_decreases_with_adjustments():
@@ -109,3 +99,82 @@ async def test_revert_on_worsening(client):
         direction="increase",
     )
     assert result is True
+
+
+@pytest.mark.asyncio
+async def test_run_auto_tuner_reverts_worsening_adjustment(client):
+    """Full integration: run_auto_tuner reverts a parameter when its trigger metric worsens."""
+    import uuid
+
+    RuntimeConfig.reset()
+    RuntimeConfig.register_default("step_timeout.default", 300, min_val=30, max_val=3600)
+
+    # Simulate a past adjustment (not in cooldown -- use old timestamp)
+    adj_id = f"ADJ-{uuid.uuid4().hex[:8].upper()}"
+    adj_time = "2020-01-01T00:00:00+00:00"
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT INTO ops_metric_adjustments "
+            "(id, timestamp, parameter, old_value, new_value, trigger_metric, "
+            "trigger_value, trigger_threshold, adjustment_number, dampening_factor, reasoning) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                adj_id,
+                adj_time,
+                "step_timeout.default",
+                "300",
+                "350",
+                "timeout_rate",
+                20.0,
+                15.0,
+                1,
+                1.0,
+                "test adjustment",
+            ),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    # Override the value to mimic the adjustment having been applied
+    RuntimeConfig.set("step_timeout.default", 350)
+
+    # Insert 2 metric snapshots AFTER the adjustment with worsening trigger values
+    db = await get_db()
+    try:
+        for i, trigger_val in enumerate([25.0, 30.0]):
+            snap_id = f"SNAP-{uuid.uuid4().hex[:8].upper()}"
+            snap_time = f"2020-01-01T01:0{i}:00+00:00"
+            metrics_json = json.dumps({"timeout_rate": trigger_val})
+            await db.execute(
+                "INSERT INTO ops_metrics_snapshots "
+                "(id, timestamp, period_start, period_end, tier, metrics) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (snap_id, snap_time, snap_time, snap_time, "throughput", metrics_json),
+            )
+        await db.commit()
+    finally:
+        await db.close()
+
+    # Run auto-tuner with metrics BELOW threshold so no new adjustment fires
+    await run_auto_tuner({"throughput": {"timeout_rate": 5.0}})
+
+    # Parameter should have been reverted to default
+    assert RuntimeConfig.get("step_timeout.default") == 300
+
+    # Adjustment row should be marked as reverted
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT reverted, reverted_at, revert_reason "
+            "FROM ops_metric_adjustments WHERE id = ?",
+            (adj_id,),
+        )
+        row = await cursor.fetchone()
+        assert row is not None
+        assert row["reverted"] == 1
+        assert row["reverted_at"] is not None
+        assert "worsened" in row["revert_reason"]
+    finally:
+        await db.close()
