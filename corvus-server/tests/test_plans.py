@@ -584,3 +584,322 @@ async def test_parallel_roots_both_ready(client):
     ready2 = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
     assert len(ready2) == 1
     assert ready2[0]["name"] == "join"
+
+
+# ---- Failure policy tests ----
+
+
+async def _create_approve_execute(client, **plan_overrides):
+    """Helper: create, force-approve, and execute a plan. Returns the plan dict."""
+    plan = await _create_and_approve(client, **plan_overrides)
+    plan_id = plan["id"]
+    exec_resp = await client.post(f"/ops/plans/{plan_id}/execute")
+    assert exec_resp.status_code == 200
+    return exec_resp.json()
+
+
+@pytest.mark.asyncio
+async def test_halt_policy_blocks_plan(client):
+    """A failed step with halt policy blocks the plan."""
+    plan = await _create_approve_execute(
+        client,
+        steps=[
+            {
+                "name": "step-a",
+                "sequence": 1,
+                "action_type": "docker_pull",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+            },
+            {
+                "name": "step-b",
+                "sequence": 2,
+                "depends_on": ["step-a"],
+                "action_type": "docker_restart",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+            },
+        ],
+    )
+    plan_id = plan["id"]
+
+    # Claim root step
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    assert len(ready) == 1
+    step_a_id = ready[0]["id"]
+
+    # Report failure
+    result = await client.post(
+        f"/ops/plans/{plan_id}/steps/{step_a_id}/result",
+        json={"success": False, "error": "image not found"},
+    )
+    assert result.status_code == 200
+    data = result.json()
+
+    assert data["step_status"] == "failed"
+    assert data["plan_status"] == "blocked"
+    assert data["next_ready_steps"] == []
+
+    # step-b should still be pending -- NOT ready
+    plan_resp = await client.get(f"/ops/plans/{plan_id}")
+    step_b = next(s for s in plan_resp.json()["steps"] if s["name"] == "step-b")
+    assert step_b["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_skip_policy_continues(client):
+    """A failed step with skip policy allows the plan to continue."""
+    plan = await _create_approve_execute(
+        client,
+        steps=[
+            {
+                "name": "step-a",
+                "sequence": 1,
+                "action_type": "health_check",
+                "targets": ["svc-a"],
+                "failure_policy": "skip",
+            },
+            {
+                "name": "step-b",
+                "sequence": 2,
+                "depends_on": ["step-a"],
+                "action_type": "docker_restart",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+            },
+        ],
+    )
+    plan_id = plan["id"]
+
+    # Claim and fail step-a (skip policy)
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    step_a_id = ready[0]["id"]
+
+    result = await client.post(
+        f"/ops/plans/{plan_id}/steps/{step_a_id}/result",
+        json={"success": False, "error": "non-critical failure"},
+    )
+    data = result.json()
+
+    # Step should be marked skipped, not failed
+    assert data["step_status"] == "skipped"
+    assert data["plan_status"] == "executing"
+
+    # step-b should now be ready (skipped counts as "done" for dependencies)
+    assert len(data["next_ready_steps"]) == 1
+    assert data["next_ready_steps"][0]["name"] == "step-b"
+
+
+@pytest.mark.asyncio
+async def test_retry_policy(client):
+    """A failed step with retry policy re-queues up to max_retries, then halts."""
+    plan = await _create_approve_execute(
+        client,
+        steps=[
+            {
+                "name": "flaky-step",
+                "sequence": 1,
+                "action_type": "health_check",
+                "targets": ["svc-a"],
+                "failure_policy": "retry",
+                "max_retries": 2,
+            },
+            {
+                "name": "next-step",
+                "sequence": 2,
+                "depends_on": ["flaky-step"],
+                "action_type": "docker_restart",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+            },
+        ],
+    )
+    plan_id = plan["id"]
+
+    # Retry 1: claim and fail
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    step_id = ready[0]["id"]
+
+    result = await client.post(
+        f"/ops/plans/{plan_id}/steps/{step_id}/result",
+        json={"success": False, "error": "transient failure"},
+    )
+    data = result.json()
+    assert data["step_status"] == "ready"
+    assert data["retry_count"] == 1
+    assert data["plan_status"] == "executing"
+
+    # Retry 2: claim and fail again
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    assert len(ready) == 1
+    step_id = ready[0]["id"]
+
+    result = await client.post(
+        f"/ops/plans/{plan_id}/steps/{step_id}/result",
+        json={"success": False, "error": "transient failure 2"},
+    )
+    data = result.json()
+    assert data["step_status"] == "ready"
+    assert data["retry_count"] == 2
+    assert data["plan_status"] == "executing"
+
+    # Retry 3: max reached -- should halt
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    step_id = ready[0]["id"]
+
+    result = await client.post(
+        f"/ops/plans/{plan_id}/steps/{step_id}/result",
+        json={"success": False, "error": "still failing"},
+    )
+    data = result.json()
+    assert data["step_status"] == "failed"
+    assert data["retry_count"] == 3
+    assert data["plan_status"] == "blocked"
+
+
+@pytest.mark.asyncio
+async def test_rollback_reverses_completed_steps(client):
+    """Triggering rollback creates rollback steps in reverse order."""
+    plan = await _create_approve_execute(
+        client,
+        steps=[
+            {
+                "name": "deploy-image",
+                "sequence": 1,
+                "action_type": "docker_pull",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+                "rollback": {"action_type": "docker_pull", "params": {"image": "old:v1"}},
+            },
+            {
+                "name": "restart-svc",
+                "sequence": 2,
+                "depends_on": ["deploy-image"],
+                "action_type": "docker_restart",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+                "rollback": {"action_type": "docker_restart", "params": {}},
+            },
+            {
+                "name": "verify",
+                "sequence": 3,
+                "depends_on": ["restart-svc"],
+                "action_type": "health_check",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+                # No rollback for verification step
+            },
+        ],
+    )
+    plan_id = plan["id"]
+
+    # Complete steps 1 and 2, fail step 3
+    for _ in range(2):
+        ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+        step_id = ready[0]["id"]
+        await client.post(
+            f"/ops/plans/{plan_id}/steps/{step_id}/result",
+            json={"success": True},
+        )
+
+    # Fail step 3 (halt policy) -> plan blocked
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    step_id = ready[0]["id"]
+    await client.post(
+        f"/ops/plans/{plan_id}/steps/{step_id}/result",
+        json={"success": False, "error": "health check failed"},
+    )
+
+    # Trigger rollback
+    rb_resp = await client.post(f"/ops/plans/{plan_id}/rollback")
+    assert rb_resp.status_code == 200
+    data = rb_resp.json()
+
+    assert data["status"] == "rolling_back"
+
+    # Should have rollback steps for deploy-image and restart-svc (reverse order)
+    # restart-svc was seq 2, deploy-image was seq 1
+    # Rollback order: restart-svc first (seq -2), then deploy-image (seq -1)
+    rb_steps = [s for s in data["steps"] if s["name"].startswith("rollback:")]
+    assert len(rb_steps) == 2
+
+    # Verify reverse order via sequence
+    rb_names = [s["name"] for s in sorted(rb_steps, key=lambda s: s["sequence"])]
+    assert rb_names == ["rollback:restart-svc", "rollback:deploy-image"]
+
+    # First rollback step should be ready, second pending
+    rb_sorted = sorted(rb_steps, key=lambda s: s["sequence"])
+    assert rb_sorted[0]["status"] == "ready"
+    assert rb_sorted[1]["status"] == "pending"
+
+    # Rollback steps should have halt failure_policy
+    assert all(s["failure_policy"] == "halt" for s in rb_steps)
+
+
+@pytest.mark.asyncio
+async def test_rollback_completes_plan_as_rolled_back(client):
+    """Completing all rollback steps sets plan outcome to rolled_back."""
+    plan = await _create_approve_execute(
+        client,
+        steps=[
+            {
+                "name": "deploy",
+                "sequence": 1,
+                "action_type": "docker_pull",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+                "rollback": {"action_type": "docker_pull", "params": {"image": "old:v1"}},
+            },
+            {
+                "name": "verify",
+                "sequence": 2,
+                "depends_on": ["deploy"],
+                "action_type": "health_check",
+                "targets": ["svc-a"],
+                "failure_policy": "halt",
+            },
+        ],
+    )
+    plan_id = plan["id"]
+
+    # Complete step 1, fail step 2 -> blocked
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    await client.post(
+        f"/ops/plans/{plan_id}/steps/{ready[0]['id']}/result",
+        json={"success": True},
+    )
+
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    await client.post(
+        f"/ops/plans/{plan_id}/steps/{ready[0]['id']}/result",
+        json={"success": False, "error": "health check failed"},
+    )
+
+    # Trigger rollback
+    await client.post(f"/ops/plans/{plan_id}/rollback")
+
+    # Complete all rollback steps
+    ready = (await client.get(f"/ops/plans/{plan_id}/steps/ready")).json()
+    assert len(ready) == 1
+    assert ready[0]["name"].startswith("rollback:")
+
+    await client.post(
+        f"/ops/plans/{plan_id}/steps/{ready[0]['id']}/result",
+        json={"success": True},
+    )
+
+    # Plan should be completed with rolled_back outcome
+    plan_resp = await client.get(f"/ops/plans/{plan_id}")
+    plan_data = plan_resp.json()
+    assert plan_data["status"] == "failed"
+    assert plan_data["outcome"] == "rolled_back"
+
+
+@pytest.mark.asyncio
+async def test_rollback_rejects_executing_plan(client):
+    """Cannot rollback a plan that is still executing."""
+    plan = await _create_approve_execute(client)
+    plan_id = plan["id"]
+
+    resp = await client.post(f"/ops/plans/{plan_id}/rollback")
+    assert resp.status_code == 409

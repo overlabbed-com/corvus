@@ -399,6 +399,7 @@ async def _check_plan_completion(db, plan_id: str) -> bool:
     """Check if all steps are terminal (completed/skipped/failed).
 
     If so, mark plan completed and close the change window. Returns True if plan completed.
+    When plan is rolling_back and all rollback steps complete, outcome is rolled_back.
     """
     cursor = await db.execute(
         "SELECT status FROM ops_plan_steps WHERE plan_id = ?",
@@ -408,27 +409,37 @@ async def _check_plan_completion(db, plan_id: str) -> bool:
     statuses = [r["status"] for r in step_rows]
 
     terminal = {"completed", "skipped", "failed"}
-    if all(s in terminal for s in statuses):
-        now = datetime.now(UTC).isoformat()
+    if not all(s in terminal for s in statuses):
+        return False
+
+    now = datetime.now(UTC).isoformat()
+
+    # Check current plan status to determine outcome
+    cursor = await db.execute("SELECT status, change_id FROM ops_plans WHERE id = ?", (plan_id,))
+    plan_row = await cursor.fetchone()
+
+    if plan_row["status"] == "rolling_back":
+        # All rollback steps finished -> plan failed with rolled_back outcome
+        final_status = "failed"
+        outcome = "rolled_back"
+    else:
         has_failures = "failed" in statuses
+        final_status = "completed"
         outcome = "partial" if has_failures else "success"
 
+    await db.execute(
+        "UPDATE ops_plans SET status = ?, completed_at = ?, outcome = ? WHERE id = ?",
+        (final_status, now, outcome, plan_id),
+    )
+
+    # Close the change window
+    if plan_row["change_id"]:
         await db.execute(
-            "UPDATE ops_plans SET status = 'completed', completed_at = ?, outcome = ? WHERE id = ?",
-            (now, outcome, plan_id),
+            "UPDATE ops_changes SET status = 'completed', completed_at = ?, outcome = ? WHERE id = ?",
+            (now, outcome, plan_row["change_id"]),
         )
 
-        # Close the change window
-        cursor = await db.execute("SELECT change_id FROM ops_plans WHERE id = ?", (plan_id,))
-        plan_row = await cursor.fetchone()
-        if plan_row and plan_row["change_id"]:
-            await db.execute(
-                "UPDATE ops_changes SET status = 'completed', completed_at = ?, outcome = ? WHERE id = ?",
-                (now, outcome, plan_row["change_id"]),
-            )
-
-        return True
-    return False
+    return True
 
 
 # ---- Execution endpoints ----
@@ -557,7 +568,11 @@ async def get_ready_steps(plan_id: str):
 
 @router.post("/{plan_id}/steps/{step_id}/result")
 async def report_step_result(plan_id: str, step_id: str, req: StepResultRequest):
-    """Report step completion/failure and advance the DAG."""
+    """Report step completion/failure and advance the DAG.
+
+    On success: mark completed, evaluate DAG for next steps.
+    On failure: apply failure_policy (halt/skip/retry).
+    """
     db = await get_db()
     try:
         # Verify plan and step exist
@@ -575,25 +590,93 @@ async def report_step_result(plan_id: str, step_id: str, req: StepResultRequest)
             raise HTTPException(status_code=404, detail="Step not found")
 
         now_iso = datetime.now(UTC).isoformat()
-        new_status = "completed" if req.success else "failed"
+        newly_ready: list[dict] = []
+        retry_count = step_row["retry_count"]
 
-        await db.execute(
-            "UPDATE ops_plan_steps SET status = ?, completed_at = ?, output = ?, error = ? WHERE id = ?",
-            (
-                new_status,
-                now_iso,
-                json.dumps(req.output) if req.output else None,
-                req.error,
-                step_id,
-            ),
-        )
-
-        # Evaluate DAG to find newly-ready steps
-        newly_ready = []
         if req.success:
+            # --- Success path ---
+            new_status = "completed"
+            await db.execute(
+                "UPDATE ops_plan_steps SET status = ?, completed_at = ?, output = ?, error = ? WHERE id = ?",
+                (
+                    new_status,
+                    now_iso,
+                    json.dumps(req.output) if req.output else None,
+                    req.error,
+                    step_id,
+                ),
+            )
             newly_ready = await _evaluate_dag(db, plan_id)
 
-        # Check if plan is complete
+        else:
+            # --- Failure path: apply failure_policy ---
+            policy = step_row["failure_policy"]
+            retry_count += 1
+
+            if policy == "retry" and retry_count <= step_row["max_retries"]:
+                # Re-queue: reset to ready, clear started_at, bump retry_count
+                new_status = "ready"
+                await db.execute(
+                    "UPDATE ops_plan_steps SET status = 'ready', started_at = NULL, "
+                    "retry_count = ?, error = ? WHERE id = ?",
+                    (retry_count, req.error, step_id),
+                )
+
+            elif policy == "skip":
+                # Mark skipped (treated as done for dependency resolution)
+                new_status = "skipped"
+                await db.execute(
+                    "UPDATE ops_plan_steps SET status = 'skipped', completed_at = ?, "
+                    "output = ?, error = ?, retry_count = ? WHERE id = ?",
+                    (
+                        now_iso,
+                        json.dumps(req.output) if req.output else None,
+                        req.error,
+                        retry_count,
+                        step_id,
+                    ),
+                )
+                newly_ready = await _evaluate_dag(db, plan_id)
+
+            else:
+                # halt (default), or retry exhausted
+                new_status = "failed"
+                await db.execute(
+                    "UPDATE ops_plan_steps SET status = 'failed', completed_at = ?, "
+                    "output = ?, error = ?, retry_count = ? WHERE id = ?",
+                    (
+                        now_iso,
+                        json.dumps(req.output) if req.output else None,
+                        req.error,
+                        retry_count,
+                        step_id,
+                    ),
+                )
+                # Block the plan and emit event
+                await db.execute(
+                    "UPDATE ops_plans SET status = 'blocked' WHERE id = ?",
+                    (plan_id,),
+                )
+                event_id = f"EVT-{uuid.uuid4().hex[:8].upper()}"
+                await db.execute(
+                    """INSERT INTO ops_events
+                       (id, timestamp, source, type, target, severity, data, related_change_id)
+                       VALUES (?, ?, 'corvus', 'plan.blocked', ?, 'warning', ?, ?)""",
+                    (
+                        event_id,
+                        now_iso,
+                        step_row["name"],
+                        json.dumps({
+                            "summary": f"Plan blocked: step '{step_row['name']}' failed",
+                            "plan_id": plan_id,
+                            "step_id": step_id,
+                            "error": req.error,
+                        }),
+                        plan_row["status"] if plan_row["status"] != "blocked" else None,
+                    ),
+                )
+
+        # Check if plan is complete (handles both normal and rolling_back)
         await _check_plan_completion(db, plan_id)
 
         await db.commit()
@@ -602,15 +685,110 @@ async def report_step_result(plan_id: str, step_id: str, req: StepResultRequest)
         cursor = await db.execute("SELECT status FROM ops_plans WHERE id = ?", (plan_id,))
         updated_plan = await cursor.fetchone()
 
-        return {
+        response = {
             "step_id": step_id,
             "step_status": new_status,
             "plan_status": updated_plan["status"],
+            "retry_count": retry_count,
             "next_ready_steps": [
                 {"id": s["id"], "name": s["name"], "action_type": s["action_type"]}
                 for s in newly_ready
             ],
         }
+        return response
+    finally:
+        await db.close()
+
+
+@router.post("/{plan_id}/rollback")
+async def rollback_plan(plan_id: str):
+    """Trigger rollback: create reverse-order rollback steps for completed steps."""
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT * FROM ops_plans WHERE id = ?", (plan_id,))
+        plan_row = await cursor.fetchone()
+        if not plan_row:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        if plan_row["status"] not in ("completed", "blocked"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot rollback plan with status '{plan_row['status']}'. "
+                "Only completed or blocked plans can be rolled back.",
+            )
+
+        now_iso = datetime.now(UTC).isoformat()
+
+        # Set plan status to rolling_back
+        await db.execute(
+            "UPDATE ops_plans SET status = 'rolling_back' WHERE id = ?",
+            (plan_id,),
+        )
+
+        # Find completed steps with rollback definitions, ordered by sequence DESC
+        cursor = await db.execute(
+            "SELECT * FROM ops_plan_steps WHERE plan_id = ? AND status = 'completed' "
+            "ORDER BY sequence DESC",
+            (plan_id,),
+        )
+        completed_steps = await cursor.fetchall()
+
+        # Filter to steps that have a rollback definition
+        rollback_candidates = [
+            s for s in completed_steps
+            if s["rollback"] and json.loads(s["rollback"])
+        ]
+
+        # Create rollback steps chained in reverse order
+        prev_rb_id: str | None = None
+        for step in rollback_candidates:
+            rb_def = json.loads(step["rollback"])
+            rb_id = f"PSTEP-{uuid.uuid4().hex[:8].upper()}"
+
+            depends_on = [prev_rb_id] if prev_rb_id else []
+            status = "ready" if not prev_rb_id else "pending"
+
+            await db.execute(
+                """INSERT INTO ops_plan_steps
+                   (id, plan_id, name, description, sequence, depends_on, action_type,
+                    targets, params, failure_policy, max_retries, rollback, timeout, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'halt', 0, NULL, 300, ?)""",
+                (
+                    rb_id,
+                    plan_id,
+                    f"rollback:{step['name']}",
+                    f"Rollback for step '{step['name']}'",
+                    -step["sequence"],  # negative of original sequence
+                    json.dumps(depends_on),
+                    rb_def.get("action_type", step["action_type"]),
+                    step["targets"],  # same targets as original
+                    json.dumps(rb_def.get("params", {})),
+                    status,
+                ),
+            )
+            prev_rb_id = rb_id
+
+        # Emit plan.rolling_back event
+        event_id = f"EVT-{uuid.uuid4().hex[:8].upper()}"
+        await db.execute(
+            """INSERT INTO ops_events
+               (id, timestamp, source, type, target, severity, data, related_change_id)
+               VALUES (?, ?, 'corvus', 'plan.rolling_back', ?, 'warning', ?, ?)""",
+            (
+                event_id,
+                now_iso,
+                plan_row["title"],
+                json.dumps({
+                    "summary": f"Plan '{plan_row['title']}' rolling back",
+                    "plan_id": plan_id,
+                    "rollback_steps": len(rollback_candidates),
+                }),
+                plan_row["change_id"],
+            ),
+        )
+
+        await db.commit()
+        return await _fetch_plan_with_steps(db, plan_id)
     finally:
         await db.close()
 
