@@ -12,7 +12,7 @@ Corvus solves this with a single deployment that provides shared state, structur
 
 ## What's In the Box
 
-### Core
+### Core (corvus-server)
 
 | Capability | What It Does |
 |-----------|--------------|
@@ -25,6 +25,25 @@ Corvus solves this with a single deployment that provides shared state, structur
 | **Dependency Graph** | Neo4j-backed service topology. Blast radius and dependency chain queries |
 | **Trust Ledger** | Track agent reliability per action type. Promote/demote autonomy based on outcomes |
 
+### Agent Governance Hooks (corvus-hooks)
+
+Pre-built enforcement hooks for AI coding assistants. The installer auto-detects which tools you have and configures each one:
+
+| Tool | Integration Method |
+|------|-------------------|
+| **Claude Code** | PreToolUse/PostToolUse/UserPromptSubmit hooks + governance rules |
+| **Codex CLI** | Hook scripts via config.toml |
+| **Cline** | Global hook scripts |
+| **Cursor** | Project-level .cursorrules |
+| **Windsurf** | Project-level .windsurfrules + MCP |
+| **Continue** | Project-level .continuerules |
+| **GitHub Copilot** | .github/copilot-instructions.md |
+| **Augment** | .augment/rules/ governance doc |
+| **Aider** | CONVENTIONS.md |
+| **Amazon Q** | AGENTS.md |
+
+Every tool gets the same governance: pre-action conflict checks, post-action event emission, and workflow classification (incident/change/design).
+
 ### SIEM Forwarding
 
 Every event is transformed to OCSF 1.3.0 and forwarded to your SIEM:
@@ -36,38 +55,34 @@ Every event is transformed to OCSF 1.3.0 and forwarded to your SIEM:
 | Google Chronicle | Implemented, not yet production-tested |
 | Elasticsearch | Implemented, not yet production-tested |
 
-### Extensible Modules
-
-Corvus has a module system for governance frameworks and compliance controls. A SOC 2 module ships as a reference implementation. Additional modules (ITIL, NIST CSF, ISO 27001) are on the roadmap.
-
 ## Architecture
 
 ```
                Your Agents
-  ┌─────────┐  ┌─────────┐  ┌─────────┐
-  │ Claude  │  │ CrewAI  │  │ Custom  │
-  │  Code   │  │  Agent  │  │  Agent  │
-  └────┬────┘  └────┬────┘  └────┬────┘
-       │            │            │
-       └────────────┴─────┬──────┘
-                          │ REST API + MCP
-                   ┌──────┴──────┐
-                   │   Corvus    │
-                   │   Server    │
-                   │             │
-                   │  Ops State  │  Changes, incidents, CMDB
-                   │  OCSF       │  Event transformation
-                   │  Runbooks   │  FMEA triage engine
-                   │  Knowledge  │  Operational memory
-                   │  Graph      │  Service topology (Neo4j)
-                   └──────┬──────┘
-                          │
-             ┌────────────┼────────────┐
-             │            │            │
-        ┌────┴────┐  ┌───┴───┐  ┌────┴─────┐
-        │  Your   │  │ Your  │  │  Your    │
-        │  SIEM   │  │ LLM   │  │ Tickets  │
-        └─────────┘  └───────┘  └──────────┘
+  +---------+  +---------+  +---------+
+  | Claude  |  | CrewAI  |  | Custom  |
+  |  Code   |  |  Agent  |  |  Agent  |
+  +----+----+  +----+----+  +----+----+
+       |            |            |
+       +------------+-----+------+
+                          | REST API + MCP
+                   +------+------+
+                   |   Corvus    |
+                   |   Server    |
+                   |             |
+                   |  Ops State  |  Changes, incidents, CMDB
+                   |  OCSF       |  Event transformation
+                   |  Runbooks   |  FMEA triage engine
+                   |  Knowledge  |  Operational memory
+                   |  Graph      |  Service topology (Neo4j)
+                   +------+------+
+                          |
+             +------------+------------+
+             |            |            |
+        +----+----+  +---+---+  +----+-----+
+        |  Your   |  | Your  |  |  Your    |
+        |  SIEM   |  | LLM   |  | Tickets  |
+        +---------+  +-------+  +----------+
 ```
 
 ## Quick Start
@@ -79,7 +94,7 @@ services:
   corvus:
     build: ./corvus-server
     ports:
-      - "8000:8000"
+      - "9420:8000"
     environment:
       - CORVUS_API_KEYS=my-agent:$(openssl rand -hex 32)
       - NEO4J_URI=bolt://corvus-neo4j:7687
@@ -108,6 +123,15 @@ volumes:
   corvus-data:
   neo4j-data:
 ```
+
+### Install Agent Governance Hooks
+
+```bash
+cd corvus-hooks
+./install-corvus-governance.sh
+```
+
+The installer detects your installed AI tools and configures each one. See [corvus-hooks/](corvus-hooks/) for details.
 
 ### Local Development
 
@@ -163,17 +187,27 @@ Full OpenAPI spec available at `/docs` when running.
 
 ```
 corvus/
-├── corvus-server/        # The server (FastAPI)
-│   ├── src/              # Application code
-│   ├── runbooks/         # FMEA triage runbooks (13 service types)
-│   ├── tests/            # 470 tests
+├── corvus-server/          # The server (FastAPI)
+│   ├── src/                # Application code
+│   ├── runbooks/           # FMEA triage runbooks (13 service types)
+│   ├── modules/            # Governance + compliance modules
+│   ├── tests/              # Test suite
 │   └── Dockerfile
-├── corvus-sdk/           # Python SDK (early)
-├── corvus-cli/           # CLI tool (early)
-├── corvus-splunk/        # Splunk app for OCSF dashboards
-├── spec/                 # Protocol specifications
-├── docs/                 # Design documents
-└── examples/             # Agent integration examples
+├── corvus-hooks/           # Agent governance hooks (cross-tool)
+│   ├── corvus_core.py      # Shared governance library
+│   ├── corvus-governance.py    # PreToolUse conflict check
+│   ├── corvus-event-emit.py    # PostToolUse event emission
+│   ├── corvus-lifecycle.py     # UserPromptSubmit workflow classification
+│   ├── adapters/           # Tool-specific adapters (Codex, Cline, Windsurf)
+│   ├── claude-code/        # Claude Code hooks config + governance rules
+│   ├── rules/              # Project-level rules for other tools
+│   └── install-corvus-governance.sh  # Auto-detect installer
+├── corvus-sdk/             # Python SDK (early)
+├── corvus-cli/             # CLI tool (early)
+├── corvus-splunk/          # Splunk app for OCSF dashboards
+├── spec/                   # Protocol specifications
+├── docs/                   # Design documents
+└── examples/               # Agent integration examples
 ```
 
 ## Standards
@@ -187,17 +221,17 @@ corvus/
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `CORVUS_API_KEYS` | Yes* | — | Comma-separated `name:key` pairs |
+| `CORVUS_API_KEYS` | Yes* | -- | Comma-separated `name:key` pairs |
 | `CORVUS_DEV_MODE` | No | `false` | Bypass auth for local development |
-| `NEO4J_URI` | No | — | Neo4j connection URI (enables graph features) |
-| `NEO4J_USER` | No | — | Neo4j username |
-| `NEO4J_PASSWORD` | No | — | Neo4j password |
-| `CORVUS_SIEM_URL` | No | — | SIEM endpoint URL |
-| `CORVUS_SIEM_TOKEN` | No | — | SIEM authentication token |
+| `NEO4J_URI` | No | -- | Neo4j connection URI (enables graph features) |
+| `NEO4J_USER` | No | -- | Neo4j username |
+| `NEO4J_PASSWORD` | No | -- | Neo4j password |
+| `CORVUS_SIEM_URL` | No | -- | SIEM endpoint URL |
+| `CORVUS_SIEM_TOKEN` | No | -- | SIEM authentication token |
 | `CORVUS_SIEM_TYPE` | No | `splunk` | SIEM adapter: `splunk`, `sentinel`, `chronicle`, `elastic` |
 | `CORVUS_SIEM_VERIFY_TLS` | No | `true` | Verify SIEM TLS certificates |
-| `CORVUS_LLM_URL` | No | — | OpenAI-compatible LLM for triage diagnosis |
-| `CORVUS_INFRA_CONFIG` | No | — | Path to infrastructure YAML (hosts, GPUs, stacks) |
+| `CORVUS_LLM_URL` | No | -- | OpenAI-compatible LLM for triage diagnosis |
+| `CORVUS_INFRA_CONFIG` | No | -- | Path to infrastructure YAML (hosts, GPUs, stacks) |
 | `CORVUS_DATA_DIR` | No | `/data` | SQLite database directory |
 
 *Required unless `CORVUS_DEV_MODE=true`.
@@ -216,6 +250,7 @@ Active development. Core is production-tested. SDK, CLI, and module ecosystem ar
 | Knowledge management | Production |
 | Trust ledger | Production |
 | Blind spot detection | Production |
+| Agent governance hooks | Production |
 | Module system | Early (SOC 2 reference module) |
 | Python SDK | Early |
 | CLI | Early |
@@ -223,4 +258,4 @@ Active development. Core is production-tested. SDK, CLI, and module ecosystem ar
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+Apache License 2.0 -- see [LICENSE](LICENSE).

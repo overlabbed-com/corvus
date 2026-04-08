@@ -29,6 +29,20 @@ corvus/
 │   ├── modules/                 # Extensible governance + compliance + integrations
 │   ├── tests/                   # Test suite
 │   └── Dockerfile
+├── corvus-hooks/                # Agent governance hooks (cross-tool)
+│   ├── corvus_core.py           # Shared governance library
+│   ├── corvus-governance.py     # PreToolUse conflict check (CC)
+│   ├── corvus-event-emit.py     # PostToolUse event emission (CC)
+│   ├── corvus-lifecycle.py      # UserPromptSubmit workflow classification (CC)
+│   ├── adapters/                # Tool-specific adapters (Codex, Cline, Windsurf)
+│   ├── claude-code/             # CC-specific deployment artifacts
+│   │   ├── hooks.json           # Hooks config template (merged into settings.json)
+│   │   └── rules/               # Governance rules deployed to ~/.claude/rules/
+│   ├── rules/                   # Project-level rules for other tools
+│   └── install-corvus-governance.sh  # Auto-detect installer (10 tools)
+├── corvus-sdk/                  # Python SDK (early)
+├── corvus-cli/                  # CLI tool (early)
+├── corvus-splunk/               # Splunk app for OCSF dashboards
 ├── spec/                        # Protocol specification
 │   ├── events.md              # Event type taxonomy + OCSF mappings
 │   ├── incidents.md           # Incident lifecycle
@@ -37,9 +51,8 @@ corvus/
 │   ├── cmdb.md                # Service registry schema (CIs, relationships)
 │   └── runbooks.md            # Runbook YAML format
 ├── docs/                        # Guides, FMEA templates, architecture
-└── examples/                    # Agent integration examples
-    ├── claude-code/           # CC governance rules + MCP tool config
-    └── crewai/                # CrewAI adapter example
+├── examples/                    # Agent integration examples
+└── .claude/                     # Dev config only (SessionStart hook for remote envs)
 ```
 
 ## Development Commands
@@ -209,10 +222,26 @@ For planned work:
 ## Deployment
 
 ```bash
-docker run -d -p 8000:8000 -v corvus-data:/data ghcr.io/your-org/corvus:latest
+docker run -d -p 9420:8000 -v corvus-data:/data ghcr.io/overlabbed-com/corvus:latest
 ```
 
-Point your agents at `http://corvus:8000`.
+Point your agents at `http://corvus:9420`.
+
+### Agent Governance Hooks
+
+Install governance enforcement for your AI coding tools:
+```bash
+cd corvus-hooks
+./install-corvus-governance.sh --api-key YOUR_KEY
+```
+
+The installer auto-detects Claude Code, Codex, Cline, Cursor, Windsurf, Continue,
+Copilot, Augment, Aider, and Amazon Q. Product artifacts live in `corvus-hooks/`
+and are copied to each tool's expected location. Nothing is symlinked.
+
+The `.claude/` directory at repo root is dev-only config (SessionStart hook for
+remote environments). Product artifacts for Claude Code are in
+`corvus-hooks/claude-code/` and deployed by the installer.
 
 ## Testing
 

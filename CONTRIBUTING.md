@@ -28,22 +28,25 @@ docker run -d -p 8000:8000 -v corvus-data:/data corvus
 ## Project Structure
 
 ```
-corvus-server/
-├── src/
-│   ├── app.py              # FastAPI application entry point
-│   ├── config.py           # Environment-based configuration
-│   ├── database.py         # SQLite schema and connection management
-│   ├── ocsf.py             # OCSF 1.3.0 event transformer
-│   ├── mcp_server.py       # MCP server (12 tools for AI agents)
-│   ├── middleware/          # Auth (RBAC) and audit logging
-│   ├── models/             # Pydantic request/response models
-│   ├── routers/            # FastAPI route handlers
-│   ├── runbooks/           # YAML runbook loader and triage executor
-│   ├── siem/               # Splunk HEC forwarder
-│   └── tasks/              # Background tasks (expiry, gap detection)
-├── runbooks/               # FMEA triage runbooks (12 YAML files)
-├── tests/                  # Test suite
-└── Dockerfile
+corvus/
+├── corvus-server/          # The server (FastAPI)
+│   ├── src/                # Application code
+│   ├── runbooks/           # FMEA triage runbooks
+│   ├── modules/            # Governance + compliance modules
+│   ├── tests/              # Test suite
+│   └── Dockerfile
+├── corvus-hooks/           # Agent governance hooks (cross-tool)
+│   ├── corvus_core.py      # Shared governance library
+│   ├── adapters/           # Tool-specific adapters
+│   ├── claude-code/        # Claude Code hooks config + governance rules
+│   ├── rules/              # Project-level rules for other tools
+│   └── install-corvus-governance.sh
+├── corvus-sdk/             # Python SDK (early)
+├── corvus-cli/             # CLI tool (early)
+├── corvus-splunk/          # Splunk app for OCSF dashboards
+├── spec/                   # Protocol specifications
+├── docs/                   # Design documents
+└── examples/               # Agent integration examples
 ```
 
 ## Writing Tests
