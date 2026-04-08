@@ -22,6 +22,7 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from src.config import RuntimeConfig
 from src.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -306,7 +307,7 @@ async def check_triage_gaps(triage_id: str) -> list[str]:
         target = triage["target"]
 
         # Gap: generic fallback — diagnosis is unknown and confidence < 0.5
-        if (triage["diagnosis"] or "unknown") == "unknown" and (triage["confidence"] or 0) < 0.5:
+        if (triage["diagnosis"] or "unknown") == "unknown" and (triage["confidence"] or 0) < RuntimeConfig.get("triage.confidence_threshold"):
             pid = await _create_gap(
                 db,
                 now,

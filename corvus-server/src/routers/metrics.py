@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
+from src.config import RuntimeConfig
 from src.database import get_db
 
 router = APIRouter(tags=["metrics"])
@@ -277,7 +278,7 @@ async def get_metrics():
 
         if total_triages > 0:
             # Hit rate: % of triages with confidence > 0.5
-            cursor = await db.execute("SELECT COUNT(*) as cnt FROM ops_triage_log WHERE confidence > 0.5")
+            cursor = await db.execute("SELECT COUNT(*) as cnt FROM ops_triage_log WHERE confidence > ?", (RuntimeConfig.get("triage.confidence_threshold"),))
             row = await cursor.fetchone()
             metrics["runbook_hit_rate"] = round(row["cnt"] / total_triages * 100, 1)
         else:

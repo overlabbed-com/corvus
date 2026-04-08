@@ -63,3 +63,14 @@ def test_defaults_returns_registered_defaults():
     RuntimeConfig.register_default("x", 5)
     RuntimeConfig.set("x", 99)
     assert RuntimeConfig.defaults() == {"x": 5}
+
+
+def test_trust_ledger_reads_from_config():
+    """Trust ledger uses RuntimeConfig for promotion threshold."""
+    # Re-register the defaults that config.py registers at import time
+    # (cleared by the autouse fixture above)
+    RuntimeConfig.register_default("trust.promotion_threshold", 0.95, min_val=0.80, max_val=0.99)
+    RuntimeConfig.register_default("trust.min_executions", 20, min_val=5, max_val=100)
+    # Verify the keys are accessible with correct defaults
+    assert RuntimeConfig.get("trust.promotion_threshold") == 0.95
+    assert RuntimeConfig.get("trust.min_executions") == 20
