@@ -9,7 +9,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi import Query as FastQuery
 from pydantic import BaseModel
 
@@ -47,8 +47,18 @@ class KnowledgeSearchResult(BaseModel):
 
 
 @router.post("", status_code=201)
-async def create_knowledge(entry: KnowledgeEntry) -> dict[str, Any]:
+async def create_knowledge(entry: KnowledgeEntry, request: Request) -> dict[str, Any]:
     """Create a knowledge entry (manual or programmatic)."""
+    # Governance entries require admin role
+    if entry.source_type == "governance":
+        auth = getattr(request.state, "auth", None)
+        if not auth or auth.role != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="Writing source_type='governance' requires admin role. "
+                "Use 'governance-proposed' to propose rules for review.",
+            )
+
     entry_id = f"KNW-{uuid.uuid4().hex[:8].upper()}"
     now = datetime.now(UTC).isoformat()
 
