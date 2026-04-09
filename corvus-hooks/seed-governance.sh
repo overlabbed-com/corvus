@@ -60,8 +60,8 @@ fi
 
 if [[ -z "$API_KEY" ]] && command -v security &>/dev/null; then
     API_KEY=$(security find-generic-password \
-        -s "${CORVUS_KEYCHAIN_SERVICE:-corvus}" \
-        -a "${CORVUS_KEYCHAIN_ACCOUNT:-api-key}" \
+        -s "${CORVUS_KEYCHAIN_SERVICE:-corvus.themillertribe-int.org}" \
+        -a "${CORVUS_KEYCHAIN_ACCOUNT:-corvus-api-key}" \
         -w 2>/dev/null || true)
 fi
 
