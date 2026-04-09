@@ -185,6 +185,18 @@ CREATE VIRTUAL TABLE IF NOT EXISTS ops_knowledge_fts USING fts5(
     target
 );
 
+CREATE TABLE IF NOT EXISTS governance_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    changed_by TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    diff_summary TEXT,
+    FOREIGN KEY (entry_id) REFERENCES ops_knowledge(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_governance_history_entry ON governance_history(entry_id);
+
 CREATE TABLE IF NOT EXISTS ops_plans (
     id              TEXT PRIMARY KEY,
     created_at      TEXT NOT NULL,
@@ -322,6 +334,7 @@ async def init_db() -> None:
             "ALTER TABLE ops_incidents ADD COLUMN investigating_at TEXT",
             "ALTER TABLE ops_trust_ledger ADD COLUMN first_seen_at TEXT",
             "ALTER TABLE ops_triage_log ADD COLUMN resolution_time_seconds REAL",
+            "ALTER TABLE ops_knowledge ADD COLUMN governance_order INTEGER DEFAULT 50",
         ]:
             try:
                 await db.execute(alter_sql)
