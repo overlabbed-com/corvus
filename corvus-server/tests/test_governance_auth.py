@@ -94,3 +94,71 @@ class TestGovernanceAuthScope:
             },
         )
         assert resp.status_code == 201
+
+
+class TestGovernanceHistory:
+    async def test_governance_create_records_history(self, client):
+        """Creating a governance entry records in history."""
+        resp = await client.post(
+            "/ops/knowledge",
+            json={
+                "title": "test-rule",
+                "content": "# Test Rule\nDo the thing.",
+                "source_type": "governance",
+                "tags": ["governance", "test"],
+            },
+        )
+        assert resp.status_code == 201
+        entry_id = resp.json()["id"]
+
+        hist = await client.get(f"/ops/knowledge/{entry_id}/history")
+        assert hist.status_code == 200
+        records = hist.json()
+        assert len(records) == 1
+        assert records[0]["content_hash"] is not None
+        assert records[0]["changed_by"] is not None
+
+    async def test_governance_update_records_history(self, client):
+        """Updating a governance entry appends to history."""
+        resp = await client.post(
+            "/ops/knowledge",
+            json={
+                "title": "evolving-rule",
+                "content": "Version 1",
+                "source_type": "governance",
+            },
+        )
+        assert resp.status_code == 201
+        entry_id = resp.json()["id"]
+
+        resp = await client.patch(
+            f"/ops/knowledge/{entry_id}",
+            json={"content": "Version 2"},
+        )
+        assert resp.status_code == 200
+
+        hist = await client.get(f"/ops/knowledge/{entry_id}/history")
+        records = hist.json()
+        assert len(records) == 2
+        assert records[0]["content_hash"] != records[1]["content_hash"]
+
+    async def test_non_governance_update_no_history(self, client):
+        """Updating a non-governance entry does NOT record history."""
+        resp = await client.post(
+            "/ops/knowledge",
+            json={"title": "normal", "content": "stuff", "source_type": "manual"},
+        )
+        entry_id = resp.json()["id"]
+
+        await client.patch(f"/ops/knowledge/{entry_id}", json={"content": "updated"})
+
+        hist = await client.get(f"/ops/knowledge/{entry_id}/history")
+        assert hist.json() == []
+
+    async def test_patch_nonexistent_returns_404(self, client):
+        """PATCH on nonexistent entry returns 404."""
+        resp = await client.patch(
+            "/ops/knowledge/KNW-NONEXIST",
+            json={"content": "nope"},
+        )
+        assert resp.status_code == 404

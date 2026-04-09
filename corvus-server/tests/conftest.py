@@ -63,9 +63,9 @@ async def client():
             "ops_plan_steps",
             "ops_plans",
             "ops_trust_ledger",
-            "ops_knowledge",
-            "ops_knowledge_fts",
             "governance_history",
+            "ops_knowledge_fts",
+            "ops_knowledge",
         ):
             await db.execute(f"DELETE FROM {table}")  # nosec B608 - Table name from allowlist
         await db.commit()

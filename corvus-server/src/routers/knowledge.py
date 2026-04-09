@@ -4,6 +4,7 @@ Indexes resolved incidents, triage results, and problem records so agents
 can search past resolutions before escalating.
 """
 
+import hashlib
 import json
 import uuid
 from datetime import UTC, datetime
@@ -39,6 +40,13 @@ class KnowledgeSearchResult(BaseModel):
     target: str | None
     rank: float
     created_at: str
+
+
+class KnowledgeUpdate(BaseModel):
+    title: str | None = None
+    content: str | None = None
+    tags: list[str] | None = None
+    governance_order: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +90,13 @@ async def create_knowledge(entry: KnowledgeEntry, request: Request) -> dict[str,
         )
         # Sync FTS index
         await _sync_fts(db, entry_id)
+
+        # Record governance history on create
+        if entry.source_type == "governance":
+            auth = getattr(request.state, "auth", None)
+            changed_by = auth.identity if auth else "unknown"
+            await _record_governance_history(db, entry_id, entry.content, changed_by)
+
         await db.commit()
         return {"id": entry_id, "created_at": now}
     finally:
@@ -134,6 +149,91 @@ async def search_knowledge(
 
         rows = await db.execute_fetchall(sql, params)
         return [_row_to_result(row) for row in rows]
+    finally:
+        await db.close()
+
+
+@router.get("/{entry_id}/history")
+async def get_governance_history(entry_id: str) -> list[dict[str, Any]]:
+    """Get change history for a knowledge entry."""
+    db = await get_db()
+    try:
+        rows = await db.execute_fetchall(
+            "SELECT id, entry_id, content_hash, changed_by, changed_at, diff_summary "
+            "FROM governance_history WHERE entry_id = ? ORDER BY changed_at",
+            (entry_id,),
+        )
+        return [
+            {
+                "id": row[0],
+                "entry_id": row[1],
+                "content_hash": row[2],
+                "changed_by": row[3],
+                "changed_at": row[4],
+                "diff_summary": row[5],
+            }
+            for row in rows
+        ]
+    finally:
+        await db.close()
+
+
+@router.patch("/{entry_id}")
+async def update_knowledge(entry_id: str, update: KnowledgeUpdate, request: Request) -> dict[str, Any]:
+    """Update a knowledge entry. Governance entries require admin role."""
+    db = await get_db()
+    try:
+        row = await db.execute_fetchall("SELECT * FROM ops_knowledge WHERE id = ?", (entry_id,))
+        if not row:
+            raise HTTPException(status_code=404, detail="Knowledge entry not found")
+
+        existing = _row_to_dict(row[0])
+
+        # Governance entries require admin to update
+        if existing["source_type"] == "governance":
+            auth = getattr(request.state, "auth", None)
+            if not auth or auth.role != "admin":
+                raise HTTPException(status_code=403, detail="Updating governance entries requires admin role")
+
+        now = datetime.now(UTC).isoformat()
+        updates = []
+        params = []
+
+        if update.title is not None:
+            updates.append("title = ?")
+            params.append(update.title)
+        if update.content is not None:
+            updates.append("content = ?")
+            params.append(update.content)
+        if update.tags is not None:
+            updates.append("tags = ?")
+            params.append(json.dumps(update.tags))
+        if update.governance_order is not None:
+            updates.append("governance_order = ?")
+            params.append(update.governance_order)
+
+        if not updates:
+            return {"id": entry_id, "updated": False}
+
+        updates.append("updated_at = ?")
+        params.append(now)
+        params.append(entry_id)
+
+        await db.execute(
+            f"UPDATE ops_knowledge SET {', '.join(updates)} WHERE id = ?",  # nosec B608
+            params,
+        )
+        await _sync_fts(db, entry_id)
+
+        # Record governance history
+        if existing["source_type"] == "governance":
+            content = update.content if update.content is not None else existing["content"]
+            auth = getattr(request.state, "auth", None)
+            changed_by = auth.identity if auth else "unknown"
+            await _record_governance_history(db, entry_id, content, changed_by)
+
+        await db.commit()
+        return {"id": entry_id, "updated_at": now}
     finally:
         await db.close()
 
@@ -434,6 +534,17 @@ async def index_problem_record(problem_id: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+async def _record_governance_history(db, entry_id: str, content: str, changed_by: str) -> None:
+    """Record a governance entry change in the audit trail."""
+    content_hash = hashlib.sha256(content.encode()).hexdigest()
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        """INSERT INTO governance_history (entry_id, content_hash, changed_by, changed_at)
+           VALUES (?, ?, ?, ?)""",
+        (entry_id, content_hash, changed_by, now),
+    )
 
 
 def _escape_fts_query(query: str) -> str:
