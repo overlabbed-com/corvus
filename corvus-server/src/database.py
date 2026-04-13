@@ -96,6 +96,23 @@ CREATE TABLE IF NOT EXISTS ops_cmdb (
     registered_on TEXT DEFAULT 'local'
 );
 
+CREATE TABLE IF NOT EXISTS ops_ci (
+    name TEXT PRIMARY KEY,
+    ci_type TEXT NOT NULL,
+    service_name TEXT,
+    expires_at TEXT,
+    parent_ci TEXT REFERENCES ops_ci(name),
+    operational_status TEXT NOT NULL DEFAULT 'active',
+    metadata TEXT NOT NULL DEFAULT '{}',  -- JSON
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ci_type ON ops_ci(ci_type);
+CREATE INDEX IF NOT EXISTS idx_ci_expires ON ops_ci(expires_at);
+CREATE INDEX IF NOT EXISTS idx_ci_parent ON ops_ci(parent_ci);
+CREATE INDEX IF NOT EXISTS idx_ci_status ON ops_ci(operational_status);
+
 CREATE TABLE IF NOT EXISTS ops_audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp TEXT NOT NULL,

@@ -24,6 +24,7 @@ from src.routers import (
     agent_instructions,
     backup,
     changes,
+    ci,
     cmdb,
     correlations,
     discovery,
@@ -160,6 +161,7 @@ app.include_router(changes.router)
 app.include_router(events.router)
 app.include_router(incidents.router)
 app.include_router(problems.router)
+app.include_router(ci.router)
 app.include_router(cmdb.router)
 app.include_router(runbooks.router)
 app.include_router(runbooks.triage_router)

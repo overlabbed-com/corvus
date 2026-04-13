@@ -289,3 +289,130 @@ Incident. Baselines make this distinction automatic.
 | `default` | Normal alerting rules apply |
 | `silent` | Suppress alerts (use with caution — requires change window visibility) |
 | `escalate` | Always escalate to human, never auto-remediate |
+
+## Configuration Item (CI) API
+
+### Register CI
+```
+POST /ops/cmdb/ci
+```
+```json
+{
+  "name": "wildcard-cert-2026",
+  "ci_type": "cert",
+  "service_name": "caddy",
+  "expires_at": "2026-10-15T00:00:00Z",
+  "parent_ci": null,
+  "operational_status": "active",
+  "metadata": {
+    "issuer": "Let's Encrypt",
+    "domains": ["*.themillertribe.org"]
+  }
+}
+```
+
+**Response** (201):
+```json
+{
+  "name": "wildcard-cert-2026",
+  "ci_type": "cert",
+  "service_name": "caddy",
+  "expires_at": "2026-10-15T00:00:00Z",
+  "parent_ci": null,
+  "operational_status": "active",
+  "metadata": {"issuer": "Let's Encrypt", "domains": ["*.themillertribe.org"]},
+  "days_until_expiry": 185,
+  "created_at": "2026-04-13T10:00:00Z",
+  "updated_at": "2026-04-13T10:00:00Z",
+  "relationships": {
+    "used_by": ["caddy"],
+    "parent": null,
+    "children": []
+  }
+}
+```
+
+### Get CI
+```
+GET /ops/cmdb/ci/{name}
+```
+
+### Get CI Impact
+```
+GET /ops/cmdb/ci/{name}/impact
+```
+**Response**:
+```json
+{
+  "ci_name": "powerdns-api-key",
+  "ci_type": "credential",
+  "direct_dependents": ["powerdns", "caddy"],
+  "indirect_dependents": ["all-dns-dependent-services"],
+  "services_using": ["powerdns", "caddy"],
+  "change_window_required": true,
+  "risk_level": "high"
+}
+```
+
+### Get Expiring CIs
+```
+GET /ops/cmdb/ci/expiring?days=30
+```
+**Response**:
+```json
+{
+  "expiring_in_7_days": [
+    {"name": "cert-staging", "ci_type": "cert", "expires_at": "...", "days_left": 5, "service_name": "caddy"}
+  ],
+  "expiring_in_30_days": [
+    {"name": "slack-webhook-old", "ci_type": "credential", "expires_at": "...", "days_left": 15}
+  ],
+  "expiring_in_90_days": [],
+  "already_expired": [
+    {"name": "old-api-key", "ci_type": "credential", "expires_at": "...", "days_left": -10}
+  ]
+}
+```
+
+### List CIs
+```
+GET /ops/cmdb/ci?ci_type=cert&status=active
+```
+
+## CI Lifecycle States
+
+| State | Description | Transition Triggers |
+|-------|-------------|---------------------|
+| `active` | Normal operational state | Default on registration |
+| `expiring` | Within 30 days of expiry | Auto-detected by expiry sweep |
+| `expired` | Past expiry date | Auto-detected by expiry sweep |
+| `revoked` | Manually revoked before expiry | Manual action (e.g., security incident) |
+| `decommissioned` | Retired, no longer in use | Manual action |
+
+## Expiry Handling
+
+**Alert Schedule**:
+- 30 days before: `info` event logged
+- 7 days before: `warning` event + Slack notification
+- 1 day before: `critical` event + incident auto-created
+- Expired: `critical` event + incident auto-escalated
+
+**Auto-transition**: Background task runs every 5 minutes to:
+1. Query CIs expiring within 30 days → set status to `expiring`
+2. Query CIs past expiry → set status to `expired`
+3. Emit events for status transitions
+
+## Neo4j Graph Schema
+
+**CI Node Labels**:
+```cypher
+(:CI {name, ci_type, expires_at, operational_status, metadata})
+```
+
+**Relationship Types**:
+- `(:Service)-[:USES]->(:CI)` — Service uses this CI
+- `(:CI)-[:BELONGS_TO]->(:CI)` — Child-parent CI relationship
+- `(:CI)-[:RENEWS_TO]->(:CI)` — Old cert → new cert transition
+- `(:CI)-[:CONTAINS]->(:CI)` — Zone contains records, dataset contains snapshots
+- `(:CI)-[:DEPENDS_ON]->(:CI)` — CI depends on another CI
+- `(:Incident)-[:AFFECTS_CI]->(:CI)` — Incident impacts this CI
