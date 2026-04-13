@@ -14,7 +14,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from src.config import API_KEYS, CORVUS_DEV_MODE, MCP_ENABLED, OIDC_ENABLED
+from src.config import API_KEYS, CORVUS_DEV_MODE, MCP_ENABLED, OIDC_ENABLED, RATE_LIMITS
 from src.dashboard.router import router as dashboard_router
 from src.database import init_db
 from src.discovery.collector import start_collector, stop_collector
@@ -138,11 +138,21 @@ async def lifespan(app: FastAPI):
             await task
 
 
-# Rate limiter — keyed by remote address
+# Rate limiter — keyed by remote address for unauthenticated, by API key for authenticated
 # Default: 200/minute for reads, 60/minute for writes (applied per-endpoint via decorators)
 # Global fallback: 500/minute per IP
+# GAP-2: Per-Key Rate Limiting
+
+def get_rate_limit_key(request: Request) -> str:
+    """Get rate limit key based on authenticated identity or IP."""
+    if hasattr(request.state, "auth") and request.state.auth:
+        # Use key name as rate limit key
+        return f"key:{request.state.auth.key_name}"
+    # Fallback to IP
+    return get_remote_address(request)
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=get_rate_limit_key,
     default_limits=["500/minute"],
     storage_uri="memory://",
 )

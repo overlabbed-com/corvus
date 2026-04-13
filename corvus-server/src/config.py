@@ -21,6 +21,25 @@ if _raw_keys:
             name, key = entry.split(":", 1)
             API_KEYS[key.strip()] = name.strip()
 
+# Rate limits per role (GAP-2: Per-Key Rate Limiting)
+RATE_LIMITS: dict[str, dict[str, int]] = {
+    "agent": {"events_per_minute": 60, "events_per_hour": 1000},
+    "ops-write": {"events_per_minute": 120, "events_per_hour": 5000},
+    "admin": {"events_per_minute": 300, "events_per_hour": 10000},
+}
+
+# Per-key overrides (format: "key_name:events_per_minute,events_per_hour")
+_custom_limits = os.getenv("CORVUS_RATE_LIMITS", "")
+for entry in _custom_limits.split(","):
+    if ":" in entry:
+        name, limits = entry.split(":", 1)
+        parts = limits.split(",")
+        if len(parts) == 2:
+            RATE_LIMITS[name.strip()] = {
+                "events_per_minute": int(parts[0]),
+                "events_per_hour": int(parts[1]),
+            }
+
 # SIEM forwarding
 SIEM_URL = os.getenv("CORVUS_SIEM_URL", "")
 SIEM_TOKEN = os.getenv("CORVUS_SIEM_TOKEN", "")
