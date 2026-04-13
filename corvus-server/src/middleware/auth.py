@@ -191,10 +191,7 @@ def authenticate_request(request: Request) -> AuthContext | None:
     else:
         key_name = key_entry
         # Map known admin names to ADMIN role
-        if key_name.lower() == "admin":
-            role = Role.ADMIN
-        else:
-            role = Role.AGENT
+        role = Role.ADMIN if key_name.lower() == "admin" else Role.AGENT
 
     return AuthContext(key_name=key_name, role=role)
 

@@ -5,13 +5,13 @@ for the Corvus service dependency graph. Gracefully degrades when Neo4j is not
 configured or unreachable — all graph features become no-ops rather than errors.
 """
 
+import asyncio
 import contextlib
 import logging
-import asyncio
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
@@ -213,7 +213,7 @@ async def run_query_with_timeout(
         result = await asyncio.wait_for(_execute_query(), timeout=timeout)
         _health.record_success()
         return result
-    except asyncio.TimeoutError:
+    except TimeoutError:
         _health.record_failure()
         logger.warning("Query timed out after %fs: %s", timeout, cypher[:100])
         raise
@@ -249,14 +249,14 @@ class TimedSession:
             try:
                 await asyncio.wait_for(task, timeout=self._timeout)
                 return ResultWrapper(task.result(), self._timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
                 _health.record_failure()
                 logger.warning("Query timed out after %fs: %s", self._timeout, cypher[:100])
                 raise
-        except Exception as e:
+        except Exception:
             _health.record_failure()
             raise
 
@@ -275,7 +275,7 @@ class ResultWrapper:
         """Fetch single record with timeout."""
         try:
             return await asyncio.wait_for(self._result.single(), timeout=self._timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _health.record_failure()
             raise
 
@@ -283,7 +283,7 @@ class ResultWrapper:
         """Fetch single record, returning None if no results (with timeout)."""
         try:
             return await asyncio.wait_for(self._result.single(), timeout=self._timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _health.record_failure()
             raise
 
@@ -291,7 +291,7 @@ class ResultWrapper:
         """Fetch all records with timeout."""
         try:
             return await asyncio.wait_for(self._result.fetch(), timeout=self._timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _health.record_failure()
             raise
 
@@ -325,7 +325,7 @@ class ResultIterator:
                 raise StopAsyncIteration
             self._buffer = list(records)
             return self._buffer.pop(0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _health.record_failure()
             logger.warning("Query result fetch timed out after %fs", self._timeout)
             raise

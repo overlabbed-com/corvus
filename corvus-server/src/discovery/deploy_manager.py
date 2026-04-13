@@ -9,10 +9,8 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
-
-import httpx
 
 from src.database import get_db
 from src.graph import graph_available, graph_session
@@ -20,7 +18,7 @@ from src.graph import graph_available, graph_session
 logger = logging.getLogger(__name__)
 
 
-class DeployStatus(str, Enum):
+class DeployStatus(StrEnum):
     """Deployment status values."""
     SUCCESS = "success"
     FAILURE = "failure"
@@ -29,7 +27,7 @@ class DeployStatus(str, Enum):
     TIMEOUT = "timeout"
 
 
-class FailureDiagnosis(str, Enum):
+class FailureDiagnosis(StrEnum):
     """Deploy failure diagnosis types."""
     RESOURCE_EXHAUSTION = "resource_exhaustion"
     SLOW_STARTUP = "slow_startup"
@@ -94,17 +92,17 @@ async def analyze_deploy_failure(
     workflow_logs: str | None = None,
 ) -> DeployDiagnosis:
     """Analyze deploy failure and return diagnosis.
-    
+
     Args:
         service_name: Name of the failed service
         error_message: Error message from deploy
         workflow_logs: Full workflow logs for pattern matching
-        
+
     Returns:
         DeployDiagnosis with root cause hypothesis and remediation
     """
     error_lower = error_message.lower()
-    
+
     # Pattern: OOMKilled / memory exhaustion
     if "oomkilled" in error_lower or "out of memory" in error_lower or "memory" in error_lower:
         return DeployDiagnosis(
@@ -119,7 +117,7 @@ async def analyze_deploy_failure(
             ],
             root_cause_hint="Service exceeded memory limits",
         )
-    
+
     # Pattern: Healthcheck timeout / slow startup
     if any(term in error_lower for term in ["healthcheck", "timeout", "startup", "starting"]):
         return DeployDiagnosis(
@@ -134,7 +132,7 @@ async def analyze_deploy_failure(
             ],
             root_cause_hint="Service takes longer than expected to start",
         )
-    
+
     # Pattern: Stale config / out of sync
     if any(term in error_lower for term in ["stale", "out of sync", "mismatch", "conflict"]):
         return DeployDiagnosis(
@@ -149,7 +147,7 @@ async def analyze_deploy_failure(
             ],
             root_cause_hint="Running configuration differs from declared state",
         )
-    
+
     # Pattern: Image pull failure
     if any(term in error_lower for term in ["image pull", "pull access", "not found", "manifest"]):
         return DeployDiagnosis(
@@ -164,7 +162,7 @@ async def analyze_deploy_failure(
             ],
             root_cause_hint="Cannot pull container image",
         )
-    
+
     # Pattern: Dependency unavailable
     if any(term in error_lower for term in ["connection refused", "dependency", "upstream", "service unavailable"]):
         return DeployDiagnosis(
@@ -179,7 +177,7 @@ async def analyze_deploy_failure(
             ],
             root_cause_hint="Required dependency not ready or unhealthy",
         )
-    
+
     # Check workflow logs for additional patterns
     if workflow_logs:
         if "oom" in workflow_logs.lower():
@@ -190,8 +188,10 @@ async def analyze_deploy_failure(
                 remediation=["Increase container memory/CPU limits"],
                 root_cause_hint="OOM detected in logs",
             )
-        
-        if "health" in workflow_logs.lower() and ("fail" in workflow_logs.lower() or "timeout" in workflow_logs.lower()):
+
+        has_health = "health" in workflow_logs.lower()
+        has_fail_or_timeout = "fail" in workflow_logs.lower() or "timeout" in workflow_logs.lower()
+        if has_health and has_fail_or_timeout:
             return DeployDiagnosis(
                 diagnosis=FailureDiagnosis.SLOW_STARTUP,
                 confidence=0.8,
@@ -199,7 +199,7 @@ async def analyze_deploy_failure(
                 remediation=["Increase healthcheck timeout"],
                 root_cause_hint="Healthcheck failures in logs",
             )
-    
+
     # Default: unknown failure
     return DeployDiagnosis(
         diagnosis=FailureDiagnosis.UNKNOWN,
@@ -216,25 +216,25 @@ async def check_drift(
     running: RunningConfig | None = None,
 ) -> DriftReport:
     """Compare declared vs running state and detect drift.
-    
+
     Args:
         service_name: Service to check
         declared: Declared config (if None, fetch from CMDB)
         running: Running config (if None, inspect container)
-        
+
     Returns:
         DriftReport with detected differences
     """
     drift_fields = []
-    
+
     # Fetch declared state if not provided
     if declared is None:
         declared = await _get_declared_state(service_name)
-    
+
     # Fetch running state if not provided
     if running is None:
         running = await _get_running_state(service_name)
-    
+
     if not declared or not running:
         return DriftReport(
             service_name=service_name,
@@ -244,39 +244,37 @@ async def check_drift(
             running=running,
             severity="low",
         )
-    
+
     # Compare image
     if declared.image != running.image:
         drift_fields.append("image")
-    
+
     # Compare healthcheck
     if declared.healthcheck != running.healthcheck:
         drift_fields.append("healthcheck")
-    
+
     # Compare env hash
     if declared.env_hash != running.env_hash:
         drift_fields.append("env_vars")
-    
+
     # Compare networks
     if set(declared.networks or []) != set(running.networks or []):
         drift_fields.append("networks")
-    
+
     # Compare resources
     if declared.resources != running.resources:
         drift_fields.append("resources")
-    
+
     has_drift = len(drift_fields) > 0
-    
+
     # Determine severity
-    if "image" in drift_fields or "healthcheck" in drift_fields:
-        severity = "high"
-    elif len(drift_fields) >= 3:
+    if "image" in drift_fields or "healthcheck" in drift_fields or len(drift_fields) >= 3:
         severity = "high"
     elif len(drift_fields) >= 2:
         severity = "medium"
     else:
         severity = "low"
-    
+
     return DriftReport(
         service_name=service_name,
         has_drift=has_drift,
@@ -292,7 +290,7 @@ async def register_declared_state(
     declared: DeclaredConfig,
 ) -> None:
     """Register declared state from GitOps in CMDB.
-    
+
     Args:
         service_name: Service name
         declared: Declared configuration from compose file
@@ -300,11 +298,11 @@ async def register_declared_state(
     db = await get_db()
     try:
         now = datetime.now(UTC).isoformat()
-        
+
         # Serialize networks and resources
         networks_json = json.dumps(declared.networks) if declared.networks else None
-        resources_json = json.dumps(declared.resources) if declared.resources else None
-        
+        json.dumps(declared.resources) if declared.resources else None
+
         # Update CMDB with declared state
         await db.execute(
             """UPDATE ops_cmdb SET
@@ -323,7 +321,7 @@ async def register_declared_state(
                 service_name,
             ),
         )
-        
+
         # Also update in Neo4j if available
         if graph_available():
             async with graph_session() as session:
@@ -343,10 +341,10 @@ async def register_declared_state(
                     networks=networks_json,
                     updated_at=now,
                 )
-        
+
         await db.commit()
         logger.info(f"Registered declared state for {service_name}")
-        
+
     finally:
         await db.close()
 
@@ -358,7 +356,7 @@ async def record_deploy_attempt(
     error: str | None = None,
 ) -> None:
     """Record deploy attempt in CMDB.
-    
+
     Args:
         service_name: Service name
         status: Deploy status
@@ -368,7 +366,7 @@ async def record_deploy_attempt(
     db = await get_db()
     try:
         now = datetime.now(UTC).isoformat()
-        
+
         await db.execute(
             """UPDATE ops_cmdb SET
                last_deploy_attempt = ?,
@@ -377,9 +375,9 @@ async def record_deploy_attempt(
                WHERE name = ?""",
             (now, status.value, error, service_name),
         )
-        
+
         await db.commit()
-        
+
     finally:
         await db.close()
 
@@ -389,16 +387,17 @@ async def _get_declared_state(service_name: str) -> DeclaredConfig | None:
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT declared_image, declared_healthcheck, declared_env_hash, declared_networks FROM ops_cmdb WHERE name = ?",
+            "SELECT declared_image, declared_healthcheck, declared_env_hash, "
+            "declared_networks FROM ops_cmdb WHERE name = ?",
             (service_name,),
         )
         row = await cursor.fetchone()
-        
+
         if not row or not row["declared_image"]:
             return None
-        
+
         networks = json.loads(row["declared_networks"]) if row["declared_networks"] else None
-        
+
         return DeclaredConfig(
             image=row["declared_image"],
             healthcheck=row["declared_healthcheck"],
@@ -411,7 +410,7 @@ async def _get_declared_state(service_name: str) -> DeclaredConfig | None:
 
 async def _get_running_state(service_name: str) -> RunningConfig | None:
     """Get running state by inspecting container.
-    
+
     Note: This requires SSH access to Docker host.
     For now, returns None - to be implemented with Docker client.
     """
@@ -423,10 +422,10 @@ async def _get_running_state(service_name: str) -> RunningConfig | None:
 
 def compute_env_hash(env_vars: dict[str, str]) -> str:
     """Compute hash of environment variable names (not values).
-    
+
     Args:
         env_vars: Environment variables dict
-        
+
     Returns:
         SHA256 hash of sorted env var names
     """

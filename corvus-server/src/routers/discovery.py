@@ -1036,12 +1036,12 @@ async def analyze_deploy(
     auth: AuthContext = Depends(get_auth),
 ):
     """Analyze a deploy failure and return diagnosis.
-    
+
     Args:
         service: Name of the failed service
         error: Error message from deploy
         workflow_logs: Optional full workflow logs
-        
+
     Returns:
         DeployDiagnosis with root cause and remediation
     """

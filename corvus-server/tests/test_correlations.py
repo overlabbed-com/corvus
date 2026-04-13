@@ -1,9 +1,7 @@
 """Tests for correlation group functionality."""
 
-import pytest
-from datetime import UTC, datetime, timedelta
 
-from src.routers.correlations import check_correlation
+import pytest
 
 
 @pytest.mark.asyncio
@@ -174,7 +172,7 @@ async def test_check_correlation_graph_unavailable(client, neo4j_config):
     # If Neo4j is configured, this test doesn't apply
     if neo4j_config["configured"]:
         pytest.skip("Neo4j is configured — test for unconfigured state")
-    
+
     # When graph is unavailable, should return correlated=False with appropriate message
     resp = await client.post(
         "/ops/correlations/check",

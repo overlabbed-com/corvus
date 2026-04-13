@@ -9,11 +9,11 @@ from fastapi import APIRouter, HTTPException
 
 from src.database import get_db
 from src.discovery.graph_utils import (
+    check_graph_health,
+    find_shared_resources,
+    get_downstream_dependents,
     get_root_cause_hypothesis,
     get_upstream_dependencies,
-    get_downstream_dependents,
-    find_shared_resources,
-    check_graph_health,
 )
 from src.graph import graph_available
 
@@ -29,12 +29,12 @@ async def triage_with_graph(
     incident_description: str | None = None,
 ):
     """Enhanced triage with graph context.
-    
+
     Args:
         service_name: Service to triage
         incident_title: Optional incident title
         incident_description: Optional incident description
-        
+
     Returns:
         Enhanced triage result with graph insights
     """
@@ -46,24 +46,24 @@ async def triage_with_graph(
             "message": "Neo4j graph database not available",
             "recommendation": "Standard triage without graph context",
         }
-    
+
     try:
         # Get graph context
         upstream = await get_upstream_dependencies(service_name, depth=2)
         downstream = await get_downstream_dependents(service_name, depth=2)
         shared = await find_shared_resources([service_name])
-        
+
         # Check health of related services
         related_services = [service_name] + [u["name"] for u in upstream] + [d["name"] for d in downstream]
         health_map = await check_graph_health(related_services)
-        
+
         # Generate root cause hypothesis
         incident_details = {
             "title": incident_title,
             "description": incident_description,
         }
         root_cause = await get_root_cause_hypothesis(service_name, incident_details)
-        
+
         return {
             "service": service_name,
             "graph_available": True,
@@ -75,19 +75,19 @@ async def triage_with_graph(
             "recommendation": root_cause.get("recommended_action"),
             "confidence": root_cause.get("confidence", 0.0),
         }
-        
+
     except Exception as e:
         logger.error(f"Graph-powered triage failed for {service_name}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Graph triage failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Graph triage failed: {str(e)}") from None
 
 
 @router.get("/{incident_id}/graph-context")
 async def get_triage_graph_context(incident_id: str):
     """Get graph context used in triage for an incident.
-    
+
     Args:
         incident_id: Incident ID
-        
+
     Returns:
         Graph context snapshot
     """
@@ -99,18 +99,18 @@ async def get_triage_graph_context(incident_id: str):
             (incident_id,),
         )
         row = await cursor.fetchone()
-        
+
         if not row:
             raise HTTPException(status_code=404, detail="Incident not found")
-        
+
         service_name = row["target"]
-        
+
         # Re-fetch graph context
         upstream = await get_upstream_dependencies(service_name, depth=2)
         downstream = await get_downstream_dependents(service_name, depth=2)
         shared = await find_shared_resources([service_name])
         health_map = await check_graph_health([service_name] + [u["name"] for u in upstream])
-        
+
         return {
             "incident_id": incident_id,
             "service": service_name,
@@ -120,7 +120,7 @@ async def get_triage_graph_context(incident_id: str):
             "health_status": health_map,
             "original_root_cause": row["root_cause"],
         }
-        
+
     finally:
         await db.close()
 
@@ -132,12 +132,12 @@ async def root_cause_analysis(
     affected_services: list[str] | None = None,
 ):
     """Graph-based root cause analysis.
-    
+
     Args:
         service_name: Primary failing service
         error_message: Error message from logs
         affected_services: List of other affected services
-        
+
     Returns:
         Root cause analysis with confidence and evidence
     """
@@ -148,35 +148,35 @@ async def root_cause_analysis(
             "evidence": ["Neo4j not available"],
             "recommended_action": "Manual investigation required",
         }
-    
+
     try:
         # Include affected services in analysis
         services_to_analyze = [service_name]
         if affected_services:
             services_to_analyze.extend(affected_services)
-        
+
         # Find shared resources among all affected services
         shared = await find_shared_resources(services_to_analyze)
-        
+
         # Get upstream for primary service
         upstream = await get_upstream_dependencies(service_name, depth=3)
         upstream_names = [u["name"] for u in upstream]
-        
+
         # Check health of all relevant services
         all_services = services_to_analyze + upstream_names
         health_map = await check_graph_health(all_services)
-        
+
         # Find unhealthy upstream services
         unhealthy_upstream = [
-            u for u in upstream 
+            u for u in upstream
             if health_map.get(u["name"]) in ["unhealthy", "degraded"]
         ]
-        
+
         # Find critical unhealthy services
         critical_unhealthy = [
             u for u in unhealthy_upstream if u.get("critical")
         ]
-        
+
         # Generate hypothesis
         if critical_unhealthy:
             return {
@@ -190,7 +190,7 @@ async def root_cause_analysis(
                 "recommended_action": f"Fix {critical_unhealthy[0]['name']} first, then restart dependent services",
                 "affected_upstream": unhealthy_upstream,
             }
-        
+
         if unhealthy_upstream:
             return {
                 "hypothesis": f"Upstream dependency failure: {unhealthy_upstream[0]['name']}",
@@ -202,7 +202,7 @@ async def root_cause_analysis(
                 "recommended_action": f"Check and fix {unhealthy_upstream[0]['name']}",
                 "affected_upstream": unhealthy_upstream,
             }
-        
+
         if shared:
             problematic_shared = [
                 s for s in shared
@@ -219,7 +219,7 @@ async def root_cause_analysis(
                     "recommended_action": f"Check resource {problematic_shared[0]['resource']} state",
                     "shared_resources": problematic_shared,
                 }
-        
+
         # Multiple services failing without clear shared cause
         if len(services_to_analyze) > 1:
             return {
@@ -231,7 +231,7 @@ async def root_cause_analysis(
                 ],
                 "recommended_action": "Check network connectivity, DNS, and infrastructure health",
             }
-        
+
         return {
             "hypothesis": "No clear graph-based root cause",
             "confidence": 0.40,
@@ -242,7 +242,7 @@ async def root_cause_analysis(
             ],
             "recommended_action": "Manual investigation required - check service logs",
         }
-        
+
     except Exception as e:
         logger.error(f"Root cause analysis failed: {e}", exc_info=True)
         return {

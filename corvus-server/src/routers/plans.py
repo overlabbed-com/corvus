@@ -6,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 
-from src.config import CHANGE_EXPIRY_HOURS
 from src.database import get_db
 from src.models.plans import (
     PlanApproveRequest,
@@ -132,7 +131,7 @@ async def create_plan(plan: PlanCreate):
 
         # Cycle detection (Kahn's algorithm for topological sort)
         adjacency: dict[str, list[str]] = {s.name: list(s.depends_on) for s in plan.steps}
-        in_degree: dict[str, int] = {name: 0 for name in adjacency}
+        in_degree: dict[str, int] = dict.fromkeys(adjacency, 0)
         for deps in adjacency.values():
             for dep in deps:
                 if dep in in_degree:

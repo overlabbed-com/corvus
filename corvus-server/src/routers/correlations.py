@@ -99,16 +99,16 @@ async def _create_correlation_group(
 
 async def _sync_incidents_to_graph(incident_ids: list[str]) -> int:
     """Sync incidents from SQLite to Neo4j graph.
-    
+
     Args:
         incident_ids: List of incident IDs to sync
-        
+
     Returns:
         Number of incidents synced
     """
     db = await get_db()
     synced = 0
-    
+
     for incident_id in incident_ids:
         cursor = await db.execute(
             "SELECT * FROM ops_incidents WHERE id = ?",
@@ -117,7 +117,7 @@ async def _sync_incidents_to_graph(incident_ids: list[str]) -> int:
         row = await cursor.fetchone()
         if not row:
             continue
-        
+
         # Convert row to dict
         incident = {
             "id": row["id"],
@@ -127,7 +127,7 @@ async def _sync_incidents_to_graph(incident_ids: list[str]) -> int:
             "status": row["status"],
             "created_at": row["created_at"],
         }
-        
+
         async with graph_session() as session:
             # Create Incident node
             await session.run(
@@ -141,7 +141,7 @@ async def _sync_incidents_to_graph(incident_ids: list[str]) -> int:
                 """,
                 incident,
             )
-            
+
             # Link to Service if known
             if incident["target"]:
                 await session.run(
@@ -153,7 +153,7 @@ async def _sync_incidents_to_graph(incident_ids: list[str]) -> int:
                     {"id": incident["id"], "target": incident["target"]},
                 )
         synced += 1
-    
+
     return synced
 
 
@@ -183,7 +183,7 @@ async def check_correlation(
             correlated=False,
             message="Graph database not available — cannot check correlation",
         )
-    
+
     # Sync incidents from SQLite to Neo4j first
     synced = await _sync_incidents_to_graph(request.incidents)
     if synced == 0:
@@ -191,7 +191,7 @@ async def check_correlation(
             correlated=False,
             message="No incidents found in database",
         )
-    
+
     async with graph_session() as session:
         # Get incident details (services affected, host)
         incident_data = []

@@ -1,15 +1,12 @@
 """Auto-tuner tests -- dampening, safety rails, revert."""
 
 import json
-import math
-from datetime import UTC, datetime
 
 import pytest
 
 from src.config import RuntimeConfig
 from src.database import get_db
 from src.tasks.auto_tuner import (
-    TUNING_RULES,
     TuningRule,
     compute_dampened_correction,
     evaluate_and_adjust,

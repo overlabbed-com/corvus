@@ -28,17 +28,17 @@ async def list_patterns(
     try:
         query = "SELECT * FROM ops_patterns WHERE 1=1"
         params = []
-        
+
         if pattern_type:
             query += " AND pattern_type = ?"
             params.append(pattern_type)
-        
+
         query += " ORDER BY quality_score DESC LIMIT ?"
         params.append(limit)
-        
+
         cursor = await db.execute(query, params)
         rows = await cursor.fetchall()
-        
+
         patterns = []
         for row in rows:
             pattern = Pattern(
@@ -56,10 +56,10 @@ async def list_patterns(
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
             )
-            
+
             accuracy = row["success_count"] / row["usage_count"] if row["usage_count"] > 0 else 0.0
             failure_count = row["usage_count"] - row["success_count"]
-            
+
             metrics = PatternMetrics(
                 pattern_id=pattern.id,
                 name=pattern.name,
@@ -70,9 +70,9 @@ async def list_patterns(
                 quality_score=pattern.quality_score,
                 last_used_at=pattern.last_used_at,
             )
-            
+
             patterns.append(PatternQualityResponse(pattern=pattern, metrics=metrics))
-        
+
         return patterns
     finally:
         await db.close()
@@ -84,14 +84,14 @@ async def get_bottom_patterns(limit: int = Query(10, ge=1, le=50)):
     db = await get_db()
     try:
         cursor = await db.execute(
-            """SELECT * FROM ops_patterns 
+            """SELECT * FROM ops_patterns
                WHERE usage_count >= 3
                ORDER BY quality_score ASC, usage_count DESC
                LIMIT ?""",
             (limit,),
         )
         rows = await cursor.fetchall()
-        
+
         patterns = []
         for row in rows:
             accuracy = row["success_count"] / row["usage_count"] if row["usage_count"] > 0 else 0.0
@@ -103,7 +103,7 @@ async def get_bottom_patterns(limit: int = Query(10, ge=1, le=50)):
                 "usage_count": row["usage_count"],
                 "diagnosis": row["diagnosis"],
             })
-        
+
         return patterns
     finally:
         await db.close()
@@ -115,14 +115,14 @@ async def get_top_patterns(limit: int = Query(10, ge=1, le=50)):
     db = await get_db()
     try:
         cursor = await db.execute(
-            """SELECT * FROM ops_patterns 
+            """SELECT * FROM ops_patterns
                WHERE usage_count >= 3
                ORDER BY quality_score DESC, usage_count DESC
                LIMIT ?""",
             (limit,),
         )
         rows = await cursor.fetchall()
-        
+
         patterns = []
         for row in rows:
             accuracy = row["success_count"] / row["usage_count"] if row["usage_count"] > 0 else 0.0
@@ -134,7 +134,7 @@ async def get_top_patterns(limit: int = Query(10, ge=1, le=50)):
                 "usage_count": row["usage_count"],
                 "diagnosis": row["diagnosis"],
             })
-        
+
         return patterns
     finally:
         await db.close()
@@ -147,10 +147,10 @@ async def get_pattern(pattern_id: str):
     try:
         cursor = await db.execute("SELECT * FROM ops_patterns WHERE id = ?", (pattern_id,))
         row = await cursor.fetchone()
-        
+
         if not row:
             raise HTTPException(status_code=404, detail="Pattern not found")
-        
+
         pattern = Pattern(
             id=row["id"],
             name=row["name"],
@@ -166,10 +166,10 @@ async def get_pattern(pattern_id: str):
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
-        
+
         accuracy = row["success_count"] / row["usage_count"] if row["usage_count"] > 0 else 0.0
         failure_count = row["usage_count"] - row["success_count"]
-        
+
         metrics = PatternMetrics(
             pattern_id=pattern.id,
             name=pattern.name,
@@ -180,7 +180,7 @@ async def get_pattern(pattern_id: str):
             quality_score=pattern.quality_score,
             last_used_at=pattern.last_used_at,
         )
-        
+
         return PatternQualityResponse(pattern=pattern, metrics=metrics)
     finally:
         await db.close()
@@ -193,13 +193,13 @@ async def submit_feedback(pattern_id: str, feedback: PatternFeedback):
     try:
         cursor = await db.execute("SELECT * FROM ops_patterns WHERE id = ?", (pattern_id,))
         row = await cursor.fetchone()
-        
+
         if not row:
             raise HTTPException(status_code=404, detail="Pattern not found")
-        
+
         now = datetime.now(UTC).isoformat()
         success = 1 if feedback.success else 0
-        
+
         await db.execute(
             """UPDATE ops_patterns SET
                usage_count = usage_count + 1,
@@ -209,26 +209,26 @@ async def submit_feedback(pattern_id: str, feedback: PatternFeedback):
                WHERE id = ?""",
             (success, now, now, pattern_id),
         )
-        
+
         await db.execute(
             """INSERT INTO ops_pattern_feedback
                (pattern_id, success, resolution_time_minutes, notes, created_at)
                VALUES (?, ?, ?, ?, ?)""",
             (pattern_id, success, feedback.resolution_time_minutes, feedback.notes, now),
         )
-        
+
         cursor = await db.execute("SELECT usage_count, success_count FROM ops_patterns WHERE id = ?", (pattern_id,))
         updated = await cursor.fetchone()
-        
+
         if updated and updated["usage_count"] > 0:
             new_accuracy = updated["success_count"] / updated["usage_count"]
             await db.execute(
                 "UPDATE ops_patterns SET quality_score = ?, updated_at = ? WHERE id = ?",
                 (new_accuracy, now, pattern_id),
             )
-        
+
         await db.commit()
-        
+
         return {"status": "success", "pattern_id": pattern_id}
     finally:
         await db.close()

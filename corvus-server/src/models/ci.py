@@ -5,7 +5,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # Valid CI types — matches spec/cmdb.md taxonomy
 CI_TYPES = frozenset({
     "search", "index", "app", "model", "flow", "endpoint",
@@ -44,7 +43,8 @@ class CIRequest(BaseModel):
         if self.ci_type not in CI_TYPES:
             raise ValueError(f"Invalid ci_type: {self.ci_type}. Must be one of: {', '.join(sorted(CI_TYPES))}")
         if self.operational_status not in CI_STATUSES:
-            raise ValueError(f"Invalid operational_status: {self.operational_status}. Must be one of: {', '.join(sorted(CI_STATUSES))}")
+            valid = ', '.join(sorted(CI_STATUSES))
+            raise ValueError(f"Invalid operational_status: {self.operational_status}. Must be one of: {valid}")
 
 
 class CIResponse(BaseModel):
@@ -65,7 +65,7 @@ class CIResponse(BaseModel):
     def from_row(cls, row, relationships: dict[str, list[str]] | None = None):
         """Create from database row."""
         import json
-        
+
         days_until_expiry = None
         if row["expires_at"]:
             try:

@@ -308,7 +308,9 @@ async def check_triage_gaps(triage_id: str) -> list[str]:
         target = triage["target"]
 
         # Gap: generic fallback — diagnosis is unknown and confidence < 0.5
-        if (triage["diagnosis"] or "unknown") == "unknown" and (triage["confidence"] or 0) < RuntimeConfig.get("triage.confidence_threshold"):
+        is_unknown = (triage["diagnosis"] or "unknown") == "unknown"
+        low_confidence = (triage["confidence"] or 0) < RuntimeConfig.get("triage.confidence_threshold")
+        if is_unknown and low_confidence:
             pid = await _create_gap(
                 db,
                 now,

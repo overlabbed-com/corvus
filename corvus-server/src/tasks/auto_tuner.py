@@ -179,10 +179,7 @@ async def evaluate_and_adjust(rule: TuningRule, metrics: dict) -> bool:
     dampened = compute_dampened_correction(raw_correction, adjustment_count)
 
     # Apply direction
-    if rule.direction == "increase":
-        new_value = current_value + dampened
-    else:
-        new_value = current_value - dampened
+    new_value = current_value + dampened if rule.direction == "increase" else current_value - dampened
 
     # Preserve type (int stays int)
     if isinstance(current_value, int):

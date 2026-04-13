@@ -1,11 +1,8 @@
 """Tests for Configuration Item (CI) functionality."""
 
-import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
-from src.routers.ci import CIRequest
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,7 @@
 """SQLite database setup and connection management."""
 
+import contextlib
+
 import aiosqlite
 
 from src.config import DB_PATH
@@ -359,10 +361,8 @@ async def init_db() -> None:
             "ALTER TABLE ops_trust_ledger ADD COLUMN first_seen_at TEXT",
             "ALTER TABLE ops_triage_log ADD COLUMN resolution_time_seconds REAL",
         ]:
-            try:
+            with contextlib.suppress(Exception):  # Column already exists
                 await db.execute(alter_sql)
-            except Exception:
-                pass  # Column already exists
         await db.commit()
     finally:
         await db.close()

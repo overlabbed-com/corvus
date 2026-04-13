@@ -11,9 +11,9 @@ from src.graph import graph_available, graph_session
 from src.models.ci import (
     CIExpiryQueryResponse,
     CIExpiryResponse,
+    CIImpactResponse,
     CIRequest,
     CIResponse,
-    CIImpactResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,6 @@ async def register_ci(ci: CIRequest, request: Request):
     db = await get_db()
     try:
         now = datetime.now(UTC).isoformat()
-        auth = request.state.auth
 
         # Check if CI already exists
         cursor = await db.execute("SELECT * FROM ops_ci WHERE name = ?", (ci.name,))
@@ -322,7 +321,6 @@ async def get_ci_impact(name: str, request: Request):
         if not row:
             raise HTTPException(status_code=404, detail="CI not found")
 
-        direct_dependents = []
         indirect_dependents = []
         services_using = []
         risk_level = "medium"

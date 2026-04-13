@@ -6,7 +6,6 @@ a resource (GPU, host, dependency) and should be grouped.
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
 
 from src.database import get_db
 from src.graph import graph_available, graph_session

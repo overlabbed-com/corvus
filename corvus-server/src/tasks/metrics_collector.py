@@ -263,7 +263,8 @@ async def collect_efficiency_metrics(lookback_hours: int = 24) -> dict:
         )
         total_steps = (await cursor.fetchone())["cnt"]
         cursor = await db.execute(
-            "SELECT COUNT(*) as cnt FROM ops_plan_steps WHERE status = 'failed' AND error LIKE '%timeout%' AND completed_at >= ?",
+            "SELECT COUNT(*) as cnt FROM ops_plan_steps "
+            "WHERE status = 'failed' AND error LIKE '%timeout%' AND completed_at >= ?",
             (since,),
         )
         timeouts = (await cursor.fetchone())["cnt"]

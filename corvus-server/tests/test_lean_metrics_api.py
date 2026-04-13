@@ -1,10 +1,8 @@
 """Lean metrics API tests."""
 
-import json
 
 import pytest
 
-from src.database import get_db
 from src.tasks.metrics_collector import store_snapshot
 
 

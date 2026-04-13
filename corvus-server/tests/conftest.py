@@ -15,9 +15,9 @@ os.environ["CORVUS_DATA_DIR"] = _test_dir
 # Tests that need auth (test_auth_middleware.py) configure keys via monkeypatch.
 os.environ["CORVUS_DEV_MODE"] = "true"
 
-from src.config import RuntimeConfig  # noqa: E402
 from src import config  # noqa: E402
 from src.app import app  # noqa: E402
+from src.config import RuntimeConfig  # noqa: E402
 from src.database import init_db  # noqa: E402
 from src.middleware import auth as _auth_module  # noqa: E402
 

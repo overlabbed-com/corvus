@@ -16,7 +16,7 @@ from src.config import API_KEYS, CORVUS_DEV_MODE, MCP_ENABLED, OIDC_ENABLED
 from src.dashboard.router import router as dashboard_router
 from src.database import init_db
 from src.discovery.collector import start_collector, stop_collector
-from src.graph import close_graph, graph_available, graph_health, init_graph, get_safe_mode_state
+from src.graph import close_graph, get_safe_mode_state, graph_available, graph_health, init_graph
 from src.middleware.audit import AuditMiddleware
 from src.middleware.auth import AuthMiddleware
 from src.modules.loader import load_modules, register_module_routers
@@ -122,7 +122,10 @@ async def lifespan(app: FastAPI):
 
     stop_collector()
     await close_graph()
-    for task in (expiry_task, cleanup_task, gap_sweep_task, step_timeout_task, metrics_task, correlation_task, drift_task):
+    for task in (
+        expiry_task, cleanup_task, gap_sweep_task, step_timeout_task,
+        metrics_task, correlation_task, drift_task,
+    ):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task

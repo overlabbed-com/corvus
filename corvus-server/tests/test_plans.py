@@ -241,12 +241,16 @@ async def test_approve_plan_trust_ledger_auto(client):
     db = await get_db()
     try:
         await db.execute(
-            "INSERT INTO ops_trust_ledger (action_type, total_count, success_count, failure_count, trust_tier) VALUES (?, 25, 25, 0, 'AUTO')",
+            "INSERT INTO ops_trust_ledger "
+            "(action_type, total_count, success_count, failure_count, trust_tier) "
+            "VALUES (?, 25, 25, 0, 'AUTO')",
             ("health.check",),
         )
         # Also seed plan.execute as AUTO
         await db.execute(
-            "INSERT INTO ops_trust_ledger (action_type, total_count, success_count, failure_count, trust_tier) VALUES (?, 25, 25, 0, 'AUTO')",
+            "INSERT INTO ops_trust_ledger "
+            "(action_type, total_count, success_count, failure_count, trust_tier) "
+            "VALUES (?, 25, 25, 0, 'AUTO')",
             ("plan.execute",),
         )
         await db.commit()
@@ -1006,7 +1010,7 @@ async def test_step_result_wrong_plan_returns_404(client):
         json=_make_plan_payload(title="Plan B"),
     )
     plan_a_id = resp_a.json()["id"]
-    plan_b_id = resp_b.json()["id"]
+    resp_b.json()["id"]
     plan_b_step_id = resp_b.json()["steps"][0]["id"]
 
     # Approve and execute plan A
