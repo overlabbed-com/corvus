@@ -1,17 +1,23 @@
 """Event API endpoints."""
 
+import asyncio
 import json
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
+from fastapi.responses import EventSourceResponse
 
 from src.database import get_db
+from src.event_bus import publish, record_event, record_incident_state, subscribe
 from src.models.events import EventCreate, EventResponse, TargetStatus
 from src.ocsf import transform_to_ocsf
 from src.sanitizer import sanitize
 from src.tasks.trust_ledger import get_trust_tier as _get_trust
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ops/events", tags=["events"])
 
@@ -88,6 +94,24 @@ async def emit_event(event: EventCreate, request: Request):
 
         asyncio.create_task(forward_to_siem(ocsf_event))
 
+        # Publish to SSE subscribers (GAP-4)
+        event_dict = response.model_dump()
+        asyncio.create_task(publish(event_dict))
+
+        # Record for anomaly detection (GAP-5)
+        record_event(event.type)
+
+        # Contradiction detection for incident state changes (GAP-6)
+        if event.type in ("incident.opened", "incident.resolved"):
+            incident_id = event.related_incident_id or event.target
+            if incident_id:
+                contradictions = record_incident_state(incident_id, event.type)
+                for gap in contradictions:
+                    logger.warning(
+                        f"Contradiction detected: incident {gap['incident_id']} "
+                        f"resolved {gap['gap_minutes']}min before reopening"
+                    )
+
         return response
     finally:
         await db.close()
@@ -132,6 +156,32 @@ async def list_events(
         return [_row_to_response(r) for r in rows]
     finally:
         await db.close()
+
+
+@router.get("/stream")
+async def event_stream(request: Request):
+    """Real-time event stream via SSE (GAP-4).
+
+    Optional filters: severity, target, source, event_type.
+    """
+    filters = {}
+    if request.query_params:
+        for param in ("severity", "target", "source", "event_type"):
+            if request.query_params.get(param):
+                filters[param] = request.query_params.get(param)
+
+    q, cancel_task = await subscribe(filters=filters or None)
+
+    async def event_generator():
+        try:
+            while True:
+                event = await q.get()
+                yield {"event": event}
+        except asyncio.CancelledError:
+            cancel_task.cancel()
+            return
+
+    return EventSourceResponse(event_generator())
 
 
 @router.get("/context")

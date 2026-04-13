@@ -8,6 +8,9 @@ Supports multiple SIEM backends via the adapter pattern:
 
 Config: CORVUS_SIEM_TYPE selects the adapter. Each adapter reads its own
 env vars for authentication. Multiple adapters can be active (comma-separated).
+
+GAP-7: SIEM Health Monitoring — tracks consecutive failures and logs
+critical alert after 3 consecutive failures.
 """
 
 import json
@@ -22,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 # Active adapters (initialized on first use)
 _adapters: list[SIEMAdapter] | None = None
+
+# GAP-7: SIEM health tracking
+_consecutive_failures: int = 0
+_MAX_CONSECUTIVE_FAILURES = 3  # Alert threshold
 
 
 def _init_adapters() -> list[SIEMAdapter]:
@@ -101,9 +108,20 @@ async def forward_to_siem(ocsf_event: dict[str, Any]) -> bool:
     ocsf_event = json.loads(sanitize(json.dumps(ocsf_event, default=str)))
 
     any_success = False
+    global _consecutive_failures
     for adapter in adapters:
         if await adapter.forward(ocsf_event):
             any_success = True
+            _consecutive_failures = 0  # Reset on success
+        else:
+            _consecutive_failures += 1
+            if _consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
+                logger.critical(
+                    "SIEM forwarding health alert: %d consecutive failures. "
+                    "SIEM may be down or unreachable. Check CORVUS_SIEM_* configuration.",
+                    _consecutive_failures,
+                )
+                _consecutive_failures = 0  # Reset after alert (avoid spam)
 
     return any_success
 
