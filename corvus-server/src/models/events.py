@@ -161,6 +161,7 @@ class EventResponse(BaseModel):
     related_problem_id: str | None = None
     parent_event_id: str | None = None
     authenticated_as: str | None = None
+    signature: str | None = None  # GAP-8: HMAC-SHA256 event signing
 
 
 class TargetStatus(BaseModel):

@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS ops_events (
     node_id TEXT DEFAULT 'local',
     hlc_timestamp TEXT,
     mesh_sync_status TEXT DEFAULT 'pending',
-    synced_peers TEXT DEFAULT '[]'
+    synced_peers TEXT DEFAULT '[]',
+    signature TEXT DEFAULT ''   -- GAP-8: HMAC-SHA256 event signing
 );
 
 CREATE TABLE IF NOT EXISTS ops_incidents (

@@ -36,6 +36,7 @@ def _row_to_response(row) -> EventResponse:
         related_problem_id=row["related_problem_id"],
         parent_event_id=row["parent_event_id"],
         authenticated_as=row["authenticated_as"],
+        signature=row["signature"] if "signature" in row else None,  # noqa: SIM401
     )
 
 
@@ -55,12 +56,26 @@ async def emit_event(event: EventCreate, request: Request):
         # Sanitize event data before storage — secrets in log excerpts
         sanitized_data = sanitize(json.dumps(event.data))
 
+        # GAP-8: Sign event before storage
+        from src.event_signing import sign_event
+
+        event_row = {
+            "id": event_id,
+            "timestamp": now,
+            "source": event.source,
+            "type": event.type,
+            "target": event.target,
+            "severity": event.severity,
+            "data": event.data,
+        }
+        signature = sign_event(event_row)
+
         await db.execute(
             """INSERT INTO ops_events
                (id, timestamp, source, type, target, severity, data,
                 related_incident_id, related_change_id, related_problem_id,
-                parent_event_id, authenticated_as)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                parent_event_id, authenticated_as, signature)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event_id,
                 now,
@@ -74,6 +89,7 @@ async def emit_event(event: EventCreate, request: Request):
                 event.related_problem_id,
                 event.parent_event_id,
                 authenticated_as,
+                signature,
             ),
         )
         await db.commit()
