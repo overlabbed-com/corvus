@@ -44,6 +44,7 @@ from src.routers import (
 from src.runbooks.loader import registry as runbook_registry
 from src.tasks.change_expiry import run_change_expiry_loop
 from src.tasks.correlation import sweep_for_correlations
+from src.tasks.drift_detection import run_drift_detection_loop
 from src.tasks.event_cleanup import run_cleanup_loop
 from src.tasks.gap_detection import run_gap_sweep_loop
 from src.tasks.metrics_collector import run_metrics_collector_loop
@@ -109,6 +110,8 @@ async def lifespan(app: FastAPI):
     metrics_task = asyncio.create_task(run_metrics_collector_loop())
     # Correlation sweep runs every 5 minutes
     correlation_task = asyncio.create_task(run_correlation_sweep_loop())
+    # Drift detection runs every 10 minutes
+    drift_task = asyncio.create_task(run_drift_detection_loop())
 
     # Start Layer 2 collector (if Docker hosts configured)
     start_collector()
@@ -117,7 +120,7 @@ async def lifespan(app: FastAPI):
 
     stop_collector()
     await close_graph()
-    for task in (expiry_task, cleanup_task, gap_sweep_task, step_timeout_task, metrics_task, correlation_task):
+    for task in (expiry_task, cleanup_task, gap_sweep_task, step_timeout_task, metrics_task, correlation_task, drift_task):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task

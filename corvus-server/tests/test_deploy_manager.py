@@ -201,3 +201,43 @@ async def test_check_drift_with_declared():
     
     # Should not have drift if running state unknown
     assert report.has_drift is False
+
+
+@pytest.mark.asyncio
+async def test_drift_detection_task(client):
+    """Test drift detection task can be imported and called."""
+    from src.tasks.drift_detection import run_drift_sweep_once
+    
+    # Run a single sweep (should not error even with no data)
+    await run_drift_sweep_once()
+    
+    # Verify no errors occurred
+    assert True
+
+
+@pytest.mark.asyncio
+async def test_drift_report_creation():
+    """Test DriftReport data structure."""
+    from src.discovery.deploy_manager import DeclaredConfig, DriftReport, RunningConfig
+    
+    declared = DeclaredConfig(
+        image="myapp:v1",
+        healthcheck="curl health",
+    )
+    running = RunningConfig(
+        image="myapp:v2",
+        healthcheck="curl health",
+    )
+    
+    report = DriftReport(
+        service_name="test-service",
+        has_drift=True,
+        drift_fields=["image"],
+        declared=declared,
+        running=running,
+        severity="high",
+    )
+    
+    assert report.has_drift is True
+    assert "image" in report.drift_fields
+    assert report.severity == "high"
