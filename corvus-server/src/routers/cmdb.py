@@ -338,3 +338,92 @@ async def bulk_classify(items: list[BulkClassifyItem]):
         return {"status": "classified", "classified": classified, "not_found": not_found}
     finally:
         await db.close()
+
+
+@router.get("/{name}/drift")
+async def get_drift_report(name: str):
+    """Get detailed drift report for a service.
+    
+    Compares declared state (from GitOps) with running state (from container inspection).
+    """
+    from src.discovery.container_inspector import inspect_container
+    from src.discovery.deploy_manager import check_drift, compute_env_hash
+    
+    db = await get_db()
+    try:
+        # Fetch declared state from CMDB
+        cursor = await db.execute(
+            """SELECT declared_image, declared_healthcheck, declared_env_hash, 
+                      declared_networks, last_declared_at
+               FROM ops_cmdb WHERE name = ?""",
+            (name,),
+        )
+        row = await cursor.fetchone()
+        
+        if not row or not row["declared_image"]:
+            raise HTTPException(
+                status_code=404, 
+                detail="No declared state found for this service"
+            )
+        
+        import json
+        declared = {
+            "image": row["declared_image"],
+            "healthcheck": row["declared_healthcheck"],
+            "env_hash": row["declared_env_hash"],
+            "networks": json.loads(row["declared_networks"]) if row["declared_networks"] else None,
+            "last_declared_at": row["last_declared_at"],
+        }
+        
+        # Fetch running state
+        running_config = await inspect_container(name)
+        
+        if running_config:
+            running = {
+                "image": running_config.image,
+                "healthcheck": running_config.healthcheck,
+                "env_hash": running_config.env_hash,
+                "networks": running_config.networks,
+                "state": running_config.state,
+                "health_status": running_config.health_status,
+                "oom_killed": running_config.oom_killed,
+                "restart_count": running_config.restart_count,
+            }
+        else:
+            running = None
+        
+        # Check for drift
+        drift_fields = []
+        if running:
+            if declared["image"] != running["image"]:
+                drift_fields.append("image")
+            if declared["healthcheck"] != running["healthcheck"]:
+                drift_fields.append("healthcheck")
+            if declared["env_hash"] != running["env_hash"]:
+                drift_fields.append("env_vars")
+            if set(declared["networks"] or []) != set(running["networks"] or []):
+                drift_fields.append("networks")
+        
+        has_drift = len(drift_fields) > 0
+        
+        # Determine severity
+        if "image" in drift_fields or "healthcheck" in drift_fields:
+            severity = "high"
+        elif len(drift_fields) >= 3:
+            severity = "high"
+        elif len(drift_fields) >= 2:
+            severity = "medium"
+        else:
+            severity = "low"
+        
+        return {
+            "service_name": name,
+            "has_drift": has_drift,
+            "drift_fields": drift_fields,
+            "severity": severity,
+            "declared": declared,
+            "running": running,
+            "last_declared_at": declared["last_declared_at"],
+        }
+    finally:
+        await db.close()

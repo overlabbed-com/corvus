@@ -338,6 +338,48 @@ CREATE TABLE IF NOT EXISTS mesh_peers (
 CREATE INDEX IF NOT EXISTS idx_mesh_peers_status ON mesh_peers(status);
 CREATE INDEX IF NOT EXISTS idx_events_node_hlc ON ops_events(node_id, hlc_timestamp);
 CREATE INDEX IF NOT EXISTS idx_knowledge_node_id ON ops_knowledge(node_id);
+
+-- Pattern quality tracking (Phase 4.5)
+CREATE TABLE IF NOT EXISTS ops_patterns (
+    id TEXT PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    pattern_type TEXT NOT NULL,  -- runbook, manual, learned
+    source TEXT,  -- runbook name, incident ID, etc.
+    trigger_conditions TEXT NOT NULL DEFAULT '{}',  -- JSON
+    diagnosis TEXT NOT NULL,
+    avg_confidence REAL DEFAULT 0.0,
+    usage_count INTEGER DEFAULT 0,
+    success_count INTEGER DEFAULT 0,
+    last_used_at TEXT,
+    quality_score REAL DEFAULT 0.0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_patterns_type ON ops_patterns(pattern_type);
+CREATE INDEX IF NOT EXISTS idx_patterns_quality ON ops_patterns(quality_score DESC);
+
+CREATE TABLE IF NOT EXISTS ops_pattern_feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern_id TEXT NOT NULL,
+    success INTEGER NOT NULL,
+    resolution_time_minutes REAL,
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (pattern_id) REFERENCES ops_patterns(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pattern_feedback_pattern ON ops_pattern_feedback(pattern_id);
+
+-- Drift tracking (Phase 4.4 - columns added via migration)
+-- ALTER TABLE ops_cmdb ADD COLUMN declared_image TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN declared_healthcheck TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN declared_env_hash TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN declared_networks TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN last_declared_at TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN last_deploy_attempt TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN last_deploy_status TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN last_deploy_error TEXT;
 """
 
 
@@ -372,6 +414,8 @@ async def init_db() -> None:
             "ALTER TABLE ops_cmdb ADD COLUMN last_deploy_attempt TEXT",
             "ALTER TABLE ops_cmdb ADD COLUMN last_deploy_status TEXT",
             "ALTER TABLE ops_cmdb ADD COLUMN last_deploy_error TEXT",
+            # Phase 4.4: Triage log pattern tracking
+            "ALTER TABLE ops_triage_log ADD COLUMN pattern_id TEXT",
         ]:
             try:
                 await db.execute(alter_sql)

@@ -31,10 +31,12 @@ from src.routers import (
     events,
     gaps,
     graph_queries,
+    graph_triage,
     incidents,
     knowledge,
     lean_metrics,
     metrics,
+    patterns,
     plans,
     problems,
     runbooks,
@@ -173,11 +175,13 @@ app.include_router(backup.router)
 app.include_router(steps.router)
 app.include_router(plans.router)
 app.include_router(trust.router)
+app.include_router(patterns.router)
 app.include_router(knowledge.router)
 app.include_router(agent_instructions.router)
 app.include_router(gaps.router)
 app.include_router(lean_metrics.router)
 app.include_router(correlations.router)
+app.include_router(graph_triage.router, prefix="/ops/triage", tags=["triage-graph"])
 app.include_router(discovery.router, prefix="/ops/discovery", tags=["discovery"])
 app.include_router(graph_queries.router, prefix="/ops/graph", tags=["graph"])
 app.include_router(dashboard_router)
