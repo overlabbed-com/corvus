@@ -27,7 +27,7 @@ async def inspect_container(service_name: str, host: str | None = None) -> Runni
         # Build docker inspect command
         cmd = f"ssh {host} 'docker inspect {service_name}'" if host else f"docker inspect {service_name}"
 
-        result = subprocess.run(  # nosemgrep: docker commands need shell for SSH tunnel
+        result = subprocess.run(  # noqa: S602 — docker commands need shell for SSH tunnel
             cmd,
             shell=True,
             capture_output=True,
@@ -154,7 +154,7 @@ async def get_container_logs(
         else:
             cmd = f"docker logs {service_name} --tail {lines}"
 
-        result = subprocess.run(  # nosemgrep: docker log retrieval is safe
+        result = subprocess.run(  # noqa: S602 — docker log retrieval is safe
             cmd,
             shell=True,
             capture_output=True,
