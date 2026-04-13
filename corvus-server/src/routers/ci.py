@@ -196,14 +196,16 @@ async def get_expiring_cis(
             try:
                 expiry = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
                 days_left = (expiry - now).days
-                expiring.append(CIExpiryResponse(
-                    name=row["name"],
-                    ci_type=row["ci_type"],
-                    expires_at=row["expires_at"],
-                    days_left=days_left,
-                    service_name=row["service_name"],
-                    operational_status=row["operational_status"],
-                ))
+                expiring.append(
+                    CIExpiryResponse(
+                        name=row["name"],
+                        ci_type=row["ci_type"],
+                        expires_at=row["expires_at"],
+                        days_left=days_left,
+                        service_name=row["service_name"],
+                        operational_status=row["operational_status"],
+                    )
+                )
             except (ValueError, TypeError):
                 continue
 
@@ -223,14 +225,16 @@ async def get_expiring_cis(
             try:
                 expiry = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
                 days_left = (expiry - now).days
-                expired.append(CIExpiryResponse(
-                    name=row["name"],
-                    ci_type=row["ci_type"],
-                    expires_at=row["expires_at"],
-                    days_left=days_left,
-                    service_name=row["service_name"],
-                    operational_status=row["operational_status"],
-                ))
+                expired.append(
+                    CIExpiryResponse(
+                        name=row["name"],
+                        ci_type=row["ci_type"],
+                        expires_at=row["expires_at"],
+                        days_left=days_left,
+                        service_name=row["service_name"],
+                        operational_status=row["operational_status"],
+                    )
+                )
             except (ValueError, TypeError):
                 continue
 

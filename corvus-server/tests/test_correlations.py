@@ -1,6 +1,5 @@
 """Tests for correlation group functionality."""
 
-
 import pytest
 
 
@@ -182,9 +181,6 @@ async def test_check_correlation_graph_unavailable(client, neo4j_config):
     data = resp.json()
     assert data["correlated"] is False
     assert "Graph database not available" in data["message"]
-
-
-
 
 
 @pytest.mark.asyncio

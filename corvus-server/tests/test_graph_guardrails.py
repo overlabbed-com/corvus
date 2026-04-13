@@ -40,7 +40,8 @@ async def test_query_timeout():
             print(f"Query failed as expected or timed out: {e}")
             print(f"Duration: {duration:.4f}s")
             # If it's a timeout error from the server, that's a success.
-            assert duration < 1.0 # Should be around 0.5s + some overhead
+            assert duration < 1.0  # Should be around 0.5s + some overhead
+
 
 @pytest.mark.asyncio
 async def test_traversal_depth_limit():
@@ -56,6 +57,7 @@ async def test_traversal_depth_limit():
 
         # We'll check the source code of the endpoints to see if they use the limit.
         pass
+
 
 if __name__ == "__main__":
     asyncio.run(pytest.main(["-v", __file__]))

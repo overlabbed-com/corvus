@@ -1,6 +1,5 @@
 """Tests for runbook schema validation (T1.2) and ReDoS protection (D1.3)."""
 
-
 import pytest
 import yaml
 
@@ -112,9 +111,7 @@ class TestReDoSProtection:
 
     def test_safe_complex_pattern_allowed(self):
         """Non-ReDoS complex patterns should be fine."""
-        compiled = _validate_regex_pattern(
-            r"error|failed|timeout|connection\s+refused", "test"
-        )
+        compiled = _validate_regex_pattern(r"error|failed|timeout|connection\s+refused", "test")
         assert compiled is not None
 
 

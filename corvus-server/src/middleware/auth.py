@@ -28,14 +28,16 @@ security = HTTPBearer(auto_error=False)
 _security_dependency = Security(security)
 
 # Paths that never require authentication
-PUBLIC_PATHS = frozenset({
-    "/",
-    "/health",
-    "/docs",
-    "/openapi.json",
-    "/redoc",
-    "/mcp/sse",
-})
+PUBLIC_PATHS = frozenset(
+    {
+        "/",
+        "/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/mcp/sse",
+    }
+)
 
 # Path prefixes that require authentication
 PROTECTED_PREFIXES = (

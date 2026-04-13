@@ -35,6 +35,7 @@ class HLCTimestamp:
         logical: Monotonically increasing counter within same physical second
         node_id: Unique identifier for the node that generated this timestamp
     """
+
     physical: int
     logical: int
     node_id: str
@@ -73,8 +74,7 @@ class HLCTimestamp:
         """Equality comparison."""
         if not isinstance(other, HLCTimestamp):
             return NotImplemented
-        return (self.physical, self.logical, self.node_id) == \
-               (other.physical, other.logical, other.node_id)
+        return (self.physical, self.logical, self.node_id) == (other.physical, other.logical, other.node_id)
 
     def __hash__(self) -> int:
         """Hash for use in sets and dicts."""
@@ -82,22 +82,14 @@ class HLCTimestamp:
 
     def to_json(self) -> str:
         """Serialize to JSON string."""
-        data = {
-            "physical": self.physical,
-            "logical": self.logical,
-            "node_id": self.node_id
-        }
+        data = {"physical": self.physical, "logical": self.logical, "node_id": self.node_id}
         return json.dumps(data)
 
     @classmethod
     def from_json(cls, json_str: str) -> "HLCTimestamp":
         """Deserialize from JSON string."""
         data = json.loads(json_str)
-        return cls(
-            physical=data["physical"],
-            logical=data["logical"],
-            node_id=data["node_id"]
-        )
+        return cls(physical=data["physical"], logical=data["logical"], node_id=data["node_id"])
 
 
 class HLC:
@@ -149,11 +141,8 @@ class HLC:
             self._logical = 0
             self._last_physical = current_physical
 
-        return HLCTimestamp(
-            physical=self._last_physical,
-            logical=self._logical,
-            node_id=self._node_id
-        )
+        return HLCTimestamp(physical=self._last_physical, logical=self._logical, node_id=self._node_id)
+
     def merge(self, remote_ts: HLCTimestamp) -> HLCTimestamp:
         """Merge remote timestamp into local state.
 
@@ -182,8 +171,4 @@ class HLC:
             # Physical clock moved forward, reset logical
             self._logical = 0
 
-        return HLCTimestamp(
-            physical=self._last_physical,
-            logical=self._logical,
-            node_id=self._node_id
-        )
+        return HLCTimestamp(physical=self._last_physical, logical=self._logical, node_id=self._node_id)

@@ -153,9 +153,7 @@ class TestGovernanceOrdering:
 
         db = await get_db()
         try:
-            rows = await db.execute_fetchall(
-                "SELECT governance_order FROM ops_knowledge WHERE id = ?", (entry_id,)
-            )
+            rows = await db.execute_fetchall("SELECT governance_order FROM ops_knowledge WHERE id = ?", (entry_id,))
             assert rows[0][0] == 50
         finally:
             await db.close()

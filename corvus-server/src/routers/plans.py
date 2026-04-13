@@ -305,8 +305,7 @@ async def approve_plan(plan_id: str, request: PlanApproveRequest):
         if plan_row["status"] != "draft":
             raise HTTPException(
                 status_code=409,
-                detail=f"Cannot approve plan with status '{plan_row['status']}'. "
-                "Only draft plans can be approved.",
+                detail=f"Cannot approve plan with status '{plan_row['status']}'. Only draft plans can be approved.",
             )
 
         # 2. Collect unique action_types from all steps
@@ -330,9 +329,7 @@ async def approve_plan(plan_id: str, request: PlanApproveRequest):
             tier_map[action_type] = tier_info["trust_tier"]
 
         # 4. Decision logic
-        escalated_action_types = {
-            at for at, tier in tier_map.items() if tier == "ESCALATE"
-        }
+        escalated_action_types = {at for at, tier in tier_map.items() if tier == "ESCALATE"}
 
         if escalated_action_types:
             if request.force:
@@ -490,8 +487,7 @@ async def execute_plan(plan_id: str):
         if plan_row["status"] != "approved":
             raise HTTPException(
                 status_code=409,
-                detail=f"Cannot execute plan with status '{plan_row['status']}'. "
-                "Only approved plans can be executed.",
+                detail=f"Cannot execute plan with status '{plan_row['status']}'. Only approved plans can be executed.",
             )
 
         now = datetime.now(UTC)
@@ -705,12 +701,14 @@ async def report_step_result(plan_id: str, step_id: str, req: StepResultRequest)
                         event_id,
                         now_iso,
                         step_row["name"],
-                        json.dumps({
-                            "summary": f"Plan blocked: step '{step_row['name']}' failed",
-                            "plan_id": plan_id,
-                            "step_id": step_id,
-                            "error": req.error,
-                        }),
+                        json.dumps(
+                            {
+                                "summary": f"Plan blocked: step '{step_row['name']}' failed",
+                                "plan_id": plan_id,
+                                "step_id": step_id,
+                                "error": req.error,
+                            }
+                        ),
                         plan_row["change_id"],
                     ),
                 )
@@ -730,8 +728,7 @@ async def report_step_result(plan_id: str, step_id: str, req: StepResultRequest)
             "plan_status": updated_plan["status"],
             "retry_count": retry_count,
             "next_ready_steps": [
-                {"id": s["id"], "name": s["name"], "action_type": s["action_type"]}
-                for s in newly_ready
+                {"id": s["id"], "name": s["name"], "action_type": s["action_type"]} for s in newly_ready
             ],
         }
         return response
@@ -766,17 +763,13 @@ async def rollback_plan(plan_id: str):
 
         # Find completed steps with rollback definitions, ordered by sequence DESC
         cursor = await db.execute(
-            "SELECT * FROM ops_plan_steps WHERE plan_id = ? AND status = 'completed' "
-            "ORDER BY sequence DESC",
+            "SELECT * FROM ops_plan_steps WHERE plan_id = ? AND status = 'completed' ORDER BY sequence DESC",
             (plan_id,),
         )
         completed_steps = await cursor.fetchall()
 
         # Filter to steps that have a rollback definition
-        rollback_candidates = [
-            s for s in completed_steps
-            if s["rollback"] and json.loads(s["rollback"])
-        ]
+        rollback_candidates = [s for s in completed_steps if s["rollback"] and json.loads(s["rollback"])]
 
         # Create rollback steps chained in reverse order
         prev_rb_id: str | None = None
@@ -817,11 +810,13 @@ async def rollback_plan(plan_id: str):
                 event_id,
                 now_iso,
                 plan_row["title"],
-                json.dumps({
-                    "summary": f"Plan '{plan_row['title']}' rolling back",
-                    "plan_id": plan_id,
-                    "rollback_steps": len(rollback_candidates),
-                }),
+                json.dumps(
+                    {
+                        "summary": f"Plan '{plan_row['title']}' rolling back",
+                        "plan_id": plan_id,
+                        "rollback_steps": len(rollback_candidates),
+                    }
+                ),
                 plan_row["change_id"],
             ),
         )

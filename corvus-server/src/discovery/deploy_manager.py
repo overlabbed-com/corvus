@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class DeployStatus(StrEnum):
     """Deployment status values."""
+
     SUCCESS = "success"
     FAILURE = "failure"
     IN_PROGRESS = "in_progress"
@@ -29,6 +30,7 @@ class DeployStatus(StrEnum):
 
 class FailureDiagnosis(StrEnum):
     """Deploy failure diagnosis types."""
+
     RESOURCE_EXHAUSTION = "resource_exhaustion"
     SLOW_STARTUP = "slow_startup"
     STALE_CONFIG = "stale_container_config"
@@ -43,6 +45,7 @@ class FailureDiagnosis(StrEnum):
 @dataclass
 class DeclaredConfig:
     """GitOps declared configuration for a service."""
+
     image: str
     healthcheck: str | None = None
     env_hash: str | None = None  # SHA256 of env var names
@@ -54,6 +57,7 @@ class DeclaredConfig:
 @dataclass
 class RunningConfig:
     """Running container configuration."""
+
     image: str
     healthcheck: str | None = None
     env_hash: str | None = None
@@ -68,6 +72,7 @@ class RunningConfig:
 @dataclass
 class DeployDiagnosis:
     """Diagnosis of deploy failure."""
+
     diagnosis: FailureDiagnosis
     confidence: float
     error_message: str | None = None
@@ -78,6 +83,7 @@ class DeployDiagnosis:
 @dataclass
 class DriftReport:
     """Configuration drift report."""
+
     service_name: str
     has_drift: bool
     drift_fields: list[str]

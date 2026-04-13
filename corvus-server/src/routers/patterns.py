@@ -95,14 +95,16 @@ async def get_bottom_patterns(limit: int = Query(10, ge=1, le=50)):
         patterns = []
         for row in rows:
             accuracy = row["success_count"] / row["usage_count"] if row["usage_count"] > 0 else 0.0
-            patterns.append({
-                "id": row["id"],
-                "name": row["name"],
-                "quality_score": row["quality_score"],
-                "accuracy": accuracy,
-                "usage_count": row["usage_count"],
-                "diagnosis": row["diagnosis"],
-            })
+            patterns.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "quality_score": row["quality_score"],
+                    "accuracy": accuracy,
+                    "usage_count": row["usage_count"],
+                    "diagnosis": row["diagnosis"],
+                }
+            )
 
         return patterns
     finally:
@@ -126,14 +128,16 @@ async def get_top_patterns(limit: int = Query(10, ge=1, le=50)):
         patterns = []
         for row in rows:
             accuracy = row["success_count"] / row["usage_count"] if row["usage_count"] > 0 else 0.0
-            patterns.append({
-                "id": row["id"],
-                "name": row["name"],
-                "quality_score": row["quality_score"],
-                "accuracy": accuracy,
-                "usage_count": row["usage_count"],
-                "diagnosis": row["diagnosis"],
-            })
+            patterns.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "quality_score": row["quality_score"],
+                    "accuracy": accuracy,
+                    "usage_count": row["usage_count"],
+                    "diagnosis": row["diagnosis"],
+                }
+            )
 
         return patterns
     finally:

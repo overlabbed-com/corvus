@@ -1,6 +1,5 @@
 """Lean metrics API tests."""
 
-
 import pytest
 
 from src.tasks.metrics_collector import store_snapshot

@@ -39,8 +39,7 @@ async def collect_value_stream_metrics(lookback_hours: int = 1) -> dict:
     try:
         # Incident cycle time (resolved_at - created_at in seconds)
         cursor = await db.execute(
-            "SELECT created_at, resolved_at FROM ops_incidents "
-            "WHERE status = 'resolved' AND resolved_at >= ?",
+            "SELECT created_at, resolved_at FROM ops_incidents WHERE status = 'resolved' AND resolved_at >= ?",
             (since,),
         )
         rows = await cursor.fetchall()
@@ -83,8 +82,7 @@ async def collect_value_stream_metrics(lookback_hours: int = 1) -> dict:
 
         # Change lead time (completed_at - created_at)
         cursor = await db.execute(
-            "SELECT created_at, completed_at FROM ops_changes "
-            "WHERE status = 'completed' AND completed_at >= ?",
+            "SELECT created_at, completed_at FROM ops_changes WHERE status = 'completed' AND completed_at >= ?",
             (since,),
         )
         rows = await cursor.fetchall()
@@ -100,8 +98,7 @@ async def collect_value_stream_metrics(lookback_hours: int = 1) -> dict:
 
         # Plan lead time (completed_at - created_at)
         cursor = await db.execute(
-            "SELECT created_at, completed_at FROM ops_plans "
-            "WHERE status = 'completed' AND completed_at >= ?",
+            "SELECT created_at, completed_at FROM ops_plans WHERE status = 'completed' AND completed_at >= ?",
             (since,),
         )
         rows = await cursor.fetchall()
@@ -117,8 +114,7 @@ async def collect_value_stream_metrics(lookback_hours: int = 1) -> dict:
 
         # Plan approval latency (approved_at - created_at)
         cursor = await db.execute(
-            "SELECT created_at, approved_at FROM ops_plans "
-            "WHERE approved_at IS NOT NULL AND approved_at >= ?",
+            "SELECT created_at, approved_at FROM ops_plans WHERE approved_at IS NOT NULL AND approved_at >= ?",
             (since,),
         )
         rows = await cursor.fetchall()
@@ -134,8 +130,7 @@ async def collect_value_stream_metrics(lookback_hours: int = 1) -> dict:
 
         # Step execution time (completed_at - started_at)
         cursor = await db.execute(
-            "SELECT started_at, completed_at FROM ops_plan_steps "
-            "WHERE status = 'completed' AND completed_at >= ?",
+            "SELECT started_at, completed_at FROM ops_plan_steps WHERE status = 'completed' AND completed_at >= ?",
             (since,),
         )
         rows = await cursor.fetchall()
@@ -216,13 +211,9 @@ async def collect_throughput_metrics(lookback_hours: int = 24) -> dict:
             "SELECT COUNT(*) as cnt FROM ops_incidents WHERE status NOT IN ('resolved', 'closed')"
         )
         wip_incidents = (await cursor.fetchone())["cnt"]
-        cursor = await db.execute(
-            "SELECT COUNT(*) as cnt FROM ops_changes WHERE status = 'active'"
-        )
+        cursor = await db.execute("SELECT COUNT(*) as cnt FROM ops_changes WHERE status = 'active'")
         wip_changes = (await cursor.fetchone())["cnt"]
-        cursor = await db.execute(
-            "SELECT COUNT(*) as cnt FROM ops_plans WHERE status = 'executing'"
-        )
+        cursor = await db.execute("SELECT COUNT(*) as cnt FROM ops_plans WHERE status = 'executing'")
         wip_plans = (await cursor.fetchone())["cnt"]
         metrics["wip"] = wip_incidents + wip_changes + wip_plans
 
@@ -242,9 +233,7 @@ async def collect_efficiency_metrics(lookback_hours: int = 24) -> dict:
         threshold = RuntimeConfig.get("triage.confidence_threshold")
 
         # Triage hit rate (confidence > threshold)
-        cursor = await db.execute(
-            "SELECT COUNT(*) as cnt FROM ops_triage_log WHERE outcome_at >= ?", (since,)
-        )
+        cursor = await db.execute("SELECT COUNT(*) as cnt FROM ops_triage_log WHERE outcome_at >= ?", (since,))
         total = (await cursor.fetchone())["cnt"]
         if total > 0:
             cursor = await db.execute(
@@ -354,15 +343,11 @@ async def run_metrics_collector_loop(interval_seconds: int = 900):
 
             # Circuit breaker: if collection > 10s, log warning
             if elapsed > 10:
-                logger.warning(
-                    "Metrics collection took %.1fs — skipping auto-tuning", elapsed
-                )
+                logger.warning("Metrics collection took %.1fs — skipping auto-tuning", elapsed)
             else:
                 from src.tasks.auto_tuner import run_auto_tuner
 
-                count = await run_auto_tuner(
-                    {"value_stream": vs, "throughput": tp, "efficiency": ef}
-                )
+                count = await run_auto_tuner({"value_stream": vs, "throughput": tp, "efficiency": ef})
                 if count:
                     logger.info("Auto-tuner applied %d adjustments", count)
 

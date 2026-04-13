@@ -15,6 +15,7 @@ class TestGovernanceAuthScope:
         from httpx import ASGITransport, AsyncClient
 
         from src.app import app
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as authed:
             # Normal knowledge write — should succeed
@@ -46,6 +47,7 @@ class TestGovernanceAuthScope:
         from httpx import ASGITransport, AsyncClient
 
         from src.app import app
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as authed:
             resp = await authed.post(
@@ -73,6 +75,7 @@ class TestGovernanceAuthScope:
         from httpx import ASGITransport, AsyncClient
 
         from src.app import app
+
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as authed:
             resp = await authed.post(

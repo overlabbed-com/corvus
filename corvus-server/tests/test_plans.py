@@ -273,9 +273,7 @@ async def test_approve_plan_trust_ledger_auto(client):
         },
     )
     plan_id = create_resp.json()["id"]
-    resp = await client.post(
-        f"/ops/plans/{plan_id}/approve", json={"approved_by": "nemoclaw"}
-    )
+    resp = await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "nemoclaw"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "approved"
@@ -303,9 +301,7 @@ async def test_approve_plan_needs_human(client):
         },
     )
     plan_id = create_resp.json()["id"]
-    resp = await client.post(
-        f"/ops/plans/{plan_id}/approve", json={"approved_by": "nemoclaw"}
-    )
+    resp = await client.post(f"/ops/plans/{plan_id}/approve", json={"approved_by": "nemoclaw"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["needs_approval"] is True
@@ -1105,9 +1101,7 @@ async def test_plan_started_event_emitted(client):
     assert exec_resp.status_code == 200
 
     # Query events for plan.started
-    events_resp = await client.get(
-        "/ops/events", params={"event_type": "plan.started"}
-    )
+    events_resp = await client.get("/ops/events", params={"event_type": "plan.started"})
     assert events_resp.status_code == 200
     events = events_resp.json()
 
@@ -1115,9 +1109,7 @@ async def test_plan_started_event_emitted(client):
     def _parse_data(raw):
         return json.loads(raw) if isinstance(raw, str) else raw
 
-    matching = [
-        e for e in events if _parse_data(e["data"]).get("plan_id") == plan_id
-    ]
+    matching = [e for e in events if _parse_data(e["data"]).get("plan_id") == plan_id]
     assert len(matching) >= 1
 
     event = matching[0]

@@ -8,7 +8,7 @@ import os
 import sys
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from hlc import HLC, HLCTimestamp
 
@@ -125,11 +125,7 @@ class TestHLCSerialization:
 
     def test_hlc_deserialization(self):
         """Test deserialization from JSON dict."""
-        data = {
-            "physical": 1234567890,
-            "logical": 42,
-            "node_id": "test-node"
-        }
+        data = {"physical": 1234567890, "logical": 42, "node_id": "test-node"}
 
         json_str = json.dumps(data)
         ts = HLCTimestamp.from_json(json_str)

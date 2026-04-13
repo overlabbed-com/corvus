@@ -9,9 +9,7 @@ from src.database import get_db
 async def test_metrics_snapshots_table_exists(client):
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='ops_metrics_snapshots'"
-        )
+        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ops_metrics_snapshots'")
         assert await cursor.fetchone() is not None
     finally:
         await db.close()
@@ -21,9 +19,7 @@ async def test_metrics_snapshots_table_exists(client):
 async def test_metric_adjustments_table_exists(client):
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='ops_metric_adjustments'"
-        )
+        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ops_metric_adjustments'")
         assert await cursor.fetchone() is not None
     finally:
         await db.close()

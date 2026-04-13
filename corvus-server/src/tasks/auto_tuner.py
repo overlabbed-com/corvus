@@ -39,9 +39,7 @@ class TuningRule:
     correction_factor: float  # fraction of distance to apply (0-1)
 
 
-def compute_dampened_correction(
-    raw_correction: float, adjustment_number: int, k: float = 0.1
-) -> float:
+def compute_dampened_correction(raw_correction: float, adjustment_number: int, k: float = 0.1) -> float:
     """Apply exponential dampening: correction * e^(-k * n)."""
     return raw_correction * math.exp(-k * adjustment_number)
 
@@ -156,9 +154,7 @@ async def evaluate_and_adjust(rule: TuningRule, metrics: dict) -> bool:
 
     # Check cooldown
     if await _is_in_cooldown(rule.parameter):
-        logger.debug(
-            "Skipping %s adjustment -- cooldown active", rule.parameter
-        )
+        logger.debug("Skipping %s adjustment -- cooldown active", rule.parameter)
         return False
 
     # Get current value and adjustment count
@@ -170,9 +166,7 @@ async def evaluate_and_adjust(rule: TuningRule, metrics: dict) -> bool:
     adjustment_count = await _get_adjustment_count(rule.parameter)
 
     # Compute raw correction: proportional to how far metric exceeds threshold
-    raw_correction = (
-        current_value * rule.correction_factor * (trigger_value - rule.threshold) / rule.threshold
-    )
+    raw_correction = current_value * rule.correction_factor * (trigger_value - rule.threshold) / rule.threshold
 
     # Apply dampening
     dampening_factor = math.exp(-0.1 * adjustment_count)
@@ -261,8 +255,7 @@ async def _check_and_revert(rules_by_param: dict[str, TuningRule]) -> int:
         db = await get_db()
         try:
             cursor = await db.execute(
-                "SELECT metrics FROM ops_metrics_snapshots "
-                "WHERE timestamp > ? ORDER BY timestamp DESC LIMIT 2",
+                "SELECT metrics FROM ops_metrics_snapshots WHERE timestamp > ? ORDER BY timestamp DESC LIMIT 2",
                 (adj_time,),
             )
             snap_rows = await cursor.fetchall()
@@ -301,8 +294,7 @@ async def _check_and_revert(rules_by_param: dict[str, TuningRule]) -> int:
             db = await get_db()
             try:
                 await db.execute(
-                    "UPDATE ops_metric_adjustments SET reverted = 1, "
-                    "reverted_at = ?, revert_reason = ? WHERE id = ?",
+                    "UPDATE ops_metric_adjustments SET reverted = 1, reverted_at = ?, revert_reason = ? WHERE id = ?",
                     (now, reason, row["id"]),
                 )
                 await db.commit()

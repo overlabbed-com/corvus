@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 try:
     import jwt
     from jwt.exceptions import ExpiredSignatureError, InvalidTokenError, PyJWTError
+
     JWT_AVAILABLE = True
 except ImportError:
     JWT_AVAILABLE = False
@@ -82,6 +83,7 @@ class OIDCConfig:
         try:
             # Use httpx.AsyncClient for async, fallback to sync for cache
             import asyncio
+
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
@@ -90,6 +92,7 @@ class OIDCConfig:
             if loop:
                 # We're in an async context
                 import anyio
+
                 with anyio.move_on_after(5):
                     response = anyio.run(self._async_fetch_jwks_from_discovery)
                     if response and "jwks_uri" in response:
@@ -97,6 +100,7 @@ class OIDCConfig:
             else:
                 # Sync context
                 import httpx
+
                 try:
                     with httpx.Client() as client:
                         resp = client.get(self.discovery_url, timeout=5.0)
@@ -126,11 +130,14 @@ class OIDCConfig:
     async def _async_fetch_jwks_from_discovery(self) -> dict:
         """Async fetch of discovery document."""
         import anyio
+
         async with anyio.create_task_group():
             results = {}
+
             async def fetch():
                 async with anyio.open_file(self.discovery_url, "rb"):
                     pass
+
             return results
 
     async def fetch_jwks(self) -> list[dict]:
@@ -138,10 +145,7 @@ class OIDCConfig:
         current_time = datetime.now(UTC).timestamp()
 
         # Return cached if still valid
-        if (
-            self._jwks_cache
-            and current_time - self._jwks_cache_time < self._jwks_cache_ttl
-        ):
+        if self._jwks_cache and current_time - self._jwks_cache_time < self._jwks_cache_ttl:
             return self._jwks_cache
 
         try:
@@ -184,6 +188,7 @@ class OIDCConfig:
 
             # Fetch JWKS and find matching key
             import asyncio
+
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
@@ -288,14 +293,16 @@ def get_oidc_config() -> OIDCConfig | None:
 
 
 # Paths that skip OIDC auth
-OIDC_PUBLIC_PATHS = frozenset({
-    "/",
-    "/health",
-    "/docs",
-    "/openapi.json",
-    "/redoc",
-    "/mcp/sse",
-})
+OIDC_PUBLIC_PATHS = frozenset(
+    {
+        "/",
+        "/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/mcp/sse",
+    }
+)
 
 # Prefixes that require OIDC auth
 OIDC_PROTECTED_PREFIXES = ("/ops/", "/backup/", "/agent-instructions")

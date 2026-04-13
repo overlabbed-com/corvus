@@ -167,15 +167,10 @@ async def root_cause_analysis(
         health_map = await check_graph_health(all_services)
 
         # Find unhealthy upstream services
-        unhealthy_upstream = [
-            u for u in upstream
-            if health_map.get(u["name"]) in ["unhealthy", "degraded"]
-        ]
+        unhealthy_upstream = [u for u in upstream if health_map.get(u["name"]) in ["unhealthy", "degraded"]]
 
         # Find critical unhealthy services
-        critical_unhealthy = [
-            u for u in unhealthy_upstream if u.get("critical")
-        ]
+        critical_unhealthy = [u for u in unhealthy_upstream if u.get("critical")]
 
         # Generate hypothesis
         if critical_unhealthy:
@@ -204,10 +199,7 @@ async def root_cause_analysis(
             }
 
         if shared:
-            problematic_shared = [
-                s for s in shared
-                if any(health_map.get(svc) != "healthy" for svc in s["services"])
-            ]
+            problematic_shared = [s for s in shared if any(health_map.get(svc) != "healthy" for svc in s["services"])]
             if problematic_shared:
                 return {
                     "hypothesis": f"Shared resource issue: {problematic_shared[0]['resource']}",

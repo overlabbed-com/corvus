@@ -1052,7 +1052,7 @@ async def analyze_deploy(
     )
     return {
         "service": req.service,
-        "diagnosis": result.diagnosis.value if hasattr(result.diagnosis, 'value') else result.diagnosis,
+        "diagnosis": result.diagnosis.value if hasattr(result.diagnosis, "value") else result.diagnosis,
         "confidence": result.confidence,
         "error": result.error_message,
         "remediation": result.remediation,

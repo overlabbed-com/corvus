@@ -123,8 +123,13 @@ async def lifespan(app: FastAPI):
     stop_collector()
     await close_graph()
     for task in (
-        expiry_task, cleanup_task, gap_sweep_task, step_timeout_task,
-        metrics_task, correlation_task, drift_task,
+        expiry_task,
+        cleanup_task,
+        gap_sweep_task,
+        step_timeout_task,
+        metrics_task,
+        correlation_task,
+        drift_task,
     ):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -157,6 +162,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
         status_code=429,
         content={"detail": f"Rate limit exceeded: {exc.detail}"},
     )
+
 
 # Middleware (order matters — outermost first, innermost last)
 # AuditMiddleware logs every request (runs first, wraps everything)

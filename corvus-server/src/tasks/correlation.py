@@ -95,10 +95,7 @@ async def sweep_for_correlations():
                     shared_resource_type="gpu",
                     root_cause_hint=f"Check GPU state (VRAM, temperature, driver) on {gpu_key}",
                 )
-                logger.info(
-                    "Auto-created correlation group %s for GPU failure: %s",
-                    group.group_id, incidents
-                )
+                logger.info("Auto-created correlation group %s for GPU failure: %s", group.group_id, incidents)
 
         # Group by host (5+ incidents threshold)
         host_groups: dict[str, list[str]] = {}
@@ -140,10 +137,7 @@ async def sweep_for_correlations():
                     shared_resource_type="host",
                     root_cause_hint=f"Check host-level resources (disk, RAM, network) on {host}",
                 )
-                logger.info(
-                    "Auto-created correlation group %s for host failure: %s",
-                    group.group_id, incidents
-                )
+                logger.info("Auto-created correlation group %s for host failure: %s", group.group_id, incidents)
 
         # Group by shared unhealthy dependency
         dependency_groups: dict[str, list[str]] = {}
@@ -189,10 +183,7 @@ async def sweep_for_correlations():
                     shared_resource_type="dependency",
                     root_cause_hint=f"Fix dependency '{dep_name}' first — dependents will likely recover",
                 )
-                logger.info(
-                    "Auto-created correlation group %s for dependency failure: %s",
-                    group.group_id, incidents
-                )
+                logger.info("Auto-created correlation group %s for dependency failure: %s", group.group_id, incidents)
 
     logger.info("Correlation sweep completed")
 

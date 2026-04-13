@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 class Pattern(BaseModel):
     """Triage pattern definition."""
+
     id: str
     name: str
     pattern_type: str  # runbook, manual, learned
@@ -24,6 +25,7 @@ class Pattern(BaseModel):
 
 class PatternMetrics(BaseModel):
     """Pattern quality metrics."""
+
     pattern_id: str
     name: str
     accuracy: float = 0.0  # % successful resolutions
@@ -40,6 +42,7 @@ class PatternMetrics(BaseModel):
 
 class PatternFeedback(BaseModel):
     """Feedback on pattern outcome."""
+
     pattern_id: str
     success: bool  # Did this diagnosis lead to resolution?
     resolution_time_minutes: float | None = None
@@ -48,11 +51,13 @@ class PatternFeedback(BaseModel):
 
 class PatternQualityResponse(BaseModel):
     """Pattern with quality metrics."""
+
     pattern: Pattern
     metrics: PatternMetrics
 
 
 class TopPatternsResponse(BaseModel):
     """List of top patterns."""
+
     patterns: list[PatternQualityResponse]
     total_count: int

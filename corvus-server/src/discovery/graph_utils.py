@@ -57,12 +57,14 @@ async def get_upstream_dependencies(
             result = await session.run(query, service=service_name, depth=depth)
             dependencies = []
             async for record in result:
-                dependencies.append({
-                    "name": record["name"],
-                    "type": record.get("type"),
-                    "critical": record.get("critical", False),
-                    "depth": record.get("depth", 1),
-                })
+                dependencies.append(
+                    {
+                        "name": record["name"],
+                        "type": record.get("type"),
+                        "critical": record.get("critical", False),
+                        "depth": record.get("depth", 1),
+                    }
+                )
 
             return dependencies
 
@@ -102,12 +104,14 @@ async def get_downstream_dependents(
             result = await session.run(query, service=service_name, depth=depth)
             dependents = []
             async for record in result:
-                dependents.append({
-                    "name": record["name"],
-                    "type": record.get("type"),
-                    "critical": record.get("critical", False),
-                    "depth": record.get("depth", 1),
-                })
+                dependents.append(
+                    {
+                        "name": record["name"],
+                        "type": record.get("type"),
+                        "critical": record.get("critical", False),
+                        "depth": record.get("depth", 1),
+                    }
+                )
 
             return dependents
 
@@ -153,12 +157,14 @@ async def find_shared_resources(
 
                 result = await session.run(query, resource_type=resource_type)
                 async for record in result:
-                    shared_resources.append({
-                        "resource": record["resource"],
-                        "type": record["type"],
-                        "services": record["services"],
-                        "service_count": len(record["services"]),
-                    })
+                    shared_resources.append(
+                        {
+                            "resource": record["resource"],
+                            "type": record["type"],
+                            "services": record["services"],
+                            "service_count": len(record["services"]),
+                        }
+                    )
 
             return shared_resources
 
@@ -247,10 +253,7 @@ async def get_root_cause_hypothesis(
 
         # Find shared resources
         shared = await find_shared_resources([service_name] + upstream_names)
-        problematic_shared = [
-            s for s in shared
-            if any(health_map.get(svc) != "healthy" for svc in s["services"])
-        ]
+        problematic_shared = [s for s in shared if any(health_map.get(svc) != "healthy" for svc in s["services"])]
 
         # Generate hypothesis
         if unhealthy_upstream:

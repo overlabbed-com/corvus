@@ -32,8 +32,7 @@ async def get_current_metrics():
         result = {}
         for tier in ("value_stream", "throughput", "efficiency"):
             cursor = await db.execute(
-                "SELECT metrics FROM ops_metrics_snapshots "
-                "WHERE tier = ? ORDER BY timestamp DESC LIMIT 1",
+                "SELECT metrics FROM ops_metrics_snapshots WHERE tier = ? ORDER BY timestamp DESC LIMIT 1",
                 (tier,),
             )
             row = await cursor.fetchone()
@@ -125,8 +124,7 @@ async def get_bottlenecks(
     try:
         # Get latest value_stream snapshot
         cursor = await db.execute(
-            "SELECT metrics FROM ops_metrics_snapshots "
-            "WHERE tier = 'value_stream' ORDER BY timestamp DESC LIMIT 1",
+            "SELECT metrics FROM ops_metrics_snapshots WHERE tier = 'value_stream' ORDER BY timestamp DESC LIMIT 1",
         )
         latest_row = await cursor.fetchone()
         if not latest_row:
@@ -136,8 +134,7 @@ async def get_bottlenecks(
 
         # Get all value_stream snapshots in the 7-day window for baseline
         cursor = await db.execute(
-            "SELECT metrics FROM ops_metrics_snapshots "
-            "WHERE tier = 'value_stream' AND timestamp >= ?",
+            "SELECT metrics FROM ops_metrics_snapshots WHERE tier = 'value_stream' AND timestamp >= ?",
             (baseline_since,),
         )
         baseline_rows = await cursor.fetchall()
@@ -169,12 +166,14 @@ async def get_bottlenecks(
             else:
                 deviation_pct = round((current_p50 - baseline_p50) / baseline_p50 * 100, 1)
 
-            bottlenecks.append({
-                "metric": key,
-                "current_p50": current_p50,
-                "baseline_p50": baseline_p50,
-                "deviation_pct": deviation_pct,
-            })
+            bottlenecks.append(
+                {
+                    "metric": key,
+                    "current_p50": current_p50,
+                    "baseline_p50": baseline_p50,
+                    "deviation_pct": deviation_pct,
+                }
+            )
 
         # Rank by largest deviation (slowest relative to baseline)
         bottlenecks.sort(key=lambda x: abs(x["deviation_pct"]), reverse=True)
@@ -268,15 +267,17 @@ async def get_convergence():
                 current_value = None
                 default_value = None
 
-            result.append({
-                "parameter": g["parameter"],
-                "adjustment_count": g["adjustment_count"],
-                "latest_dampening_factor": latest_dampening,
-                "latest_timestamp": g["latest_timestamp"],
-                "converged": latest_dampening < 0.05,
-                "current_value": current_value,
-                "default_value": default_value,
-            })
+            result.append(
+                {
+                    "parameter": g["parameter"],
+                    "adjustment_count": g["adjustment_count"],
+                    "latest_dampening_factor": latest_dampening,
+                    "latest_timestamp": g["latest_timestamp"],
+                    "converged": latest_dampening < 0.05,
+                    "current_value": current_value,
+                    "default_value": default_value,
+                }
+            )
 
         return result
     finally:

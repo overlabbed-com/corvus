@@ -33,6 +33,7 @@ SAFE_MODE_RECOVERY_SECONDS = 60  # Seconds before attempting recovery
 
 class HealthState(Enum):
     """Graph database health states."""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
@@ -42,6 +43,7 @@ class HealthState(Enum):
 @dataclass
 class HealthTracker:
     """Tracks graph database health and manages safe mode transitions."""
+
     state: HealthState = HealthState.HEALTHY
     failure_count: int = 0
     last_failure_time: float = 0.0
@@ -67,15 +69,11 @@ class HealthTracker:
             if self.consecutive_failures >= SAFE_MODE_FAILURE_THRESHOLD:
                 self.state = HealthState.UNHEALTHY
                 logger.warning(
-                    "Graph database entering UNHEALTHY state after %d consecutive failures",
-                    self.consecutive_failures
+                    "Graph database entering UNHEALTHY state after %d consecutive failures", self.consecutive_failures
                 )
             elif self.consecutive_failures >= 2:
                 self.state = HealthState.DEGRADED
-                logger.warning(
-                    "Graph database degraded after %d consecutive failures",
-                    self.consecutive_failures
-                )
+                logger.warning("Graph database degraded after %d consecutive failures", self.consecutive_failures)
 
     def should_attempt_recovery(self) -> bool:
         """Check if enough time has passed to attempt recovery."""
@@ -86,9 +84,7 @@ class HealthTracker:
     def enter_safe_mode(self) -> None:
         """Enter safe mode — all graph operations become no-ops."""
         self.state = HealthState.SAFE_MODE
-        logger.critical(
-            "Graph database entering SAFE MODE — all graph queries will be rejected"
-        )
+        logger.critical("Graph database entering SAFE MODE — all graph queries will be rejected")
 
     def is_safe_mode(self) -> bool:
         """Check if currently in safe mode."""
@@ -204,6 +200,7 @@ async def run_query_with_timeout(
         raise RuntimeError("Graph database not available")
 
     try:
+
         async def _execute_query() -> list[dict]:
             async with _driver.session() as session:
                 result = await session.run(cypher, params or {})

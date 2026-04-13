@@ -6,30 +6,75 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 # Valid CI types — matches spec/cmdb.md taxonomy
-CI_TYPES = frozenset({
-    "search", "index", "app", "model", "flow", "endpoint",
-    "automation", "integration", "library", "queue",
-    "account", "credential", "license", "subscription",
-    "cert", "zone", "record", "vlan", "firewall_rule",
-    "dataset", "snapshot", "backup_job",
-    "disk", "nic", "psu", "controller", "device", "scene", "bridge", "sensor"
-})
+CI_TYPES = frozenset(
+    {
+        "search",
+        "index",
+        "app",
+        "model",
+        "flow",
+        "endpoint",
+        "automation",
+        "integration",
+        "library",
+        "queue",
+        "account",
+        "credential",
+        "license",
+        "subscription",
+        "cert",
+        "zone",
+        "record",
+        "vlan",
+        "firewall_rule",
+        "dataset",
+        "snapshot",
+        "backup_job",
+        "disk",
+        "nic",
+        "psu",
+        "controller",
+        "device",
+        "scene",
+        "bridge",
+        "sensor",
+    }
+)
 
 # Valid operational statuses
 CI_STATUSES = frozenset({"active", "expiring", "expired", "revoked", "decommissioned"})
 
 # Valid relationship types
-CI_RELATIONSHIPS = frozenset({
-    "BELONGS_TO", "CONTAINS", "INSTALLED_ON", "DEPENDS_ON", "USES",
-    "READS_FROM", "WRITES_TO", "AUTHENTICATES_WITH", "FEEDS",
-    "LOADED_ON", "STORED_ON", "HOSTED_ON", "SECURES", "PROXIED_BY",
-    "ROUTES_TO", "MANAGED_BY", "AFFECTS_CI", "CHANGED_BY",
-    "MONITORED_BY", "EXPIRES_TO", "RENEWS_TO"
-})
+CI_RELATIONSHIPS = frozenset(
+    {
+        "BELONGS_TO",
+        "CONTAINS",
+        "INSTALLED_ON",
+        "DEPENDS_ON",
+        "USES",
+        "READS_FROM",
+        "WRITES_TO",
+        "AUTHENTICATES_WITH",
+        "FEEDS",
+        "LOADED_ON",
+        "STORED_ON",
+        "HOSTED_ON",
+        "SECURES",
+        "PROXIED_BY",
+        "ROUTES_TO",
+        "MANAGED_BY",
+        "AFFECTS_CI",
+        "CHANGED_BY",
+        "MONITORED_BY",
+        "EXPIRES_TO",
+        "RENEWS_TO",
+    }
+)
 
 
 class CIRequest(BaseModel):
     """Request to register a Configuration Item."""
+
     name: str = Field(..., description="Unique CI identifier")
     ci_type: str = Field(..., description=f"CI type: {', '.join(sorted(CI_TYPES))}")
     service_name: str | None = Field(None, description="Associated service name")
@@ -43,12 +88,13 @@ class CIRequest(BaseModel):
         if self.ci_type not in CI_TYPES:
             raise ValueError(f"Invalid ci_type: {self.ci_type}. Must be one of: {', '.join(sorted(CI_TYPES))}")
         if self.operational_status not in CI_STATUSES:
-            valid = ', '.join(sorted(CI_STATUSES))
+            valid = ", ".join(sorted(CI_STATUSES))
             raise ValueError(f"Invalid operational_status: {self.operational_status}. Must be one of: {valid}")
 
 
 class CIResponse(BaseModel):
     """Response for CI details."""
+
     name: str
     ci_type: str
     service_name: str | None
@@ -101,6 +147,7 @@ class CIResponse(BaseModel):
 
 class CIImpactResponse(BaseModel):
     """Response for CI impact analysis."""
+
     ci_name: str
     ci_type: str
     direct_dependents: list[str] = Field(default_factory=list)
@@ -112,6 +159,7 @@ class CIImpactResponse(BaseModel):
 
 class CIExpiryResponse(BaseModel):
     """Single CI in expiry list."""
+
     name: str
     ci_type: str
     expires_at: str
@@ -122,6 +170,7 @@ class CIExpiryResponse(BaseModel):
 
 class CIExpiryQueryResponse(BaseModel):
     """Response for expiry queries."""
+
     expiring_in_7_days: list[CIExpiryResponse] = Field(default_factory=list)
     expiring_in_30_days: list[CIExpiryResponse] = Field(default_factory=list)
     expiring_in_90_days: list[CIExpiryResponse] = Field(default_factory=list)

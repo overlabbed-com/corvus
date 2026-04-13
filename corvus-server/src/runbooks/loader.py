@@ -28,14 +28,16 @@ _REDOS_PATTERN = re.compile(r"([+*])\s*\)\s*[+*?{]")
 REQUIRED_KEYS = {"name", "service_type"}
 
 # Valid step types
-VALID_STEP_TYPES = frozenset({
-    "http.check",
-    "gpu.nvidia_smi",
-    "containers.logs",
-    "containers.inspect",
-    "host.check",
-    "mqtt.check",
-})
+VALID_STEP_TYPES = frozenset(
+    {
+        "http.check",
+        "gpu.nvidia_smi",
+        "containers.logs",
+        "containers.inspect",
+        "host.check",
+        "mqtt.check",
+    }
+)
 
 
 class RunbookValidationError(ValueError):
@@ -56,9 +58,7 @@ def _validate_regex_pattern(pattern: str, context: str) -> re.Pattern:
         RunbookValidationError: If pattern is too long, has ReDoS risk, or is invalid
     """
     if len(pattern) > MAX_REGEX_LENGTH:
-        raise RunbookValidationError(
-            f"Regex pattern too long ({len(pattern)} > {MAX_REGEX_LENGTH}) in {context}"
-        )
+        raise RunbookValidationError(f"Regex pattern too long ({len(pattern)} > {MAX_REGEX_LENGTH}) in {context}")
 
     if _REDOS_PATTERN.search(pattern):
         raise RunbookValidationError(
@@ -68,9 +68,7 @@ def _validate_regex_pattern(pattern: str, context: str) -> re.Pattern:
     try:
         return re.compile(pattern, re.IGNORECASE)
     except re.error as e:
-        raise RunbookValidationError(
-            f"Invalid regex pattern in {context}: {e}"
-        ) from e
+        raise RunbookValidationError(f"Invalid regex pattern in {context}: {e}") from e
 
 
 def _validate_runbook_schema(data: dict[str, Any], path: str) -> list[str]:
@@ -119,9 +117,7 @@ def _validate_runbook_schema(data: dict[str, Any], path: str) -> list[str]:
         pattern = hint.get("pattern")
         if pattern:
             if not isinstance(pattern, str):
-                raise RunbookValidationError(
-                    f"Diagnosis hint {i} 'pattern' must be a string in {path}"
-                )
+                raise RunbookValidationError(f"Diagnosis hint {i} 'pattern' must be a string in {path}")
             # Validate and pre-compile — raises on ReDoS or invalid regex
             _validate_regex_pattern(pattern, f"diagnosis_hint[{i}] in {path}")
 
@@ -133,9 +129,7 @@ def _validate_runbook_schema(data: dict[str, Any], path: str) -> list[str]:
     # Validate escalation_triggers patterns
     for i, trigger in enumerate(remediation.get("escalation_triggers", [])):
         if not isinstance(trigger, str):
-            raise RunbookValidationError(
-                f"Escalation trigger {i} must be a string in {path}"
-            )
+            raise RunbookValidationError(f"Escalation trigger {i} must be a string in {path}")
 
     return warnings
 

@@ -13,7 +13,7 @@ async def test_register_ci(client):
         "ci_type": "cert",
         "service_name": "caddy",
         "expires_at": "2026-10-15T00:00:00Z",
-        "metadata": {"issuer": "Let's Encrypt"}
+        "metadata": {"issuer": "Let's Encrypt"},
     }
 
     resp = await client.post("/ops/cmdb/ci", json=ci_data)
@@ -35,7 +35,7 @@ async def test_register_ci_without_expiry(client):
         "name": "powerdns-api-key",
         "ci_type": "credential",
         "service_name": "powerdns",
-        "metadata": {"rotation_schedule": "90-days"}
+        "metadata": {"rotation_schedule": "90-days"},
     }
 
     resp = await client.post("/ops/cmdb/ci", json=ci_data)
@@ -51,11 +51,7 @@ async def test_register_ci_without_expiry(client):
 async def test_update_existing_ci(client):
     """Test updating an existing CI."""
     # Register initial CI
-    ci_data = {
-        "name": "test-cert",
-        "ci_type": "cert",
-        "expires_at": "2026-06-01T00:00:00Z"
-    }
+    ci_data = {"name": "test-cert", "ci_type": "cert", "expires_at": "2026-06-01T00:00:00Z"}
     await client.post("/ops/cmdb/ci", json=ci_data)
 
     # Update the CI
@@ -63,7 +59,7 @@ async def test_update_existing_ci(client):
         "name": "test-cert",
         "ci_type": "cert",
         "expires_at": "2027-06-01T00:00:00Z",
-        "operational_status": "expiring"
+        "operational_status": "expiring",
     }
 
     resp = await client.post("/ops/cmdb/ci", json=update_data)
@@ -78,11 +74,7 @@ async def test_update_existing_ci(client):
 async def test_get_ci(client):
     """Test getting CI details."""
     # Register CI
-    ci_data = {
-        "name": "test-zone",
-        "ci_type": "zone",
-        "metadata": {"records": 42}
-    }
+    ci_data = {"name": "test-zone", "ci_type": "zone", "metadata": {"records": 42}}
     await client.post("/ops/cmdb/ci", json=ci_data)
 
     # Get CI
@@ -105,11 +97,7 @@ async def test_get_ci_not_found(client):
 async def test_get_ci_with_expiry(client):
     """Test that days_until_expiry is calculated correctly."""
     future_date = (datetime.now(UTC) + timedelta(days=100)).isoformat()
-    ci_data = {
-        "name": "expiring-cert",
-        "ci_type": "cert",
-        "expires_at": future_date
-    }
+    ci_data = {"name": "expiring-cert", "ci_type": "cert", "expires_at": future_date}
 
     resp = await client.post("/ops/cmdb/ci", json=ci_data)
     assert resp.status_code == 201
@@ -159,19 +147,11 @@ async def test_get_expiring_cis(client):
     """Test getting expiring CIs."""
     # Register CI expiring in 5 days
     future_5 = (datetime.now(UTC) + timedelta(days=5)).isoformat()
-    await client.post("/ops/cmdb/ci", json={
-        "name": "expiring-soon",
-        "ci_type": "cert",
-        "expires_at": future_5
-    })
+    await client.post("/ops/cmdb/ci", json={"name": "expiring-soon", "ci_type": "cert", "expires_at": future_5})
 
     # Register CI expiring in 60 days
     future_60 = (datetime.now(UTC) + timedelta(days=60)).isoformat()
-    await client.post("/ops/cmdb/ci", json={
-        "name": "expiring-later",
-        "ci_type": "cert",
-        "expires_at": future_60
-    })
+    await client.post("/ops/cmdb/ci", json={"name": "expiring-later", "ci_type": "cert", "expires_at": future_60})
 
     # Get CIs expiring in 30 days
     resp = await client.get("/ops/cmdb/ci/expiring?days=30")
@@ -188,11 +168,7 @@ async def test_get_expiring_cis_already_expired(client):
     """Test getting already expired CIs."""
     # Register expired CI
     past_date = (datetime.now(UTC) - timedelta(days=10)).isoformat()
-    await client.post("/ops/cmdb/ci", json={
-        "name": "expired-cert",
-        "ci_type": "cert",
-        "expires_at": past_date
-    })
+    await client.post("/ops/cmdb/ci", json={"name": "expired-cert", "ci_type": "cert", "expires_at": past_date})
 
     resp = await client.get("/ops/cmdb/ci/expiring?days=30")
     assert resp.status_code == 200
@@ -205,10 +181,7 @@ async def test_get_expiring_cis_already_expired(client):
 @pytest.mark.asyncio
 async def test_invalid_ci_type(client):
     """Test that invalid CI types are rejected."""
-    ci_data = {
-        "name": "invalid-ci",
-        "ci_type": "not_a_valid_type"
-    }
+    ci_data = {"name": "invalid-ci", "ci_type": "not_a_valid_type"}
 
     resp = await client.post("/ops/cmdb/ci", json=ci_data)
     assert resp.status_code == 422
@@ -217,11 +190,7 @@ async def test_invalid_ci_type(client):
 @pytest.mark.asyncio
 async def test_invalid_operational_status(client):
     """Test that invalid operational statuses are rejected."""
-    ci_data = {
-        "name": "invalid-status",
-        "ci_type": "cert",
-        "operational_status": "not_valid"
-    }
+    ci_data = {"name": "invalid-status", "ci_type": "cert", "operational_status": "not_valid"}
 
     resp = await client.post("/ops/cmdb/ci", json=ci_data)
     assert resp.status_code == 422
@@ -231,17 +200,10 @@ async def test_invalid_operational_status(client):
 async def test_ci_with_parent(client):
     """Test registering CI with parent relationship."""
     # Register parent CI
-    await client.post("/ops/cmdb/ci", json={
-        "name": "parent-zone",
-        "ci_type": "zone"
-    })
+    await client.post("/ops/cmdb/ci", json={"name": "parent-zone", "ci_type": "zone"})
 
     # Register child CI
-    await client.post("/ops/cmdb/ci", json={
-        "name": "child-record",
-        "ci_type": "record",
-        "parent_ci": "parent-zone"
-    })
+    await client.post("/ops/cmdb/ci", json={"name": "child-record", "ci_type": "record", "parent_ci": "parent-zone"})
 
     # Get child CI
     resp = await client.get("/ops/cmdb/ci/child-record")

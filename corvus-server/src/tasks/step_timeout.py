@@ -26,9 +26,7 @@ async def reap_timed_out_steps() -> int:
         now = datetime.now(UTC)
 
         # Find executing plan steps past their timeout
-        cursor = await db.execute(
-            "SELECT * FROM ops_plan_steps WHERE status = 'executing' AND started_at IS NOT NULL"
-        )
+        cursor = await db.execute("SELECT * FROM ops_plan_steps WHERE status = 'executing' AND started_at IS NOT NULL")
         rows = await cursor.fetchall()
 
         reaped = 0

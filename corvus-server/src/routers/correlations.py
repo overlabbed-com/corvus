@@ -22,6 +22,7 @@ router = APIRouter(prefix="/ops/correlations", tags=["correlations"])
 
 class CorrelationCheckRequest(BaseModel):
     """Request to check if incidents should be correlated."""
+
     incidents: list[str]  # Incident IDs
     host: str | None = None  # Optional host filter
     sweep_id: str | None = None  # Optional sweep identifier
@@ -29,6 +30,7 @@ class CorrelationCheckRequest(BaseModel):
 
 class CorrelationGroup(BaseModel):
     """Correlation group response."""
+
     group_id: str
     root_cause: str
     shared_resource: str
@@ -39,6 +41,7 @@ class CorrelationGroup(BaseModel):
 
 class CorrelationCheckResponse(BaseModel):
     """Response from correlation check."""
+
     correlated: bool
     group: CorrelationGroup | None = None
     message: str
@@ -96,7 +99,6 @@ async def _create_correlation_group(
     )
 
 
-
 async def _sync_incidents_to_graph(incident_ids: list[str]) -> int:
     """Sync incidents from SQLite to Neo4j graph.
 
@@ -110,10 +112,7 @@ async def _sync_incidents_to_graph(incident_ids: list[str]) -> int:
     synced = 0
 
     for incident_id in incident_ids:
-        cursor = await db.execute(
-            "SELECT * FROM ops_incidents WHERE id = ?",
-            (incident_id,)
-        )
+        cursor = await db.execute("SELECT * FROM ops_incidents WHERE id = ?", (incident_id,))
         row = await cursor.fetchone()
         if not row:
             continue
@@ -207,11 +206,13 @@ async def check_correlation(
             )
             rec = await result.single()
             if rec:
-                incident_data.append({
-                    "incident_id": rec["incident_id"],
-                    "service": rec["service"],
-                    "host": rec["host"],
-                })
+                incident_data.append(
+                    {
+                        "incident_id": rec["incident_id"],
+                        "service": rec["service"],
+                        "host": rec["host"],
+                    }
+                )
 
         if len(incident_data) < 2:
             return CorrelationCheckResponse(
@@ -247,10 +248,7 @@ async def check_correlation(
                     shared_resource_type="gpu",
                     root_cause_hint=f"Check GPU state (VRAM, temperature, driver) on {gpu_key}",
                 )
-                logger.info(
-                    "Created correlation group %s for GPU failure: %s",
-                    group.group_id, incidents
-                )
+                logger.info("Created correlation group %s for GPU failure: %s", group.group_id, incidents)
                 return CorrelationCheckResponse(
                     correlated=True,
                     group=group,
@@ -273,10 +271,7 @@ async def check_correlation(
                     shared_resource_type="host",
                     root_cause_hint=f"Check host-level resources (disk, RAM, network) on {host}",
                 )
-                logger.info(
-                    "Created correlation group %s for host failure: %s",
-                    group.group_id, incidents
-                )
+                logger.info("Created correlation group %s for host failure: %s", group.group_id, incidents)
                 return CorrelationCheckResponse(
                     correlated=True,
                     group=group,
@@ -314,10 +309,7 @@ async def check_correlation(
                     shared_resource_type="dependency",
                     root_cause_hint=f"Fix dependency '{dep_name}' first — dependents will likely recover",
                 )
-                logger.info(
-                    "Created correlation group %s for dependency failure: %s",
-                    group.group_id, incidents
-                )
+                logger.info("Created correlation group %s for dependency failure: %s", group.group_id, incidents)
                 return CorrelationCheckResponse(
                     correlated=True,
                     group=group,
@@ -396,16 +388,18 @@ async def list_active_correlations(
         )
         groups = []
         async for rec in result:
-            groups.append({
-                "group_id": rec["group_id"],
-                "root_cause": rec["root_cause"],
-                "shared_resource": rec["shared_resource"],
-                "shared_resource_type": rec["shared_resource_type"],
-                "created_at": rec["created_at"],
-                "member_incidents": rec["member_incidents"],
-                "member_count": len(rec["member_incidents"]),
-                "open_count": rec["open_count"],
-            })
+            groups.append(
+                {
+                    "group_id": rec["group_id"],
+                    "root_cause": rec["root_cause"],
+                    "shared_resource": rec["shared_resource"],
+                    "shared_resource_type": rec["shared_resource_type"],
+                    "created_at": rec["created_at"],
+                    "member_incidents": rec["member_incidents"],
+                    "member_count": len(rec["member_incidents"]),
+                    "open_count": rec["open_count"],
+                }
+            )
 
     return {
         "count": len(groups),

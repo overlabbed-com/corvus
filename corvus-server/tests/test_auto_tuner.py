@@ -53,9 +53,7 @@ async def test_evaluate_and_adjust_applies_correction(client):
     # Verify adjustment logged
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT * FROM ops_metric_adjustments WHERE parameter = 'test.tunable'"
-        )
+        cursor = await db.execute("SELECT * FROM ops_metric_adjustments WHERE parameter = 'test.tunable'")
         row = await cursor.fetchone()
         assert row is not None
         assert float(row["dampening_factor"]) > 0
@@ -164,8 +162,7 @@ async def test_run_auto_tuner_reverts_worsening_adjustment(client):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT reverted, reverted_at, revert_reason "
-            "FROM ops_metric_adjustments WHERE id = ?",
+            "SELECT reverted, reverted_at, revert_reason FROM ops_metric_adjustments WHERE id = ?",
             (adj_id,),
         )
         row = await cursor.fetchone()

@@ -241,11 +241,13 @@ async def update_service(name: str, update: ServiceUpdate, request: Request):
                         "cmdb.alert_policy_changed",
                         name,
                         "warning",
-                        json.dumps({
-                            "old_policy": existing["alert_policy"],
-                            "new_policy": update.alert_policy,
-                            "changed_by": actor,
-                        }),
+                        json.dumps(
+                            {
+                                "old_policy": existing["alert_policy"],
+                                "new_policy": update.alert_policy,
+                                "changed_by": actor,
+                            }
+                        ),
                         actor,
                     ),
                 )

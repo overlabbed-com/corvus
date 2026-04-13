@@ -28,7 +28,6 @@ class DiscoveryResult:
     networks: list[dict] = field(default_factory=list)
 
 
-
 # Regex to extract hostnames from URLs in env var values
 _URL_HOST_RE = re.compile(
     r"(?:https?://|postgres(?:ql)?://[^@]*@|redis://(?:[^@]*@)?|amqp://(?:[^@]*@)?|mqtt://)"

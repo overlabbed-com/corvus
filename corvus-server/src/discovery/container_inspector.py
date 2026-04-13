@@ -64,6 +64,7 @@ async def inspect_container(service_name: str, host: str | None = None) -> Runni
                 env_dict[key] = True  # Only track names, not values
 
         from src.discovery.deploy_manager import compute_env_hash
+
         env_hash = compute_env_hash(env_dict)
 
         # Extract networks

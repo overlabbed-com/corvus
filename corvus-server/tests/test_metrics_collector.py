@@ -97,8 +97,7 @@ async def test_store_snapshot_persists(client):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT * FROM ops_metrics_snapshots WHERE tier = 'value_stream' "
-            "ORDER BY timestamp DESC LIMIT 1"
+            "SELECT * FROM ops_metrics_snapshots WHERE tier = 'value_stream' ORDER BY timestamp DESC LIMIT 1"
         )
         row = await cursor.fetchone()
         assert row is not None
