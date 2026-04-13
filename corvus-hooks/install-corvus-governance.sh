@@ -187,7 +187,11 @@ if [[ " ${INSTALLED_TOOLS[*]} " =~ " claude-code " ]]; then
 
     # Copy hook scripts
     do_cmd "Claude Code: hooks → ${CC_HOOKS_DIR}/" \
-        "mkdir -p '${CC_HOOKS_DIR}' && cp '${SOURCE_DIR}/corvus_core.py' '${SOURCE_DIR}/corvus-governance.py' '${SOURCE_DIR}/corvus-event-emit.py' '${SOURCE_DIR}/corvus-lifecycle.py' '${CC_HOOKS_DIR}/'"
+        "mkdir -p '${CC_HOOKS_DIR}' && cp '${SOURCE_DIR}/corvus_core.py' '${SOURCE_DIR}/corvus-governance.py' '${SOURCE_DIR}/corvus-event-emit.py' '${SOURCE_DIR}/corvus-lifecycle.py' '${SOURCE_DIR}/corvus-sync-governance.py' '${CC_HOOKS_DIR}/'"
+
+    # Copy governance sync script (called by corvus-sync-governance.py hook)
+    do_cmd "Claude Code: sync-governance.sh → ${CC_HOOKS_DIR}/" \
+        "cp '${SOURCE_DIR}/sync-governance.sh' '${CC_HOOKS_DIR}/sync-governance.sh' && chmod +x '${CC_HOOKS_DIR}/sync-governance.sh'"
 
     # Copy adapters (used by Codex/Cline too, but CC hooks dir is the standard location)
     do_cmd "Claude Code: adapters → ${CC_HOOKS_DIR}/adapters/" \
@@ -197,6 +201,10 @@ if [[ " ${INSTALLED_TOOLS[*]} " =~ " claude-code " ]]; then
     if [[ -d "${SOURCE_DIR}/claude-code/rules" ]]; then
         do_cmd "Claude Code: governance rules → ${CC_RULES_DIR}/" \
             "mkdir -p '${CC_RULES_DIR}/agents' '${CC_RULES_DIR}/tasks' && cp '${SOURCE_DIR}/claude-code/rules/governance.md' '${CC_RULES_DIR}/' && cp '${SOURCE_DIR}/claude-code/rules/agents/'*.md '${CC_RULES_DIR}/agents/' && cp '${SOURCE_DIR}/claude-code/rules/tasks/'*.md '${CC_RULES_DIR}/tasks/'"
+
+        # Governance freshness warning (loaded by Claude Code at session start)
+        do_cmd "Claude Code: governance-freshness.md → ${CC_RULES_DIR}/" \
+            "cp '${SOURCE_DIR}/claude-code/rules/governance-freshness.md' '${CC_RULES_DIR}/governance-freshness.md'"
     fi
 
     # Merge hooks config into settings.json
@@ -381,9 +389,9 @@ echo ""
 
 if [[ " ${INSTALLED_TOOLS[*]} " =~ " claude-code " ]]; then
     info "Claude Code:"
-    info "  Hooks:  ~/.claude/hooks/ (corvus_core + 3 hook scripts + adapters)"
-    info "  Rules:  ~/.claude/rules/ (governance + agents + ops-protocol)"
-    info "  Config: ~/.claude/settings.json (hooks section)"
+    info "  Hooks:  ~/.claude/hooks/ (corvus_core + 4 hook scripts + sync-governance.sh + adapters)"
+    info "  Rules:  ~/.claude/rules/ (governance + governance-freshness + agents + ops-protocol)"
+    info "  Config: ~/.claude/settings.json (hooks section incl. SessionStart sync)"
 fi
 
 echo ""

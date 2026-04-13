@@ -289,3 +289,227 @@ Incident. Baselines make this distinction automatic.
 | `default` | Normal alerting rules apply |
 | `silent` | Suppress alerts (use with caution — requires change window visibility) |
 | `escalate` | Always escalate to human, never auto-remediate |
+
+## Configuration Item (CI) API
+
+### Register CI
+```
+POST /ops/cmdb/ci
+```
+```json
+{
+  "name": "wildcard-cert-2026",
+  "ci_type": "cert",
+  "service_name": "caddy",
+  "expires_at": "2026-10-15T00:00:00Z",
+  "parent_ci": null,
+  "operational_status": "active",
+  "metadata": {
+    "issuer": "Let's Encrypt",
+    "domains": ["*.themillertribe.org"]
+  }
+}
+```
+
+**Response** (201):
+```json
+{
+  "name": "wildcard-cert-2026",
+  "ci_type": "cert",
+  "service_name": "caddy",
+  "expires_at": "2026-10-15T00:00:00Z",
+  "parent_ci": null,
+  "operational_status": "active",
+  "metadata": {"issuer": "Let's Encrypt", "domains": ["*.themillertribe.org"]},
+  "days_until_expiry": 185,
+  "created_at": "2026-04-13T10:00:00Z",
+  "updated_at": "2026-04-13T10:00:00Z",
+  "relationships": {
+    "used_by": ["caddy"],
+    "parent": null,
+    "children": []
+  }
+}
+```
+
+### Get CI
+```
+GET /ops/cmdb/ci/{name}
+```
+
+### Get CI Impact
+```
+GET /ops/cmdb/ci/{name}/impact
+```
+**Response**:
+```json
+{
+  "ci_name": "powerdns-api-key",
+  "ci_type": "credential",
+  "direct_dependents": ["powerdns", "caddy"],
+  "indirect_dependents": ["all-dns-dependent-services"],
+  "services_using": ["powerdns", "caddy"],
+  "change_window_required": true,
+  "risk_level": "high"
+}
+```
+
+### Get Expiring CIs
+```
+GET /ops/cmdb/ci/expiring?days=30
+```
+**Response**:
+```json
+{
+  "expiring_in_7_days": [
+    {"name": "cert-staging", "ci_type": "cert", "expires_at": "...", "days_left": 5, "service_name": "caddy"}
+  ],
+  "expiring_in_30_days": [
+    {"name": "slack-webhook-old", "ci_type": "credential", "expires_at": "...", "days_left": 15}
+  ],
+  "expiring_in_90_days": [],
+  "already_expired": [
+    {"name": "old-api-key", "ci_type": "credential", "expires_at": "...", "days_left": -10}
+  ]
+}
+```
+
+### List CIs
+```
+GET /ops/cmdb/ci?ci_type=cert&status=active
+```
+
+## CI Lifecycle States
+
+| State | Description | Transition Triggers |
+|-------|-------------|---------------------|
+| `active` | Normal operational state | Default on registration |
+| `expiring` | Within 30 days of expiry | Auto-detected by expiry sweep |
+| `expired` | Past expiry date | Auto-detected by expiry sweep |
+| `revoked` | Manually revoked before expiry | Manual action (e.g., security incident) |
+| `decommissioned` | Retired, no longer in use | Manual action |
+
+## Expiry Handling
+
+**Alert Schedule**:
+- 30 days before: `info` event logged
+- 7 days before: `warning` event + Slack notification
+- 1 day before: `critical` event + incident auto-created
+- Expired: `critical` event + incident auto-escalated
+
+**Auto-transition**: Background task runs every 5 minutes to:
+1. Query CIs expiring within 30 days → set status to `expiring`
+2. Query CIs past expiry → set status to `expired`
+3. Emit events for status transitions
+
+## Neo4j Graph Schema
+
+**CI Node Labels**:
+```cypher
+(:CI {name, ci_type, expires_at, operational_status, metadata})
+```
+
+**Relationship Types**:
+- `(:Service)-[:USES]->(:CI)` — Service uses this CI
+- `(:CI)-[:BELONGS_TO]->(:CI)` — Child-parent CI relationship
+- `(:CI)-[:RENEWS_TO]->(:CI)` — Old cert → new cert transition
+- `(:CI)-[:CONTAINS]->(:CI)` — Zone contains records, dataset contains snapshots
+- `(:CI)-[:DEPENDS_ON]->(:CI)` — CI depends on another CI
+- `(:Incident)-[:AFFECTS_CI]->(:CI)` — Incident impacts this CI
+
+## Deploy Tracking Fields (Phase 4.3)
+
+Services track their deployment state to enable drift detection and failure analysis.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `declared_image` | string | Image tag from GitOps compose file |
+| `declared_healthcheck` | string | Healthcheck command from compose |
+| `declared_env_hash` | string | SHA256 of env var names (not values) |
+| `declared_networks` | string[] | Networks from compose file |
+| `last_declared_at` | datetime | When declared state was last updated |
+| `last_deploy_attempt` | datetime | Last deploy attempt timestamp |
+| `last_deploy_status` | string | success, failure, in_progress, cancelled |
+| `last_deploy_error` | string | Error message if deploy failed |
+
+### Usage
+
+**Register declared state** (called by GitOps pipeline after compose parse):
+```
+POST /ops/cmdb/{name}/declared
+```
+```json
+{
+  "image": "myapp:v1.2.3",
+  "healthcheck": "curl -f http://localhost:8080/health",
+  "env_hash": "a1b2c3d4...",
+  "networks": ["bridge", "custom"]
+}
+```
+
+**Record deploy attempt** (called by GitHub Actions):
+```
+POST /ops/cmdb/{name}/deploy
+```
+```json
+{
+  "status": "failure",
+  "error": "Container OOMKilled",
+  "workflow_run_id": 12345
+}
+```
+
+**Check drift**:
+```
+GET /ops/cmdb/{name}/drift
+```
+```json
+{
+  "has_drift": true,
+  "drift_fields": ["image", "healthcheck"],
+  "declared": {
+    "image": "myapp:v1.2.3",
+    "healthcheck": "curl health"
+  },
+  "running": {
+    "image": "myapp:v1.2.2",
+    "healthcheck": "curl /health"
+  },
+  "severity": "high"
+}
+```
+
+## Deploy Failure Diagnosis (Phase 4.3)
+
+Deploy failures are analyzed and classified into patterns:
+
+| Diagnosis | Symptoms | Confidence | Remediation |
+|-----------|----------|------------|-------------|
+| `resource_exhaustion` | OOMKilled, memory errors | 90% | Increase limits, optimize |
+| `slow_startup` | Healthcheck timeout | 85% | Increase timeout, optimize init |
+| `stale_container_config` | Out of sync errors | 90% | Re-sync from GitOps |
+| `image_pull_failure` | Pull access denied | 95% | Check credentials, verify tag |
+| `dependency_unavailable` | Connection refused | 80% | Check dependency health |
+| `unknown_deploy_failure` | No clear pattern | 30% | Manual investigation |
+
+**API**: `POST /ops/discovery/deploy/analyze`
+```json
+{
+  "service": "myapp",
+  "error": "Container OOMKilled",
+  "workflow_logs": "..."
+}
+```
+
+**Response**:
+```json
+{
+  "diagnosis": "resource_exhaustion",
+  "confidence": 0.9,
+  "remediation": [
+    "Check container memory limits",
+    "Increase limits or optimize service"
+  ],
+  "root_cause_hint": "Service exceeded memory limits"
+}
+```

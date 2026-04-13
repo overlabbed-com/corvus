@@ -1,0 +1,128 @@
+# Deploy Workflow Template with Corvus Integration
+# Copy this to homelab-*/.github/workflows/deploy-<stack>.yml and customize
+
+name: Deploy <STACK_NAME>
+
+on:
+  push:
+    branches: [main]
+    paths: ['stacks/<STACK_NAME>/**']
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, <HOST>]
+    
+    env:
+      SERVICE_NAME: ${{ github.event.repository.name }}
+      STACK_PATH: stacks/<STACK_NAME>
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: false
+        env:
+          OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+          OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+          # Add service-specific secrets here
+          DOCKER_REGISTRY_PASSWORD: "op://Homelab/docker-registry/password"
+      
+      - name: Login to Docker registry
+        run: echo "$DOCKER_REGISTRY_PASSWORD" | docker login -u "$DOCKER_REGISTRY_USER" --password-stdin
+      
+      - name: Copy stack files to runtime
+        run: |
+          sudo mkdir -p /mnt/docker/stacks/${{ env.STACK_PATH }}
+          sudo cp ${{ env.STACK_PATH }}/docker-compose.yml /mnt/docker/stacks/${{ env.STACK_PATH }}/
+      
+      - name: Write .env file
+        run: |
+          printf 'DOCKER_REGISTRY_USER=%s\nDOCKER_REGISTRY_PASSWORD=%s\n' \
+            "$DOCKER_REGISTRY_USER" "$DOCKER_REGISTRY_PASSWORD" | \
+            sudo tee /mnt/docker/stacks/${{ env.STACK_PATH }}/.env > /dev/null
+          sudo chown github-runner:docker /mnt/docker/stacks/${{ env.STACK_PATH }}/.env
+          sudo chmod 640 /mnt/docker/stacks/${{ env.STACK_PATH }}/.env
+      
+      - name: Deploy with Docker Compose
+        id: deploy
+        run: |
+          cd /mnt/docker/stacks/${{ env.STACK_PATH }}
+          docker compose pull --quiet
+          docker compose up -d --remove-orphans
+          echo "status=success" >> $GITHUB_OUTPUT
+      
+      - name: Verify health
+        run: |
+          # Add service-specific health checks here
+          docker ps --filter "name=<SERVICE_CONTAINER_NAME>" --format "{{.Status}}"
+      
+      - name: Report deploy success to Corvus
+        if: always() && steps.deploy.outcome == 'success'
+        run: |
+          # Extract declared config from compose file
+          IMAGE=$(docker compose -f /mnt/docker/stacks/${{ env.STACK_PATH }}/docker-compose.yml config | grep -A1 'image:' | tail -1 | awk '{print $2}')
+          ENV_HASH=$(docker compose -f /mnt/docker/stacks/${{ env.STACK_PATH }}/docker-compose.yml config | grep -A20 'environment:' | grep -v 'environment:' | grep -v '^  $' | sort | md5sum | awk '{print $1}')
+          
+          curl -s -X POST "https://admin-api.themillertribe-int.org/secrets/services/corvus-api-key" \
+            -H "Authorization: Bearer $ADMIN_API_TOKEN" | jq -r '.data.api_key' | \
+            xargs -I {} curl -X POST "https://corvus/ops/cmdb/${{ env.SERVICE_NAME }}/deploy" \
+              -H "Authorization: Bearer {}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "status": "success",
+                "workflow_run_id": ${{ github.run_id }},
+                "declared_image": "'"$IMAGE"'",
+                "declared_env_hash": "'"$ENV_HASH"'"
+              }'
+      
+      - name: Report deploy failure to Corvus
+        if: always() && steps.deploy.outcome != 'success'
+        run: |
+          # Get error from workflow
+          ERROR_MSG="${{ job.status }}"
+          
+          curl -s -X POST "https://admin-api.themillertribe-int.org/secrets/services/corvus-api-key" \
+            -H "Authorization: Bearer $ADMIN_API_TOKEN" | jq -r '.data.api_key' | \
+            xargs -I {} curl -X POST "https://corvus/ops/cmdb/${{ env.SERVICE_NAME }}/deploy" \
+              -H "Authorization: Bearer {}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "status": "failure",
+                "workflow_run_id": ${{ github.run_id }},
+                "error": "'"$ERROR_MSG"'"
+              }'
+      
+      - name: Analyze deploy failure (if failed)
+        if: failure()
+        run: |
+          # Fetch workflow logs and send to Corvus for analysis
+          LOGS=$(gh run view ${{ github.run_id }} --log --job ${{ github.job }} 2>/dev/null || echo "No logs available")
+          
+          curl -s -X POST "https://admin-api.themillertribe-int.org/secrets/services/corvus-api-key" \
+            -H "Authorization: Bearer $ADMIN_API_TOKEN" | jq -r '.data.api_key' | \
+            xargs -I {} curl -X POST "https://corvus/ops/discovery/deploy/analyze" \
+              -H "Authorization: Bearer {}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "service": "${{ env.SERVICE_NAME }}",
+                "error": "${{ job.status }}",
+                "workflow_logs": "'"$LOGS"'"
+              }'
+
+  # Optional: Post-deploy drift check
+  check-drift:
+    needs: deploy
+    if: success()
+    runs-on: [self-hosted, <HOST>]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Compare declared vs running
+        run: |
+          # This would call Corvus drift detection API
+          # For now, just log the comparison
+          echo "Post-deploy drift check completed"

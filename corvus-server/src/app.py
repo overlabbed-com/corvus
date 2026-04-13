@@ -16,7 +16,7 @@ from src.config import API_KEYS, CORVUS_DEV_MODE, MCP_ENABLED, OIDC_ENABLED
 from src.dashboard.router import router as dashboard_router
 from src.database import init_db
 from src.discovery.collector import start_collector, stop_collector
-from src.graph import close_graph, graph_available, init_graph
+from src.graph import close_graph, graph_available, graph_health, init_graph, get_safe_mode_state
 from src.middleware.audit import AuditMiddleware
 from src.middleware.auth import AuthMiddleware
 from src.modules.loader import load_modules, register_module_routers
@@ -24,15 +24,19 @@ from src.routers import (
     agent_instructions,
     backup,
     changes,
+    ci,
     cmdb,
+    correlations,
     discovery,
     events,
     gaps,
     graph_queries,
+    graph_triage,
     incidents,
     knowledge,
     lean_metrics,
     metrics,
+    patterns,
     plans,
     problems,
     runbooks,
@@ -41,6 +45,8 @@ from src.routers import (
 )
 from src.runbooks.loader import registry as runbook_registry
 from src.tasks.change_expiry import run_change_expiry_loop
+from src.tasks.correlation import sweep_for_correlations
+from src.tasks.drift_detection import run_drift_detection_loop
 from src.tasks.event_cleanup import run_cleanup_loop
 from src.tasks.gap_detection import run_gap_sweep_loop
 from src.tasks.metrics_collector import run_metrics_collector_loop
@@ -104,6 +110,10 @@ async def lifespan(app: FastAPI):
     gap_sweep_task = asyncio.create_task(run_gap_sweep_loop())
     step_timeout_task = asyncio.create_task(run_step_timeout_loop())
     metrics_task = asyncio.create_task(run_metrics_collector_loop())
+    # Correlation sweep runs every 5 minutes
+    correlation_task = asyncio.create_task(run_correlation_sweep_loop())
+    # Drift detection runs every 10 minutes
+    drift_task = asyncio.create_task(run_drift_detection_loop())
 
     # Start Layer 2 collector (if Docker hosts configured)
     start_collector()
@@ -112,7 +122,7 @@ async def lifespan(app: FastAPI):
 
     stop_collector()
     await close_graph()
-    for task in (expiry_task, cleanup_task, gap_sweep_task, step_timeout_task, metrics_task):
+    for task in (expiry_task, cleanup_task, gap_sweep_task, step_timeout_task, metrics_task, correlation_task, drift_task):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
@@ -156,6 +166,7 @@ app.include_router(changes.router)
 app.include_router(events.router)
 app.include_router(incidents.router)
 app.include_router(problems.router)
+app.include_router(ci.router)
 app.include_router(cmdb.router)
 app.include_router(runbooks.router)
 app.include_router(runbooks.triage_router)
@@ -164,10 +175,13 @@ app.include_router(backup.router)
 app.include_router(steps.router)
 app.include_router(plans.router)
 app.include_router(trust.router)
+app.include_router(patterns.router)
 app.include_router(knowledge.router)
 app.include_router(agent_instructions.router)
 app.include_router(gaps.router)
 app.include_router(lean_metrics.router)
+app.include_router(correlations.router)
+app.include_router(graph_triage.router, prefix="/ops/triage", tags=["triage-graph"])
 app.include_router(discovery.router, prefix="/ops/discovery", tags=["discovery"])
 app.include_router(graph_queries.router, prefix="/ops/graph", tags=["graph"])
 app.include_router(dashboard_router)
@@ -192,7 +206,10 @@ async def root():
 
 @app.get("/health")
 async def health():
+    graph_avail = graph_available()
     return {
-        "status": "healthy",
-        "graph": graph_available(),
+        "status": "healthy" if graph_avail else "degraded",
+        "graph": graph_avail,
+        "safe_mode": get_safe_mode_state(),
+        "graph_health": graph_health(),
     }

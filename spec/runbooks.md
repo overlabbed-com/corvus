@@ -112,3 +112,76 @@ Corvus ships with 12 FMEA runbooks covering all service types:
 | triage-dns | dns | Resolver, zone transfer, records |
 | triage-utility | utility | Tunnels, certs, GPU workloads, autoheal |
 | triage-deploy | deploy | Stale config, slow startup, missing networks, disk full |
+
+## Deploy Step Types (Phase 4.3)
+
+New step types for deploy failure analysis:
+
+### `deploy.workflow_logs`
+
+Fetch and analyze GitHub Actions workflow logs.
+
+```yaml
+- name: analyze_deploy_failure
+  type: deploy.workflow_logs
+  params:
+    repo: tmt-homelab/homelab-ai
+    workflow_run_id: 12345
+    service: vllm-inference
+```
+
+**Output**: DeployDiagnosis with root cause and remediation
+
+### `containers.drift_check`
+
+Compare declared vs running state.
+
+```yaml
+- name: check_drift
+  type: containers.drift_check
+  params:
+    service: vllm-inference
+    check_fields:
+      - image
+      - healthcheck
+      - env_vars
+      - networks
+```
+
+**Output**: DriftReport with drift fields and severity
+
+## Example Runbook with Deploy Steps
+
+```yaml
+name: deploy_failure_triage
+description: Triage deploy failures
+triggers:
+  - deploy.failed
+
+steps:
+  - name: analyze_failure
+    type: deploy.workflow_logs
+    params:
+      repo: ${{ repo }}
+      workflow_run_id: ${{ run_id }}
+      service: ${{ service }}
+  
+  - name: check_drift
+    type: containers.drift_check
+    params:
+      service: ${{ service }}
+  
+  - name: diagnose_root_cause
+    type: decision
+    params:
+      based_on: analyze_failure.diagnosis
+      cases:
+        resource_exhaustion:
+          action: recommend_resource_increase
+        slow_startup:
+          action: recommend_timeout_increase
+        stale_config:
+          action: recommend_redeploy
+        _:
+          action: escalate_to_human
+```

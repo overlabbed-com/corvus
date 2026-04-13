@@ -9,7 +9,14 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.graph import graph_available, graph_session
+from src.graph import (
+    attempt_recovery,
+    enter_safe_mode,
+    graph_available,
+    graph_health,
+    graph_session,
+    get_safe_mode_state,
+)
 from src.middleware.auth import AuthContext, get_auth
 
 logger = logging.getLogger(__name__)
@@ -45,7 +52,7 @@ async def blast_radius(service: str, auth: AuthContext = Depends(get_auth)):
         r = await session.run(
             """
             MATCH (target:Service {name: $name})
-            MATCH path = (affected:Service)-[:DEPENDS_ON*1..10]->(target)
+            MATCH path = (affected:Service)-[:DEPENDS_ON*1..5]->(target)
             RETURN DISTINCT affected.name AS name,
                    affected.host AS host,
                    affected.stack AS stack,
@@ -91,7 +98,7 @@ async def dependency_chain(service: str, auth: AuthContext = Depends(get_auth)):
         r = await session.run(
             """
             MATCH (origin:Service {name: $name})
-            MATCH path = (origin)-[:DEPENDS_ON*1..10]->(upstream:Service)
+            MATCH path = (origin)-[:DEPENDS_ON*1..5]->(upstream:Service)
             RETURN DISTINCT upstream.name AS name,
                    upstream.host AS host,
                    upstream.stack AS stack,
@@ -360,4 +367,47 @@ async def graph_stats(auth: AuthContext = Depends(get_auth)):
         "edge_counts": edge_counts,
         "total_nodes": sum(node_counts.values()),
         "total_edges": sum(edge_counts.values()),
+    }
+
+
+@router.get("/safe-mode")
+async def get_safe_mode(auth: AuthContext = Depends(get_auth)):
+    """Get current safe mode state and health metrics."""
+    return {
+        "safe_mode": get_safe_mode_state(),
+        "health": graph_health(),
+    }
+
+
+@router.post("/safe-mode/enter")
+async def force_safe_mode(auth: AuthContext = Depends(get_auth)):
+    """Manually enter safe mode — all graph queries will be rejected.
+
+    Use this to immediately stop all graph traffic during emergencies.
+    """
+    enter_safe_mode()
+    logger.warning("Safe mode manually entered via API")
+    return {
+        "status": "safe_mode_entered",
+        "state": get_safe_mode_state(),
+    }
+
+
+@router.post("/safe-mode/recover")
+async def attempt_safe_mode_recovery(auth: AuthContext = Depends(get_auth)):
+    """Attempt to recover from safe mode.
+
+    Recovery is only attempted if the cooldown period has elapsed.
+    Returns whether recovery was attempted and current state.
+    """
+    attempted = attempt_recovery()
+    return {
+        "recovery_attempted": attempted,
+        "state": get_safe_mode_state(),
+        "health": graph_health(),
+        "message": (
+            "Recovery initiated"
+            if attempted
+            else "Still in cooldown — try again later"
+        ),
     }
