@@ -113,6 +113,17 @@ CREATE INDEX IF NOT EXISTS idx_ci_expires ON ops_ci(expires_at);
 CREATE INDEX IF NOT EXISTS idx_ci_parent ON ops_ci(parent_ci);
 CREATE INDEX IF NOT EXISTS idx_ci_status ON ops_ci(operational_status);
 
+-- Deploy tracking fields for ops_cmdb (added in Phase 4.3)
+-- These columns are added via migration, not in initial schema
+-- ALTER TABLE ops_cmdb ADD COLUMN declared_image TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN declared_healthcheck TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN declared_env_hash TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN declared_networks TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN last_declared_at TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN last_deploy_attempt TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN last_deploy_status TEXT;
+-- ALTER TABLE ops_cmdb ADD COLUMN last_deploy_error TEXT;
+
 CREATE TABLE IF NOT EXISTS ops_audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp TEXT NOT NULL,
@@ -352,6 +363,15 @@ async def init_db() -> None:
             "ALTER TABLE ops_trust_ledger ADD COLUMN first_seen_at TEXT",
             "ALTER TABLE ops_triage_log ADD COLUMN resolution_time_seconds REAL",
             "ALTER TABLE ops_knowledge ADD COLUMN governance_order INTEGER DEFAULT 50",
+            # Phase 4.3: Deploy tracking fields
+            "ALTER TABLE ops_cmdb ADD COLUMN declared_image TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN declared_healthcheck TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN declared_env_hash TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN declared_networks TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN last_declared_at TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN last_deploy_attempt TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN last_deploy_status TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN last_deploy_error TEXT",
         ]:
             try:
                 await db.execute(alter_sql)

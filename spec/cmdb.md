@@ -416,3 +416,100 @@ GET /ops/cmdb/ci?ci_type=cert&status=active
 - `(:CI)-[:CONTAINS]->(:CI)` — Zone contains records, dataset contains snapshots
 - `(:CI)-[:DEPENDS_ON]->(:CI)` — CI depends on another CI
 - `(:Incident)-[:AFFECTS_CI]->(:CI)` — Incident impacts this CI
+
+## Deploy Tracking Fields (Phase 4.3)
+
+Services track their deployment state to enable drift detection and failure analysis.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `declared_image` | string | Image tag from GitOps compose file |
+| `declared_healthcheck` | string | Healthcheck command from compose |
+| `declared_env_hash` | string | SHA256 of env var names (not values) |
+| `declared_networks` | string[] | Networks from compose file |
+| `last_declared_at` | datetime | When declared state was last updated |
+| `last_deploy_attempt` | datetime | Last deploy attempt timestamp |
+| `last_deploy_status` | string | success, failure, in_progress, cancelled |
+| `last_deploy_error` | string | Error message if deploy failed |
+
+### Usage
+
+**Register declared state** (called by GitOps pipeline after compose parse):
+```
+POST /ops/cmdb/{name}/declared
+```
+```json
+{
+  "image": "myapp:v1.2.3",
+  "healthcheck": "curl -f http://localhost:8080/health",
+  "env_hash": "a1b2c3d4...",
+  "networks": ["bridge", "custom"]
+}
+```
+
+**Record deploy attempt** (called by GitHub Actions):
+```
+POST /ops/cmdb/{name}/deploy
+```
+```json
+{
+  "status": "failure",
+  "error": "Container OOMKilled",
+  "workflow_run_id": 12345
+}
+```
+
+**Check drift**:
+```
+GET /ops/cmdb/{name}/drift
+```
+```json
+{
+  "has_drift": true,
+  "drift_fields": ["image", "healthcheck"],
+  "declared": {
+    "image": "myapp:v1.2.3",
+    "healthcheck": "curl health"
+  },
+  "running": {
+    "image": "myapp:v1.2.2",
+    "healthcheck": "curl /health"
+  },
+  "severity": "high"
+}
+```
+
+## Deploy Failure Diagnosis (Phase 4.3)
+
+Deploy failures are analyzed and classified into patterns:
+
+| Diagnosis | Symptoms | Confidence | Remediation |
+|-----------|----------|------------|-------------|
+| `resource_exhaustion` | OOMKilled, memory errors | 90% | Increase limits, optimize |
+| `slow_startup` | Healthcheck timeout | 85% | Increase timeout, optimize init |
+| `stale_container_config` | Out of sync errors | 90% | Re-sync from GitOps |
+| `image_pull_failure` | Pull access denied | 95% | Check credentials, verify tag |
+| `dependency_unavailable` | Connection refused | 80% | Check dependency health |
+| `unknown_deploy_failure` | No clear pattern | 30% | Manual investigation |
+
+**API**: `POST /ops/discovery/deploy/analyze`
+```json
+{
+  "service": "myapp",
+  "error": "Container OOMKilled",
+  "workflow_logs": "..."
+}
+```
+
+**Response**:
+```json
+{
+  "diagnosis": "resource_exhaustion",
+  "confidence": 0.9,
+  "remediation": [
+    "Check container memory limits",
+    "Increase limits or optimize service"
+  ],
+  "root_cause_hint": "Service exceeded memory limits"
+}
+```
