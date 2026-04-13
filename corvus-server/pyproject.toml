@@ -32,7 +32,7 @@ ignore = [
 
 [tool.bandit]
 exclude_dirs = ["tests"]
-skips = ["B101", "B608"]  # B101: assert in tests, B608: parameterized queries (false positives)
+skips = ["B101", "B608", "B602"]  # B101: assert in tests, B608: parameterized queries (false positives), B602: docker commands need shell
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
