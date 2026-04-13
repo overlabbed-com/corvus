@@ -6,25 +6,25 @@ set -e
 
 echo "🚀 Starting parallel deployment..."
 
-# Task 1: Copy code to dockp04
-echo "📦 Task 1: Copying code to dockp04..."
+# Task 1: Copy code to HOST_4
+echo "📦 Task 1: Copying code to HOST_4..."
 rsync -avz --progress \
   /Users/tmiller/git/overlabbed-com/corvus/corvus-server/ \
-  tmiller@192.168.20.14:/opt/corvus/corvus-server/ &
+  HOST_DOCKP04:/opt/corvus/corvus-server/ &
 TASK1_PID=$!
 
 # Task 2: Review GitOps stack
 echo "📋 Task 2: Reviewing GitOps stack..."
 cd /Users/tmiller/git/tmt-homelab/homelab-automation
 git checkout -b feature/corvus-phase4-deploy 2>/dev/null || true
-cat stacks/dockp04-corvus/docker-compose.yml > /tmp/compose-review.txt &
+cat stacks/HOST_4-corvus/docker-compose.yml > /tmp/compose-review.txt &
 TASK2_PID=$!
 
 # Task 3: Prepare test scripts
 echo "🧪 Task 3: Preparing functional test scripts..."
 cat > /tmp/corvus-tests.sh << 'TESTEOF'
 #!/bin/bash
-CORVUS_URL="http://192.168.20.14:9420"
+CORVUS_URL="http://HOST_DOCKP04:9420"
 
 echo "=== Test 1: Health Check ==="
 curl -s "$CORVUS_URL/health" | jq .
@@ -66,7 +66,7 @@ wait $TASK3_PID
 echo "✅ All parallel tasks complete!"
 echo ""
 echo "Next steps:"
-echo "1. ssh tmiller@192.168.20.14 'sudo chown -R tmiller:docker /opt/corvus/corvus-server'"
-echo "2. ssh tmiller@192.168.20.14 'cd /opt/corvus/corvus-server && sudo docker build -t corvus-server:latest .'"
-echo "3. ssh tmiller@192.168.20.14 'cd /mnt/docker/stacks/dockp04-corvus && sudo docker compose up -d'"
+echo "1. ssh HOST_DOCKP04 'sudo chown -R tmiller:docker /opt/corvus/corvus-server'"
+echo "2. ssh HOST_DOCKP04 'cd /opt/corvus/corvus-server && sudo docker build -t corvus-server:latest .'"
+echo "3. ssh HOST_DOCKP04 'cd /mnt/docker/stacks/HOST_4-corvus && sudo docker compose up -d'"
 echo "4. /tmp/corvus-tests.sh"

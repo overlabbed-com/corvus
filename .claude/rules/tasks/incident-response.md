@@ -22,8 +22,8 @@ globs:
 
 ```bash
 # Quick status check
-ssh tmiller@192.168.20.15 "sudo docker ps --filter status=exited --filter status=restarting"
-ssh tmiller@192.168.20.16 "sudo docker ps --filter status=exited --filter status=restarting"
+ssh tmiller@HOST_DOCKP05 "sudo docker ps --filter status=exited --filter status=restarting"
+ssh tmiller@HOST_DOCKP06 "sudo docker ps --filter status=exited --filter status=restarting"
 ```
 
 ### Step 2: Gather logs from affected service

@@ -27,7 +27,7 @@ mcp__litellm-mcp__searxng-search:
 
 ## Why
 
-SearXNG is self-hosted at `https://search.themillertribe-int.org` and proxied
+SearXNG is self-hosted at `https://search.example.com` and proxied
 through LiteLLM's MCP endpoint. It works with both Anthropic-hosted and local
 model sessions. The built-in `WebSearch` only works when connected directly to
 Anthropic's API.

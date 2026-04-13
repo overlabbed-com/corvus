@@ -13,7 +13,7 @@ globs:
 
 ## Prerequisites
 
-- SSH access to Docker hosts (tmtdockp01, tmtdockp02)
+- SSH access to Docker hosts (tmtHOST_1, tmtHOST_2)
 - See `CLAUDE.md` Authority & Access section for SSH guidance
 
 ## Procedure
@@ -21,32 +21,32 @@ globs:
 ### Step 1: Get container status on all hosts
 
 ```bash
-# dockp01
-ssh tmiller@192.168.20.15 "sudo docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | sort"
+# HOST_1
+ssh tmiller@HOST_DOCKP05 "sudo docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | sort"
 
-# dockp02
-ssh tmiller@192.168.20.16 "sudo docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | sort"
+# HOST_2
+ssh tmiller@HOST_DOCKP06 "sudo docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | sort"
 ```
 
 ### Step 2: Check for unhealthy or restarting containers
 
 ```bash
-ssh tmiller@192.168.20.15 "sudo docker ps --filter health=unhealthy --filter status=restarting --format '{{.Names}}: {{.Status}}'"
-ssh tmiller@192.168.20.16 "sudo docker ps --filter health=unhealthy --filter status=restarting --format '{{.Names}}: {{.Status}}'"
+ssh tmiller@HOST_DOCKP05 "sudo docker ps --filter health=unhealthy --filter status=restarting --format '{{.Names}}: {{.Status}}'"
+ssh tmiller@HOST_DOCKP06 "sudo docker ps --filter health=unhealthy --filter status=restarting --format '{{.Names}}: {{.Status}}'"
 ```
 
 ### Step 3: Check resource usage
 
 ```bash
-ssh tmiller@192.168.20.15 "sudo docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' | sort -k2 -t'%' -rn | head -15"
-ssh tmiller@192.168.20.16 "sudo docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' | sort -k2 -t'%' -rn | head -15"
+ssh tmiller@HOST_DOCKP05 "sudo docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' | sort -k2 -t'%' -rn | head -15"
+ssh tmiller@HOST_DOCKP06 "sudo docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' | sort -k2 -t'%' -rn | head -15"
 ```
 
 ### Step 4: Check GPU state (AI workloads)
 
 ```bash
-ssh tmiller@192.168.20.15 "nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader"
-ssh tmiller@192.168.20.16 "nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader"
+ssh tmiller@HOST_DOCKP05 "nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader"
+ssh tmiller@HOST_DOCKP06 "nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader"
 ```
 
 ### Step 5: Compare running containers against expected (from Git)
@@ -56,7 +56,7 @@ ssh tmiller@192.168.20.16 "nvidia-smi --query-gpu=index,name,utilization.gpu,mem
 ls ~/Documents/Claude/repos/homelab-gitops/stacks/
 
 # Compare against running compose projects
-ssh tmiller@192.168.20.15 "sudo docker compose ls --format 'table {{.Name}}\t{{.Status}}'"
+ssh tmiller@HOST_DOCKP05 "sudo docker compose ls --format 'table {{.Name}}\t{{.Status}}'"
 ```
 
 ## Expected Output

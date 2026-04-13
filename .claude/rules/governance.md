@@ -160,7 +160,7 @@ Ansible manages host-level config (sysctl, systemd, fstab/NFS, GPU drivers, pack
 ## Corvus — Operational Intelligence Authority
 
 Corvus (`~/git/corvus/`) is the operational intelligence platform. Deployed on
-dockp04 as `corvus` + `corvus-neo4j`. NemoClaw is customer zero. CC has Corvus
+HOST_4 as `corvus` + `corvus-neo4j`. NemoClaw is customer zero. CC has Corvus
 MCP tools via the `corvus` MCP server in `.mcp.json`.
 
 **CC SHOULD prefer Corvus tools (`corvus_*`) over admin-api (`ops_*`) tools:**

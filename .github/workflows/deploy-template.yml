@@ -66,7 +66,7 @@ jobs:
           IMAGE=$(docker compose -f /mnt/docker/stacks/${{ env.STACK_PATH }}/docker-compose.yml config | grep -A1 'image:' | tail -1 | awk '{print $2}')
           ENV_HASH=$(docker compose -f /mnt/docker/stacks/${{ env.STACK_PATH }}/docker-compose.yml config | grep -A20 'environment:' | grep -v 'environment:' | grep -v '^  $' | sort | md5sum | awk '{print $1}')
           
-          curl -s -X POST "https://admin-api.themillertribe-int.org/secrets/services/corvus-api-key" \
+          curl -s -X POST "https://admin-api.example.com/secrets/services/corvus-api-key" \
             -H "Authorization: Bearer $ADMIN_API_TOKEN" | jq -r '.data.api_key' | \
             xargs -I {} curl -X POST "https://corvus/ops/cmdb/${{ env.SERVICE_NAME }}/deploy" \
               -H "Authorization: Bearer {}" \
@@ -84,7 +84,7 @@ jobs:
           # Get error from workflow
           ERROR_MSG="${{ job.status }}"
           
-          curl -s -X POST "https://admin-api.themillertribe-int.org/secrets/services/corvus-api-key" \
+          curl -s -X POST "https://admin-api.example.com/secrets/services/corvus-api-key" \
             -H "Authorization: Bearer $ADMIN_API_TOKEN" | jq -r '.data.api_key' | \
             xargs -I {} curl -X POST "https://corvus/ops/cmdb/${{ env.SERVICE_NAME }}/deploy" \
               -H "Authorization: Bearer {}" \
@@ -101,7 +101,7 @@ jobs:
           # Fetch workflow logs and send to Corvus for analysis
           LOGS=$(gh run view ${{ github.run_id }} --log --job ${{ github.job }} 2>/dev/null || echo "No logs available")
           
-          curl -s -X POST "https://admin-api.themillertribe-int.org/secrets/services/corvus-api-key" \
+          curl -s -X POST "https://admin-api.example.com/secrets/services/corvus-api-key" \
             -H "Authorization: Bearer $ADMIN_API_TOKEN" | jq -r '.data.api_key' | \
             xargs -I {} curl -X POST "https://corvus/ops/discovery/deploy/analyze" \
               -H "Authorization: Bearer {}" \

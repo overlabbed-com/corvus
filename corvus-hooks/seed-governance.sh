@@ -10,7 +10,7 @@
 #
 # Options:
 #   --rules-dir DIR     Path to rules directory (default: ~/.claude/rules)
-#   --corvus-url URL    Corvus API base URL (default: https://corvus.themillertribe-int.org)
+#   --corvus-url URL    Corvus API base URL (default: https://corvus.example.com)
 #   --api-key KEY       Corvus API key (or set CORVUS_API_KEY env var)
 #   --dry-run           Show what would be done without making API calls
 #   --help              Show this help
@@ -21,7 +21,7 @@ set -euo pipefail
 # Defaults
 # ---------------------------------------------------------------------------
 RULES_DIR="${HOME}/Documents/Claude/.claude/rules"
-CORVUS_URL="https://corvus.themillertribe-int.org"
+CORVUS_URL="https://corvus.example.com"
 API_KEY=""
 DRY_RUN=false
 
@@ -60,7 +60,7 @@ fi
 
 if [[ -z "$API_KEY" ]] && command -v security &>/dev/null; then
     API_KEY=$(security find-generic-password \
-        -s "${CORVUS_KEYCHAIN_SERVICE:-corvus.themillertribe-int.org}" \
+        -s "${CORVUS_KEYCHAIN_SERVICE:-corvus-example}" \
         -a "${CORVUS_KEYCHAIN_ACCOUNT:-corvus-api-key}" \
         -w 2>/dev/null || true)
 fi

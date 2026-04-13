@@ -69,18 +69,18 @@ all:
   children:
     docker_hosts:
       hosts:
-        tmtdockp01:
-          ansible_host: 192.168.20.15
+        tmtHOST_1:
+          ansible_host: HOST_DOCKP05
           ansible_user: tmiller
           ansible_become: true
-        tmtdockp02:
-          ansible_host: 192.168.20.16
+        tmtHOST_2:
+          ansible_host: HOST_DOCKP06
           ansible_user: tmiller
           ansible_become: true
     storage:
       hosts:
         tmtfnp01:
-          ansible_host: 192.168.20.14
+          ansible_host: HOST_DOCKP04
           ansible_user: tmiller
           ansible_become: true
 ```

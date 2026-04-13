@@ -28,8 +28,8 @@ cd ~/Documents/Claude/repos/homelab-gitops && git fetch origin && git status
 ### Step 2: For each stack, compare Git compose vs running state
 
 ```bash
-# Get running image versions on dockp01
-ssh tmiller@192.168.20.15 "sudo docker ps --format '{{.Names}}: {{.Image}}'" | sort
+# Get running image versions on HOST_1
+ssh tmiller@HOST_DOCKP05 "sudo docker ps --format '{{.Names}}: {{.Image}}'" | sort
 
 # Get image versions from Git compose files
 grep -r "image:" ~/Documents/Claude/repos/homelab-gitops/stacks/*/docker-compose.yml | sort
@@ -42,14 +42,14 @@ grep -r "image:" ~/Documents/Claude/repos/homelab-gitops/stacks/*/docker-compose
 cat ~/Documents/Claude/repos/homelab-gitops/stacks/<stack>/.env.template
 
 # Running container env (filtered for non-secret vars)
-ssh tmiller@192.168.20.15 "sudo docker inspect <container> --format '{{json .Config.Env}}'" | jq -r '.[]' | grep -v -i 'key\|token\|password\|secret'
+ssh tmiller@HOST_DOCKP05 "sudo docker inspect <container> --format '{{json .Config.Env}}'" | jq -r '.[]' | grep -v -i 'key\|token\|password\|secret'
 ```
 
 ### Step 4: Check for containers not in Git (cowboy deployments)
 
 ```bash
 # Running compose projects
-ssh tmiller@192.168.20.15 "sudo docker compose ls --format json" | jq -r '.[].Name'
+ssh tmiller@HOST_DOCKP05 "sudo docker compose ls --format json" | jq -r '.[].Name'
 
 # Git-declared stacks
 ls ~/Documents/Claude/repos/homelab-gitops/stacks/
@@ -58,7 +58,7 @@ ls ~/Documents/Claude/repos/homelab-gitops/stacks/
 ### Step 5: Check for legacy directories on host
 
 ```bash
-ssh tmiller@192.168.20.15 "ls /mnt/docker/ | grep -v stacks"
+ssh tmiller@HOST_DOCKP05 "ls /mnt/docker/ | grep -v stacks"
 ```
 
 ## Drift Categories

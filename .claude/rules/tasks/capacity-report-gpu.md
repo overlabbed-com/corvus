@@ -15,16 +15,16 @@ globs:
 ### Step 1: Current GPU allocation
 
 ```bash
-ssh tmiller@192.168.20.15 "nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu --format=csv"
-ssh tmiller@192.168.20.16 "nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu --format=csv"
+ssh tmiller@HOST_DOCKP05 "nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu --format=csv"
+ssh tmiller@HOST_DOCKP06 "nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu --format=csv"
 ```
 
 ### Step 2: Map GPU assignments to models
 
 Cross-reference with CLAUDE.md GPU Inventory table and running vLLM instances:
 ```bash
-ssh tmiller@192.168.20.15 "sudo docker ps --filter name=vllm --format '{{.Names}}: {{.Image}}'"
-ssh tmiller@192.168.20.16 "sudo docker ps --filter name=vllm --format '{{.Names}}: {{.Image}}'"
+ssh tmiller@HOST_DOCKP05 "sudo docker ps --filter name=vllm --format '{{.Names}}: {{.Image}}'"
+ssh tmiller@HOST_DOCKP06 "sudo docker ps --filter name=vllm --format '{{.Names}}: {{.Image}}'"
 ```
 
 ### Step 3: Analyze VRAM headroom

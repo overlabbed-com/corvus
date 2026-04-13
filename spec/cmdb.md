@@ -306,7 +306,7 @@ POST /ops/cmdb/ci
   "operational_status": "active",
   "metadata": {
     "issuer": "Let's Encrypt",
-    "domains": ["*.themillertribe.org"]
+    "domains": ["*.example.com"]
   }
 }
 ```
@@ -320,7 +320,7 @@ POST /ops/cmdb/ci
   "expires_at": "2026-10-15T00:00:00Z",
   "parent_ci": null,
   "operational_status": "active",
-  "metadata": {"issuer": "Let's Encrypt", "domains": ["*.themillertribe.org"]},
+  "metadata": {"issuer": "Let's Encrypt", "domains": ["*.example.com"]},
   "days_until_expiry": 185,
   "created_at": "2026-04-13T10:00:00Z",
   "updated_at": "2026-04-13T10:00:00Z",
