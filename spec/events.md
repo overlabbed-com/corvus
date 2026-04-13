@@ -76,6 +76,24 @@ forwarded to your SIEM.
 | `correlation.group_created` | 2+ incidents share a resource (GPU, network, volume, dependency) | warning |
 | `correlation.group_resolved` | All incidents in a correlation group resolved | info |
 
+#### Correlation Group Event Schema
+
+```json
+{
+  "source": "corvus-server",
+  "type": "correlation.group_created",
+  "target": "gpu:host-03:0",
+  "severity": "warning",
+  "data": {
+    "group_id": "CG-A1B2C3D4",
+    "root_cause": "Check GPU state (VRAM, temperature, driver)",
+    "shared_resource": "gpu:host-03:0",
+    "shared_resource_type": "gpu",
+    "member_incidents": ["INC-001", "INC-002", "INC-003"]
+  }
+}
+```
+
 ### Gaps (Blind Spot Detection)
 | Type | When | Severity |
 |------|------|----------|
@@ -144,7 +162,7 @@ When 2+ incidents share a resource (GPU, network, volume, dependency), Corvus
 creates a correlation group. Agents send a single alert for the group, not
 per-member alerts.
 
-### Correlation Rules
+#### Correlation Rules
 
 | Rule | Trigger | Root Cause Hint |
 |------|---------|-----------------|
@@ -153,7 +171,7 @@ per-member alerts.
 | `shared_host_failure` | 5+ incidents on same host within same sweep | Host resource exhaustion (disk, RAM, network) |
 | `shared_volume_failure` | 2+ incidents on services sharing a MOUNTS edge to the same volume | Storage failure (NFS timeout, disk full) |
 
-### Correlation Group Data
+#### Correlation Group Data Schema
 
 ```json
 {
@@ -166,24 +184,61 @@ per-member alerts.
 }
 ```
 
-### API
+#### API Endpoints
 
-#### Check for Correlation
+**Check for Correlation**
 ```
 POST /ops/correlations/check
 ```
+Request:
 ```json
 {
   "incidents": ["INC-001", "INC-002", "INC-003"],
-  "host": "host-03"
+  "host": "host-03",
+  "sweep_id": "SWEEP-001"
 }
 ```
-Returns a correlation group if the incidents share a resource, or null.
 
-### Agent Contract
+Response (correlated):
+```json
+{
+  "correlated": true,
+  "group": {
+    "group_id": "CG-A1B2C3D4",
+    "root_cause": "Check GPU state (VRAM, temperature, driver) on gpu:host-03:0",
+    "shared_resource": "gpu:host-03:0",
+    "shared_resource_type": "gpu",
+    "member_incidents": ["INC-001", "INC-002"],
+    "created_at": "2026-03-30T08:09:00Z"
+  },
+  "message": "Found shared GPU: gpu:host-03:0"
+}
+```
+
+Response (not correlated):
+```json
+{
+  "correlated": false,
+  "group": null,
+  "message": "No shared resources detected — incidents are independent"
+}
+```
+
+**Get Correlation Group**
+```
+GET /ops/correlations/group/{group_id}
+```
+
+**List Active Correlations**
+```
+GET /ops/correlations/active
+```
+
+#### Agent Contract
 
 - When creating multiple incidents in the same sweep, agents MUST call
   `POST /ops/correlations/check` to detect group eligibility
 - Agents MUST send a single Slack alert for a correlation group, not per-member
 - Individual incidents are still created (for tracking) but are NOT separately alerted
 - The group alert MUST include the shared resource and root cause hint
+- Corvus server auto-runs correlation sweep every 5 minutes to detect missed correlations
