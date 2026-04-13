@@ -1,3 +1,5 @@
 # Semgrep ignore patterns
 # Docs contain example tokens/patterns for design specs — not real secrets
 docs/
+# container_inspector.py uses shell=True for docker commands (intentional)
+corvus-server/src/discovery/container_inspector.py

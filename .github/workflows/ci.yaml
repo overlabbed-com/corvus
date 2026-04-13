@@ -68,7 +68,7 @@ jobs:
         run: pip install semgrep
 
       - name: Semgrep
-        run: semgrep scan --config p/python --config p/secrets --error --skip-rule python.lang.security.audit.subprocess-shell-true.subprocess-shell-true
+        run: semgrep scan --config p/python --config p/secrets --error
         working-directory: .
 
   test:
