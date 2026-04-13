@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from src.discovery.declared import parse_compose_dir
+from src.discovery.deploy_manager import analyze_deploy_failure
 from src.discovery.inspected import inspect_containers
 from src.discovery.observed import (
     RawConnection,
@@ -1020,4 +1021,40 @@ async def list_knowledge(auth: AuthContext = Depends(get_auth)):
     return {
         "count": len(entries),
         "entries": entries,
+    }
+
+
+class DeployAnalyzeRequest(BaseModel):
+    service: str
+    error: str
+    workflow_logs: str | None = None
+
+
+@router.post("/deploy/analyze")
+async def analyze_deploy(
+    req: DeployAnalyzeRequest,
+    auth: AuthContext = Depends(get_auth),
+):
+    """Analyze a deploy failure and return diagnosis.
+    
+    Args:
+        service: Name of the failed service
+        error: Error message from deploy
+        workflow_logs: Optional full workflow logs
+        
+    Returns:
+        DeployDiagnosis with root cause and remediation
+    """
+    result = await analyze_deploy_failure(
+        service_name=req.service,
+        error_message=req.error,
+        workflow_logs=req.workflow_logs,
+    )
+    return {
+        "service": req.service,
+        "diagnosis": result.diagnosis.value if hasattr(result.diagnosis, 'value') else result.diagnosis,
+        "confidence": result.confidence,
+        "error": result.error_message,
+        "remediation": result.remediation,
+        "root_cause_hint": result.root_cause_hint,
     }

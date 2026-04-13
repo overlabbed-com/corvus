@@ -63,9 +63,8 @@ async def client():
             "ops_plan_steps",
             "ops_plans",
             "ops_trust_ledger",
-            "governance_history",
-            "ops_knowledge_fts",
             "ops_knowledge",
+            "ops_knowledge_fts",
         ):
             await db.execute(f"DELETE FROM {table}")  # nosec B608 - Table name from allowlist
         await db.commit()
@@ -83,30 +82,3 @@ def _isolate_runtime_config():
     saved = (dict(RuntimeConfig._values), dict(RuntimeConfig._defaults), dict(RuntimeConfig._bounds))
     yield
     RuntimeConfig._values, RuntimeConfig._defaults, RuntimeConfig._bounds = saved
-
-
-@pytest.fixture
-def requires_neo4j():
-    """Marker fixture for tests that require Neo4j to be actually connected.
-    
-    Usage:
-        def test_something(client, requires_neo4j):
-            # This test will skip if Neo4j is not configured
-            ...
-    """
-    from src.graph import graph_available, _driver
-    if not graph_available() or _driver is None:
-        pytest.skip("Neo4j not configured or unavailable")
-    yield
-
-
-@pytest.fixture
-def neo4j_config():
-    """Provide Neo4j configuration for tests that need to set it up."""
-    import os
-    return {
-        "uri": os.getenv("NEO4J_URI", "bolt://localhost:7687"),
-        "user": os.getenv("NEO4J_USER", "neo4j"),
-        "password": os.getenv("NEO4J_PASSWORD", ""),
-        "configured": bool(os.getenv("NEO4J_PASSWORD")),
-    }

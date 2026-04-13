@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from src.database import get_db
 from src.graph import graph_available, graph_session
 from src.middleware.auth import AuthContext, get_auth
 
@@ -65,11 +66,13 @@ async def _create_correlation_group(
                 created_at: $created_at
             })
             """,
-            group_id=group_id,
-            root_cause=root_cause_hint,
-            shared_resource=shared_resource,
-            shared_resource_type=shared_resource_type,
-            created_at=now,
+            {
+                "group_id": group_id,
+                "root_cause": root_cause_hint,
+                "shared_resource": shared_resource,
+                "shared_resource_type": shared_resource_type,
+                "created_at": now,
+            },
         )
 
         # Link incidents to correlation group
@@ -80,8 +83,7 @@ async def _create_correlation_group(
                 MATCH (cg:CorrelationGroup {id: $group_id})
                 CREATE (i)-[:MEMBER_OF]->(cg)
                 """,
-                incident_id=incident_id,
-                group_id=group_id,
+                {"incident_id": incident_id, "group_id": group_id},
             )
 
     return CorrelationGroup(
@@ -92,6 +94,67 @@ async def _create_correlation_group(
         member_incidents=incident_ids,
         created_at=now,
     )
+
+
+
+async def _sync_incidents_to_graph(incident_ids: list[str]) -> int:
+    """Sync incidents from SQLite to Neo4j graph.
+    
+    Args:
+        incident_ids: List of incident IDs to sync
+        
+    Returns:
+        Number of incidents synced
+    """
+    db = await get_db()
+    synced = 0
+    
+    for incident_id in incident_ids:
+        cursor = await db.execute(
+            "SELECT * FROM ops_incidents WHERE id = ?",
+            (incident_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            continue
+        
+        # Convert row to dict
+        incident = {
+            "id": row["id"],
+            "title": row["title"],
+            "target": row["target"],
+            "severity": row["severity"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+        }
+        
+        async with graph_session() as session:
+            # Create Incident node
+            await session.run(
+                """
+                MERGE (i:Incident {id: $id})
+                SET i.title = $title,
+                    i.target = $target,
+                    i.severity = $severity,
+                    i.status = $status,
+                    i.created_at = $created_at
+                """,
+                incident,
+            )
+            
+            # Link to Service if known
+            if incident["target"]:
+                await session.run(
+                    """
+                    MATCH (i:Incident {id: $id})
+                    MERGE (s:Service {name: $target})
+                    MERGE (i)-[:AFFECTS]->(s)
+                    """,
+                    {"id": incident["id"], "target": incident["target"]},
+                )
+        synced += 1
+    
+    return synced
 
 
 @router.post("/check", response_model=CorrelationCheckResponse)
@@ -120,7 +183,15 @@ async def check_correlation(
             correlated=False,
             message="Graph database not available — cannot check correlation",
         )
-
+    
+    # Sync incidents from SQLite to Neo4j first
+    synced = await _sync_incidents_to_graph(request.incidents)
+    if synced == 0:
+        return CorrelationCheckResponse(
+            correlated=False,
+            message="No incidents found in database",
+        )
+    
     async with graph_session() as session:
         # Get incident details (services affected, host)
         incident_data = []
@@ -132,7 +203,7 @@ async def check_correlation(
                 OPTIONAL MATCH (i)-[:DETECTED_ON]->(h:Host)
                 RETURN i.id AS incident_id, s.name AS service, h.name AS host
                 """,
-                incident_id=incident_id,
+                {"incident_id": incident_id},
             )
             rec = await result.single()
             if rec:
@@ -158,7 +229,7 @@ async def check_correlation(
                 MATCH (s:Service {name: $service})-[:USES_GPU]->(g:GPU)
                 RETURN g.host AS host, g.index AS gpu_index
                 """,
-                service=data["service"],
+                {"service": data["service"]},
             )
             rec = await result.single()
             if rec:
@@ -224,7 +295,7 @@ async def check_correlation(
                 WHERE inc IS NOT NULL
                 RETURN dep.name AS unhealthy_dep
                 """,
-                service=data["service"],
+                {"service": data["service"]},
             )
             async for rec in result:
                 if rec["unhealthy_dep"]:
@@ -280,7 +351,7 @@ async def get_correlation_group(
                    cg.created_at AS created_at,
                    collect(i.id) AS member_incidents
             """,
-            group_id=group_id,
+            {"group_id": group_id},
         )
         rec = await result.single()
 

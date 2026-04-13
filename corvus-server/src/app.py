@@ -45,7 +45,7 @@ from src.routers import (
 )
 from src.runbooks.loader import registry as runbook_registry
 from src.tasks.change_expiry import run_change_expiry_loop
-from src.tasks.correlation import sweep_for_correlations
+from src.tasks.correlation import run_correlation_sweep_loop
 from src.tasks.drift_detection import run_drift_detection_loop
 from src.tasks.event_cleanup import run_cleanup_loop
 from src.tasks.gap_detection import run_gap_sweep_loop
@@ -181,7 +181,7 @@ app.include_router(agent_instructions.router)
 app.include_router(gaps.router)
 app.include_router(lean_metrics.router)
 app.include_router(correlations.router)
-app.include_router(graph_triage.router, prefix="/ops/triage", tags=["triage-graph"])
+app.include_router(graph_triage.router, tags=["triage-graph"])
 app.include_router(discovery.router, prefix="/ops/discovery", tags=["discovery"])
 app.include_router(graph_queries.router, prefix="/ops/graph", tags=["graph"])
 app.include_router(dashboard_router)

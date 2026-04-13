@@ -24,7 +24,7 @@ _driver: AsyncDriver | None = None
 _available: bool = False
 
 # Timeout for Neo4j queries (deterministic termination guardrail)
-QUERY_TIMEOUT_SECONDS = 0.5  # 500ms
+QUERY_TIMEOUT_SECONDS = 5.0  # 5 seconds
 
 # Safe mode thresholds
 SAFE_MODE_FAILURE_THRESHOLD = 5  # Number of failures to trigger safe mode
@@ -207,7 +207,7 @@ async def run_query_with_timeout(
         async def _execute_query() -> list[dict]:
             async with _driver.session() as session:
                 result = await session.run(cypher, params or {})
-                records = await result.fetch()
+                records = await result.fetch(n=100)
                 return [dict(record) for record in records]
 
         result = await asyncio.wait_for(_execute_query(), timeout=timeout)
@@ -319,7 +319,7 @@ class ResultIterator:
             raise StopAsyncIteration
 
         try:
-            records = await asyncio.wait_for(self._result.fetch(), timeout=self._timeout)
+            records = await asyncio.wait_for(self._result.fetch(n=100), timeout=self._timeout)
             if not records:
                 self._exhausted = True
                 raise StopAsyncIteration
