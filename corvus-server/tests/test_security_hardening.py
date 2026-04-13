@@ -33,6 +33,7 @@ async def test_event_has_authenticated_as(client):
             "source": "test",
             "type": "change.started",
             "target": "vllm-primary",
+            "data": {"description": "test change"},
         },
     )
     assert resp.status_code == 201
@@ -123,6 +124,7 @@ async def test_audit_forwards_to_siem(client):
                 "source": "test",
                 "type": "change.started",
                 "target": "test-target",
+                "data": {"description": "test change"},
             },
         )
         assert resp.status_code == 201
