@@ -80,9 +80,7 @@ def record_event(event_type: str) -> None:
     _hourly_counts[event_type].append((hour, 1))
     # Prune old entries
     cutoff = hour - timedelta(hours=_HOURS_TO_KEEP)
-    _hourly_counts[event_type] = [
-        (h, c) for h, c in _hourly_counts[event_type] if h > cutoff
-    ]
+    _hourly_counts[event_type] = [(h, c) for h, c in _hourly_counts[event_type] if h > cutoff]
 
 
 def get_hourly_rate(event_type: str) -> float:
@@ -142,20 +140,18 @@ def record_incident_state(incident_id: str, state: str) -> list[dict[str, Any]]:
 
     # Prune old entries
     cutoff = now - timedelta(hours=24)
-    _incident_timeline[incident_id] = [
-        (t, s) for t, s in _incident_timeline[incident_id] if t > cutoff
-    ]
+    _incident_timeline[incident_id] = [(t, s) for t, s in _incident_timeline[incident_id] if t > cutoff]
 
     contradictions = []
     timeline = _incident_timeline[incident_id]
     for _i, (ts, stype) in enumerate(timeline):
         if stype == "incident.resolved" and state == "incident.opened" and (now - ts) <= _CONTRADICTION_WINDOW:
-                contradictions.append(
-                    {
-                        "incident_id": incident_id,
-                        "resolved_at": ts.isoformat(),
-                        "reopened_at": now.isoformat(),
-                        "gap_minutes": int((now - ts).total_seconds() / 60),
-                    }
-                )
+            contradictions.append(
+                {
+                    "incident_id": incident_id,
+                    "resolved_at": ts.isoformat(),
+                    "reopened_at": now.isoformat(),
+                    "gap_minutes": int((now - ts).total_seconds() / 60),
+                }
+            )
     return contradictions

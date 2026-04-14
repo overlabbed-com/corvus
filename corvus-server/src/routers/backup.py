@@ -275,7 +275,6 @@ async def backup_zfs(req: ZfsRequest, request: Request):
 # --- SQLite Backup/Restore (GAP-11) ---
 
 
-
 class SnapshotResponse(BaseModel):
     """JSON snapshot of the operational database."""
 
@@ -351,8 +350,7 @@ async def backup_restore(req: RestoreRequest, request: Request) -> BackupRespons
                 placeholders = ", ".join(["?"] * len(columns))
                 values = [row[c] for c in columns]
                 await db.execute(
-                    f"INSERT OR REPLACE INTO {table_name} "
-                    f"({', '.join(columns)}) VALUES ({placeholders})",
+                    f"INSERT OR REPLACE INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders})",
                     values,
                 )
         await db.commit()

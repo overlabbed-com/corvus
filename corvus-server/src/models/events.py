@@ -8,58 +8,60 @@ from pydantic import BaseModel, field_validator, model_validator
 # Event Type Allowlist — mirrors spec/events.md taxonomy
 # ---------------------------------------------------------------------------
 
-EVENT_TYPE_ALLOWLIST = frozenset({
-    # Change lifecycle
-    "change.started",
-    "change.completed",
-    "change.failed",
-    "change.expired",
-    # Incident lifecycle
-    "incident.opened",
-    "incident.investigating",
-    "incident.resolved",
-    "incident.escalated",
-    # Remediation
-    "remediation.restart",
-    "remediation.config_fix",
-    "remediation.credential_rotation",
-    # Sweep/Scan
-    "sweep.completed",
-    "sweep.anomaly",
-    # Actions
-    "action.approved",
-    "action.denied",
-    # Sessions
-    "session.started",
-    "session.ended",
-    # Plan lifecycle
-    "plan.created",
-    "plan.approved",
-    "plan.started",
-    "plan.step_completed",
-    "plan.step_failed",
-    "plan.completed",
-    "plan.failed",
-    "plan.blocked",
-    "plan.rolling_back",
-    "plan.rolled_back",
-    # Lean metrics
-    "metrics.snapshot",
-    "metrics.anomaly",
-    "metrics.adjustment",
-    "metrics.revert",
-    "metrics.converged",
-    # Correlation
-    "correlation.group_created",
-    "correlation.group_resolved",
-    # Gap patterns (wildcard matching applied at runtime)
-    "gap:accuracy:triage_failed",
-    "gap:coverage:no_runbook",
-    "gap:coverage:unclassified",
-    "gap:coverage:config_drift",
-    "gap:autonomy:manual_intervention",
-    "gap:efficiency:slow_resolution",
-})
+EVENT_TYPE_ALLOWLIST = frozenset(
+    {
+        # Change lifecycle
+        "change.started",
+        "change.completed",
+        "change.failed",
+        "change.expired",
+        # Incident lifecycle
+        "incident.opened",
+        "incident.investigating",
+        "incident.resolved",
+        "incident.escalated",
+        # Remediation
+        "remediation.restart",
+        "remediation.config_fix",
+        "remediation.credential_rotation",
+        # Sweep/Scan
+        "sweep.completed",
+        "sweep.anomaly",
+        # Actions
+        "action.approved",
+        "action.denied",
+        # Sessions
+        "session.started",
+        "session.ended",
+        # Plan lifecycle
+        "plan.created",
+        "plan.approved",
+        "plan.started",
+        "plan.step_completed",
+        "plan.step_failed",
+        "plan.completed",
+        "plan.failed",
+        "plan.blocked",
+        "plan.rolling_back",
+        "plan.rolled_back",
+        # Lean metrics
+        "metrics.snapshot",
+        "metrics.anomaly",
+        "metrics.adjustment",
+        "metrics.revert",
+        "metrics.converged",
+        # Correlation
+        "correlation.group_created",
+        "correlation.group_resolved",
+        # Gap patterns (wildcard matching applied at runtime)
+        "gap:accuracy:triage_failed",
+        "gap:coverage:no_runbook",
+        "gap:coverage:unclassified",
+        "gap:coverage:config_drift",
+        "gap:autonomy:manual_intervention",
+        "gap:efficiency:slow_resolution",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Required fields per event type (from spec/events.md)
@@ -130,9 +132,7 @@ class EventCreate(BaseModel):
     @classmethod
     def validate_severity(cls, v: str) -> str:
         if v not in VALID_SEVERITIES:
-            raise ValueError(
-                f"Invalid severity: {v!r}. Must be one of: {sorted(VALID_SEVERITIES)}"
-            )
+            raise ValueError(f"Invalid severity: {v!r}. Must be one of: {sorted(VALID_SEVERITIES)}")
         return v
 
     @model_validator(mode="after")

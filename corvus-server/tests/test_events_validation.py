@@ -9,6 +9,7 @@ import pytest
 # Event Type Allowlist Tests
 # ---------------------------------------------------------------------------
 
+
 class TestEventTypeAllowlist:
     """GAP-3: Unknown event types must be rejected with 400."""
 
@@ -207,6 +208,7 @@ class TestEventTypeAllowlist:
 # Severity Validation Tests
 # ---------------------------------------------------------------------------
 
+
 class TestSeverityValidation:
     """Severity must be one of: info, warning, critical."""
 
@@ -270,6 +272,7 @@ class TestSeverityValidation:
 # ---------------------------------------------------------------------------
 # Backward Compatibility Tests
 # ---------------------------------------------------------------------------
+
 
 class TestBackwardCompatibility:
     """Existing valid events must continue to work."""
