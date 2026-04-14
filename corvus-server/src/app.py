@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from slowapi import Limiter
@@ -178,40 +177,17 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     )
 
 
-@app.exception_handler(RequestValidationError)
-async def request_validation_handler(request: Request, exc: RequestValidationError):
-    """ "Return 400 for request validation errors (GAP-1: OCSF schema validation)."""
-    errors = []
-    for e in exc.errors():
-        loc = ".".join(str(item) for item in e["loc"] if item not in ("body", "__root__"))
-        errors.append(f"{'.'.join(loc) + ': ' if loc else ''}{e['msg']}")
-
-    detail = "; ".join(errors)
-    if any("Unknown event type" in e["msg"] for e in exc.errors()):
-        from src.models.events import EVENT_TYPE_ALLOWLIST
-
-        valid = sorted(EVENT_TYPE_ALLOWLIST)
-        detail = f"{detail}; valid_types={valid}"
-
-    return JSONResponse(status_code=400, content={"detail": detail})
-
-
 @app.exception_handler(ValidationError)
 async def validation_error_handler(request: Request, exc: ValidationError):
-    """ "Return 400 for Pydantic validation errors (GAP-1: OCSF schema validation)."""
-    errors = []
-    for e in exc.errors():
-        loc = ".".join(str(item) for item in e["loc"] if item not in ("body", "__root__"))
-        errors.append(f"{'.'.join(loc) + ': ' if loc else ''}{e['msg']}")
-
-    detail = "; ".join(errors)
+    """ "Return 400 for event type validation errors (GAP-1), re-raise all others."""
     if any("Unknown event type" in e["msg"] for e in exc.errors()):
         from src.models.events import EVENT_TYPE_ALLOWLIST
 
         valid = sorted(EVENT_TYPE_ALLOWLIST)
-        detail = f"{detail}; valid_types={valid}"
+        detail = f"Unknown event type; valid_types={valid}"
+        return JSONResponse(status_code=400, content={"detail": detail})
 
-    return JSONResponse(status_code=400, content={"detail": detail})
+    raise exc
 
 
 # Middleware (order matters — outermost first, innermost last)

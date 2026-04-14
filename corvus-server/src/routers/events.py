@@ -43,6 +43,26 @@ def _row_to_response(row) -> EventResponse:
 @router.post("", response_model=EventResponse, status_code=201)
 async def emit_event(event: EventCreate, request: Request):
     """Emit a new operational event."""
+    # GAP-1/3: Validate event type before model validation
+    from src.models.events import EVENT_TYPE_ALLOWLIST, VALID_SEVERITIES
+
+    if event.type not in EVENT_TYPE_ALLOWLIST:
+        from fastapi import HTTPException
+
+        valid = sorted(EVENT_TYPE_ALLOWLIST)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown event type: {event.type!r}; valid_types={valid}",
+        )
+
+    if event.severity not in VALID_SEVERITIES:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid severity: {event.severity!r}. Must be one of: {sorted(VALID_SEVERITIES)}",
+        )
+
     # Record authenticated identity (S1.2 — prevents agent impersonation)
     authenticated_as = "anonymous"
     if hasattr(request.state, "auth"):

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, model_validator
 
 # ---------------------------------------------------------------------------
 # Event Type Allowlist — mirrors spec/events.md taxonomy
@@ -111,7 +111,7 @@ def _is_valid_event_type(event_type: str) -> bool:
 
 class EventCreate(BaseModel):
     source: str
-    type: str
+    type: str  # Event type validated in router (GAP-1/3)
     target: str
     severity: str = "info"
     data: dict[str, Any] = {}
@@ -119,21 +119,6 @@ class EventCreate(BaseModel):
     related_change_id: str | None = None
     related_problem_id: str | None = None
     parent_event_id: str | None = None
-
-    @field_validator("type")
-    @classmethod
-    def validate_event_type(cls, v: str) -> str:
-        if not _is_valid_event_type(v):
-            valid = sorted(EVENT_TYPE_ALLOWLIST)
-            raise ValueError(f"Unknown event type: {v!r}. Valid types: {valid}")
-        return v
-
-    @field_validator("severity")
-    @classmethod
-    def validate_severity(cls, v: str) -> str:
-        if v not in VALID_SEVERITIES:
-            raise ValueError(f"Invalid severity: {v!r}. Must be one of: {sorted(VALID_SEVERITIES)}")
-        return v
 
     @model_validator(mode="after")
     def validate_required_fields(self):

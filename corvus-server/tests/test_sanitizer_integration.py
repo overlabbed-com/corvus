@@ -32,7 +32,7 @@ class TestSanitizerOnEvents:
 
         event = EventCreate(
             source="test",
-            type="test.event",
+            type="session.started",
             target="svc-a",
             severity="info",
             data={"log": "password='s3cret' in config"},
