@@ -143,9 +143,7 @@ async def _check_cmdb_registration_tracking(db, cutoff: str) -> dict[str, Any]:
     cursor = await db.execute("SELECT COUNT(*) as cnt FROM ops_cmdb")
     total = (await cursor.fetchone())["cnt"]
 
-    cursor = await db.execute(
-        "SELECT COUNT(*) as cnt FROM ops_cmdb WHERE registered_by IS NOT NULL"
-    )
+    cursor = await db.execute("SELECT COUNT(*) as cnt FROM ops_cmdb WHERE registered_by IS NOT NULL")
     tracked = (await cursor.fetchone())["cnt"]
 
     pct = round(tracked / total * 100, 1) if total > 0 else 0

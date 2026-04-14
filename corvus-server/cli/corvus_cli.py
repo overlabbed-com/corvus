@@ -64,6 +64,7 @@ app.add_typer(trust_app, name="trust")
 # Config
 # ---------------------------------------------------------------------------
 
+
 def _load_config() -> dict:
     """Load config from ~/.corvus.yaml or env vars."""
     config = {"url": "http://localhost:8000", "token": ""}
@@ -132,6 +133,7 @@ def _patch(path: str, json_data: dict | None = None):
 # ---------------------------------------------------------------------------
 # Top-level commands
 # ---------------------------------------------------------------------------
+
 
 @app.command()
 def status(target: str):
@@ -287,6 +289,7 @@ def graph_stats():
 # Incidents
 # ---------------------------------------------------------------------------
 
+
 @incidents_app.command("list")
 def incidents_list(
     status_filter: str = typer.Option("open", "--status", help="Filter: open, resolved, all"),
@@ -312,18 +315,22 @@ def incidents_create(
     detected_by: str = typer.Option("corvus-cli", help="Who detected it"),
 ):
     """Create an incident."""
-    data = _post("/ops/incidents", json_data={
-        "target": target,
-        "title": title,
-        "severity": severity,
-        "detected_by": detected_by,
-    })
+    data = _post(
+        "/ops/incidents",
+        json_data={
+            "target": target,
+            "title": title,
+            "severity": severity,
+            "detected_by": detected_by,
+        },
+    )
     typer.secho(f"  Created: {data.get('id', '?')}", fg=typer.colors.GREEN)
 
 
 # ---------------------------------------------------------------------------
 # Changes
 # ---------------------------------------------------------------------------
+
 
 @changes_app.command("list")
 def changes_list(
@@ -350,12 +357,15 @@ def changes_create(
 ):
     """Declare a change window."""
     target_list = [t.strip() for t in targets.split(",")]
-    data = _post("/ops/changes", json_data={
-        "targets": target_list,
-        "description": description,
-        "created_by": created_by,
-        "duration_minutes": duration_minutes,
-    })
+    data = _post(
+        "/ops/changes",
+        json_data={
+            "targets": target_list,
+            "description": description,
+            "created_by": created_by,
+            "duration_minutes": duration_minutes,
+        },
+    )
     typer.secho(f"  Created: {data.get('id', '?')}", fg=typer.colors.GREEN)
     typer.echo(f"  Expires: {data.get('expires_at', '?')}")
 
@@ -370,6 +380,7 @@ def changes_close(change_id: str):
 # ---------------------------------------------------------------------------
 # Events
 # ---------------------------------------------------------------------------
+
 
 @events_app.command("emit")
 def events_emit(
@@ -386,13 +397,16 @@ def events_emit(
         typer.echo("Error: --data must be valid JSON", err=True)
         raise typer.Exit(1) from err
 
-    result = _post("/ops/events", json_data={
-        "type": event_type,
-        "target": target,
-        "source": source,
-        "severity": severity,
-        "data": extra_data,
-    })
+    result = _post(
+        "/ops/events",
+        json_data={
+            "type": event_type,
+            "target": target,
+            "source": source,
+            "severity": severity,
+            "data": extra_data,
+        },
+    )
     typer.secho(f"  Emitted: {result.get('id', '?')}", fg=typer.colors.GREEN)
 
 
@@ -418,6 +432,7 @@ def events_watch(
 # ---------------------------------------------------------------------------
 # CMDB
 # ---------------------------------------------------------------------------
+
 
 @cmdb_app.command("list")
 def cmdb_list(
@@ -451,6 +466,7 @@ def cmdb_get(name: str):
 # Problems
 # ---------------------------------------------------------------------------
 
+
 @problems_app.command("list")
 def problems_list(
     status_filter: str = typer.Option("identified", "--status", help="Filter: identified, resolved, all"),
@@ -470,6 +486,7 @@ def problems_list(
 # Gaps
 # ---------------------------------------------------------------------------
 
+
 @app.command("gaps")
 def gaps_sweep():
     """Run gap detection sweep."""
@@ -487,6 +504,7 @@ def gaps_sweep():
 # ---------------------------------------------------------------------------
 # Trust
 # ---------------------------------------------------------------------------
+
 
 @trust_app.command("list")
 def trust_list():

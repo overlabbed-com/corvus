@@ -44,7 +44,7 @@ class TestSanitizerOnEvents:
             "id": "EVT-TEST1234",
             "timestamp": "2026-03-30T12:00:00",
             "source": "test",
-            "type": "test.event",
+            "type": "session.started",
             "target": "svc-a",
             "severity": "info",
             "data": json.dumps({"log": "password='[REDACTED]' in config"}),

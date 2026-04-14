@@ -118,7 +118,7 @@ async def test_emit_event_dispatch(client):
         "corvus_emit_event",
         {
             "source": "test",
-            "type": "test.event",
+            "type": "session.started",
             "target": "test-target",
             "severity": "info",
             "data": {"test": True},

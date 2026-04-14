@@ -77,7 +77,7 @@ async def test_soc2_audit_with_data(client):
     # Emit an event and create a change to produce audit evidence
     await client.post(
         "/ops/events",
-        json={"source": "test", "type": "test.event", "target": "svc-a", "severity": "info", "data": {}},
+        json={"source": "test", "type": "session.started", "target": "svc-a", "severity": "info", "data": {}},
     )
     await client.post(
         "/ops/changes",
