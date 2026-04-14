@@ -1,0 +1,27 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull latest image
+        run: |
+          docker pull ghcr.io/overlabbed-com/corvus:latest
+
+      - name: Deploy to dockp04
+        run: |
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            ${{ secrets.DOCKP04_SSH_HOST }} \
+            -p ${{ secrets.DOCKP04_SSH_PORT }} \
+            -i ${{ secrets.DOCKP04_SSH_KEY }} \
+            'cd /mnt/docker/stacks/dockp04-corvus && \
+             docker compose pull corvus && \
+             docker compose up -d --remove-orphans corvus && \
+             docker healthchecks corvus --interval=10s --retries=3'

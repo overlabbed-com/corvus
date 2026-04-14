@@ -127,3 +127,18 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      - name: Deploy to dockp04
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Deploying to dockp04..."
+          # Build locally on dockp04 (runner can't pull from GHCR)
+          rsync -a --delete \
+            -e 'ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30' \
+            corvus-server/ \
+            github-runner@192.168.20.14:/home/github-runner/corvus-server/
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 192.168.20.14 \
+            'cd /home/github-runner/corvus-server && docker build -t ghcr.io/overlabbed-com/corvus:latest . && cd /mnt/docker/stacks/dockp04-corvus && sudo docker compose up -d --remove-orphans corvus'
+          echo "Built and restarted. Waiting for healthy..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 192.168.20.14 \
+            'for i in $(seq 1 30); do sleep 2; STATUS=$(sudo docker inspect corvus --format "{{.State.Health.Status}}" 2>/dev/null); [ "$STATUS" = "healthy" ] && echo "corvus is healthy" && break; echo "waiting... ${i}s"; done; sudo docker inspect corvus --format "{{.State.Health.Status}}"'
