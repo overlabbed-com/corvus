@@ -3,6 +3,8 @@
 Writes every API request to ops_audit_log. Append-only, never deleted.
 Forwards audit entries to SIEM as OCSF API Activity events.
 Addresses threat model finding R1.1 (audit log integrity).
+
+GAP-10: Per-Key Audit Alerting — real-time alerting on admin actions.
 """
 
 import asyncio
@@ -17,6 +19,23 @@ from starlette.responses import Response
 
 from src.database import get_db
 from src.siem.forwarder import forward_to_siem
+
+logger = logging.getLogger(__name__)
+
+# GAP-10: Admin action patterns that trigger real-time alerts
+ADMIN_ACTION_PATTERNS = [
+    "POST /ops/cmdb",
+    "PATCH /ops/cmdb",
+    "DELETE /ops/cmdb",
+    "POST /ops/changes",
+    "PATCH /ops/changes",
+    "DELETE /ops/changes",
+    "POST /ops/incidents",
+    "PATCH /ops/incidents",
+    "POST /ops/problems",
+    "POST /backup/restore",
+    "POST /ops/admin",
+]
 
 
 class AuditMiddleware(BaseHTTPMiddleware):
@@ -105,6 +124,16 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 },
             }
             asyncio.create_task(forward_to_siem(audit_ocsf))
+
+            # GAP-10: Real-time admin action alert
+            action_key = f"{request.method} {request.url.path}"
+            if any(action_key.startswith(pattern) for pattern in ADMIN_ACTION_PATTERNS):
+                logger.warning(
+                    "ADMIN_ACTION: %s by %s [%s] — see audit log for details",
+                    action_key,
+                    actor,
+                    result,
+                )
         except Exception:
             # Never let audit logging failure break the request
             logging.getLogger(__name__).debug("Audit logging failed", exc_info=True)

@@ -270,3 +270,107 @@ async def backup_zfs(req: ZfsRequest, request: Request):
         status="validated",
         message=f"Command validated: {' '.join(req.command)}. Privileged execution not yet connected.",
     )
+
+
+# --- SQLite Backup/Restore (GAP-11) ---
+
+
+
+class SnapshotResponse(BaseModel):
+    """JSON snapshot of the operational database."""
+
+    version: str
+    timestamp: str
+    tables: dict[str, list[dict]]
+    event_count: int
+    change_count: int
+    incident_count: int
+
+
+class RestoreRequest(BaseModel):
+    """Restore from a JSON snapshot."""
+
+    snapshot: SnapshotResponse
+    # If True, replace all existing data. If False, merge (upsert).
+    replace: bool = False
+
+
+async def backup_snapshot(request: Request) -> SnapshotResponse:
+    """Get a JSON snapshot of the operational database (GAP-11).
+
+
+    Includes all ops_* tables. Used for disaster recovery and
+    point-in-time restore.
+    """
+    db = await get_db()
+    try:
+        tables = ["ops_events", "ops_changes", "ops_incidents", "ops_problems"]
+        result: dict[str, list[dict]] = {}
+        for table in tables:
+            cursor = await db.execute(f"SELECT * FROM {table}")
+            rows = await cursor.fetchall()
+            result[table] = [dict(row) for row in rows]
+
+        from datetime import UTC, datetime
+
+        return SnapshotResponse(
+            version="1.0",
+            timestamp=datetime.now(UTC).isoformat(),
+            tables=result,
+            event_count=len(result["ops_events"]),
+            change_count=len(result["ops_changes"]),
+            incident_count=len(result["ops_incidents"]),
+        )
+    finally:
+        await db.close()
+
+
+async def backup_restore(req: RestoreRequest, request: Request) -> BackupResponse:
+    """Restore the operational database from a JSON snapshot (GAP-11).
+
+
+    Requires admin role. Supports replace (full overwrite) or merge (upsert).
+    """
+    # Require admin role
+    if not hasattr(request.state, "auth") or request.state.auth.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    snap = req.snapshot
+    db = await get_db()
+    try:
+        if req.replace:
+            # Full replace: truncate all tables first
+            for table in ["ops_events", "ops_changes", "ops_incidents", "ops_problems"]:
+                await db.execute(f"DELETE FROM {table}")
+
+        # Restore each table
+        for table_name, rows in snap.tables.items():
+            for row in rows:
+                # Build upsert: INSERT OR REPLACE
+                columns = list(row.keys())
+                placeholders = ", ".join(["?"] * len(columns))
+                values = [row[c] for c in columns]
+                await db.execute(
+                    f"INSERT OR REPLACE INTO {table_name} "
+                    f"({', '.join(columns)}) VALUES ({placeholders})",
+                    values,
+                )
+        await db.commit()
+
+        await _audit_backup(
+            "backup.restore",
+            request.state.auth.identity,
+            {
+                "version": snap.version,
+                "replace": req.replace,
+                "event_count": snap.event_count,
+            },
+        )
+
+        return BackupResponse(
+            status="restored",
+            message=f"Restored {snap.event_count} events, "
+            f"{snap.change_count} changes, {snap.incident_count} incidents.",
+        )
+    finally:
+        await db.close()
