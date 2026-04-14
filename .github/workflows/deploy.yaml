@@ -1,0 +1,37 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy corvus to dockp04
+    runs-on: [self-hosted, dockp04]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build corvus
+        run: |
+          docker build -t ghcr.io/overlabbed-com/corvus:latest corvus-server/
+
+      - name: Deploy stack
+        run: |
+          cd /mnt/docker/stacks/dockp04-corvus
+          sudo docker compose up -d --remove-orphans
+
+      - name: Verify health
+        run: |
+          echo "Waiting for healthy..."
+          for i in $(seq 1 30); do
+            sleep 2
+            STATUS=$(docker inspect corvus --format '{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+            if [ "$STATUS" = "healthy" ]; then
+              echo "corvus is healthy"
+              exit 0
+            fi
+            echo "waiting... ${i}s (status=$STATUS)"
+          done
+          echo "Timeout waiting for healthy"
+          docker ps --filter "name=corvus"
+          exit 1
