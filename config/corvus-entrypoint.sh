@@ -28,7 +28,7 @@ fi
 FIELDS=$(curl -s -H "Authorization: Bearer ${OPC_TOKEN}" \
   "${OPC_HOST}/v1/vaults/${VAULT_ID}/items/${ITEM_ID}/fields")
 
-CORVUS_API_KEYS=$(jq -r '.[] | select(.label=="CORVUS_API_KEYS") | .value // .password // empty' <<< "${FIELDS}")
+CORVUS_API_KEYS=$(echo "${FIELDS}" | jq -r '.[] | select(.label=="CORVUS_API_KEYS") | .value // .password // empty')
 
 if [ -z "${CORVUS_API_KEYS}" ]; then
   echo "[corvus-opc] ERROR: CORVUS_API_KEYS not found" >&2; exit 1
