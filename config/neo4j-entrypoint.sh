@@ -28,7 +28,7 @@ fi
 FIELDS=$(curl -s -H "Authorization: Bearer ${OPC_TOKEN}" \
   "${OPC_HOST}/v1/vaults/${VAULT_ID}/items/${ITEM_ID}/fields")
 
-NEO4J_PASSWORD=$(jq -r '.[] | select(.label=="NEO4J_PASSWORD") | .value // .password // empty' <<< "${FIELDS}")
+NEO4J_PASSWORD=$(echo "${FIELDS}" | jq -r '.[] | select(.label=="NEO4J_PASSWORD") | .value // .password // empty')
 
 if [ -z "${NEO4J_PASSWORD}" ]; then
   echo "[neo4j-opc] ERROR: NEO4J_PASSWORD not found" >&2; exit 1
