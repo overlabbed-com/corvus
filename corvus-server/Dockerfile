@@ -14,6 +14,13 @@ RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 # Stage 2: Production image
 FROM python:3.11-slim AS production
 
+# Install curl and jq for entrypoint scripts (1Password Connect secret fetching)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+
 # Security: Create non-root user
 RUN groupadd --gid 1000 corvus \
     && useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home corvus
