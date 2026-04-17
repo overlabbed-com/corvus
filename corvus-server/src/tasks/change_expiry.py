@@ -40,10 +40,10 @@ async def expire_stale_changes() -> int:
                 (now, row["id"]),
             )
 
-            # Emit expiry event
-            event_id = f"EVT-{uuid.uuid4().hex[:8].upper()}"
+            # Emit expiry event (one per target)
             targets = json.loads(row["targets"])
             for target in targets:
+                event_id = f"EVT-{uuid.uuid4().hex[:8].upper()}"
                 await db.execute(
                     """INSERT INTO ops_events
                        (id, timestamp, source, type, target, severity, data,
