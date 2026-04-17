@@ -361,6 +361,12 @@ async def init_db() -> None:
             "ALTER TABLE ops_incidents ADD COLUMN investigating_at TEXT",
             "ALTER TABLE ops_trust_ledger ADD COLUMN first_seen_at TEXT",
             "ALTER TABLE ops_triage_log ADD COLUMN resolution_time_seconds REAL",
+            # GAP-9: GitOps declared state for drift detection
+            "ALTER TABLE ops_cmdb ADD COLUMN declared_image TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN declared_healthcheck TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN declared_env_hash TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN declared_networks TEXT",
+            "ALTER TABLE ops_cmdb ADD COLUMN last_declared_at TEXT",
         ]:
             with contextlib.suppress(Exception):  # Column already exists
                 await db.execute(alter_sql)
