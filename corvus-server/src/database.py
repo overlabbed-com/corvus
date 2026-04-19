@@ -371,6 +371,11 @@ async def init_db() -> None:
             "ALTER TABLE ops_cmdb ADD COLUMN declared_env_hash TEXT",
             "ALTER TABLE ops_cmdb ADD COLUMN declared_networks TEXT",
             "ALTER TABLE ops_cmdb ADD COLUMN last_declared_at TEXT",
+            # GAP-8: HMAC-SHA256 event signing. Column is in the CREATE
+            # schema but CREATE TABLE IF NOT EXISTS is a no-op on
+            # pre-existing tables, so DBs that predate GAP-8 need the
+            # ADD COLUMN backfill.
+            "ALTER TABLE ops_events ADD COLUMN signature TEXT DEFAULT ''",
         ]:
             with contextlib.suppress(Exception):  # Column already exists
                 await db.execute(alter_sql)
