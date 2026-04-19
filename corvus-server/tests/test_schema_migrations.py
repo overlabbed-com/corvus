@@ -78,6 +78,80 @@ async def test_init_db_backfills_signature_column_on_existing_ops_events(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_migration_runner_applies_versioned_sql_files_once(monkeypatch, tmp_path):
+    """init_db() runs migrations/*.sql exactly once and tracks them in
+    the schema_migrations table."""
+    tmpdir = tempfile.mkdtemp()
+    monkeypatch.setenv("CORVUS_DATA_DIR", tmpdir)
+
+    import importlib
+
+    import src.config
+    import src.database
+
+    importlib.reload(src.config)
+    importlib.reload(src.database)
+
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    (migrations_dir / "001_test.sql").write_text("CREATE TABLE migration_test_001 (id INTEGER PRIMARY KEY);")
+    (migrations_dir / "002_test.sql").write_text("CREATE TABLE migration_test_002 (id INTEGER PRIMARY KEY);")
+
+    await src.database.init_db(migrations_dir=migrations_dir)
+
+    db_path = Path(tmpdir) / "corvus.db"
+    async with aiosqlite.connect(str(db_path)) as db:
+        async with db.execute("SELECT filename FROM schema_migrations ORDER BY filename") as cursor:
+            applied = [row[0] for row in await cursor.fetchall()]
+        # Both test tables exist
+        for table in ("migration_test_001", "migration_test_002"):
+            async with db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table,),
+            ) as cursor:
+                assert await cursor.fetchone() is not None
+
+    assert applied == ["001_test.sql", "002_test.sql"]
+
+    # Re-run: should NOT re-apply
+    await src.database.init_db(migrations_dir=migrations_dir)
+    async with aiosqlite.connect(str(db_path)) as db, db.execute("SELECT COUNT(*) FROM schema_migrations") as cursor:
+        count = (await cursor.fetchone())[0]
+    assert count == 2, "rerun should not duplicate migration records"
+
+
+@pytest.mark.asyncio
+async def test_migration_runner_tolerates_duplicate_column_from_legacy_migrations(monkeypatch, tmp_path):
+    """If a versioned migration would re-add a column that already exists
+    (because it's in the CREATE schema or the inline patch list), the
+    runner marks it applied rather than failing the boot."""
+    tmpdir = tempfile.mkdtemp()
+    monkeypatch.setenv("CORVUS_DATA_DIR", tmpdir)
+
+    import importlib
+
+    import src.config
+    import src.database
+
+    importlib.reload(src.config)
+    importlib.reload(src.database)
+
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    # signature is in the inline patch list + CREATE schema
+    (migrations_dir / "099_would_duplicate.sql").write_text(
+        "ALTER TABLE ops_events ADD COLUMN signature TEXT DEFAULT '';"
+    )
+
+    await src.database.init_db(migrations_dir=migrations_dir)
+
+    db_path = Path(tmpdir) / "corvus.db"
+    async with aiosqlite.connect(str(db_path)) as db, db.execute("SELECT filename FROM schema_migrations") as cursor:
+        applied = [row[0] for row in await cursor.fetchall()]
+    assert "099_would_duplicate.sql" in applied
+
+
+@pytest.mark.asyncio
 async def test_init_db_is_idempotent_on_fresh_db(monkeypatch):
     """init_db() must be safe to call twice on a fresh DB (no duplicate-column errors)."""
     tmpdir = tempfile.mkdtemp()
