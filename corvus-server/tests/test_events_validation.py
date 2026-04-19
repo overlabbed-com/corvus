@@ -131,6 +131,35 @@ class TestEventTypeAllowlist:
             assert r.status_code == 201, f"Failed for {metric_type}: {r.json()}"
 
     @pytest.mark.asyncio
+    async def test_anomaly_detected_is_accepted(self, client):
+        r = await client.post(
+            "/ops/events",
+            json={
+                "source": "test-agent",
+                "type": "anomaly.detected",
+                "target": "test-service",
+                "severity": "warning",
+                "data": {"reason": "unit test"},
+            },
+        )
+        assert r.status_code == 201, f"anomaly.detected rejected: {r.json()}"
+
+    @pytest.mark.asyncio
+    async def test_llm_investigation_events_are_accepted(self, client):
+        for llm_type in ("llm.investigation_started", "llm.investigation_completed"):
+            r = await client.post(
+                "/ops/events",
+                json={
+                    "source": "test-agent",
+                    "type": llm_type,
+                    "target": "test-service",
+                    "severity": "info",
+                    "data": {},
+                },
+            )
+            assert r.status_code == 201, f"Failed for {llm_type}: {r.json()}"
+
+    @pytest.mark.asyncio
     async def test_valid_correlation_events_are_accepted(self, client):
         for corr_type in ("correlation.group_created", "correlation.group_resolved"):
             r = await client.post(

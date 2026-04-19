@@ -34,6 +34,15 @@ forwarded to your SIEM.
 |------|------|----------|
 | `sweep.completed` | Health sweep finished | info |
 | `sweep.anomaly` | Anomaly detected during sweep | warning |
+| `anomaly.detected` | Anomaly detected outside a sweep context (continuous monitor) | warning |
+
+### LLM Investigation
+Read-only forensics driven by an LLM (not an action or a plan). Parallels session lifecycle.
+
+| Type | When | Severity |
+|------|------|----------|
+| `llm.investigation_started` | LLM investigation of a target began | info |
+| `llm.investigation_completed` | LLM investigation finished with findings | info |
 
 ### Actions
 | Type | When | Severity |
@@ -148,6 +157,8 @@ Every event is transformed to OCSF 1.3.0 before SIEM forwarding:
 | `plan.*` | Device Config State Change | 5019 |
 | `remediation.*` | Remediation Activity | 7001 |
 | `sweep.*` | Scan Activity / Detection Finding | 6007/2004 |
+| `anomaly.detected` | Detection Finding | 2004 |
+| `llm.*` | Application Lifecycle | 6002 |
 | `action.*` | API Activity | 6003 |
 | `session.*` | Application Lifecycle | 6002 |
 | `gap:*` | Compliance Finding | 2003 |
