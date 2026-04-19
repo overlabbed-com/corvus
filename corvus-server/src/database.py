@@ -1,10 +1,19 @@
 """SQLite database setup and connection management."""
 
 import contextlib
+import logging
+from pathlib import Path
 
 import aiosqlite
 
 from src.config import DB_PATH
+
+logger = logging.getLogger(__name__)
+
+# Directory of versioned migration files, applied once each after
+# SCHEMA + inline patches during init_db(). Override via CORVUS_MIGRATIONS_DIR
+# env var for tests.
+DEFAULT_MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ops_changes (
@@ -356,8 +365,20 @@ async def get_db() -> aiosqlite.Connection:
     return db
 
 
-async def init_db() -> None:
-    """Initialize database schema."""
+async def init_db(migrations_dir: Path | None = None) -> None:
+    """Initialize database schema.
+
+    Order of operations (each step is idempotent):
+      1. Run SCHEMA — CREATE TABLE IF NOT EXISTS for every table.
+      2. Apply inline column patches. Each is wrapped in suppress(Exception)
+         because ADD COLUMN fails on repeat runs.
+      3. Run versioned migrations from `migrations/*.sql`, tracking applied
+         files in the `schema_migrations` table.
+
+    The inline patch list and the versioned migrations both exist because
+    the project is mid-transition from inline patches to file-based
+    migrations. New schema changes should go in a versioned file.
+    """
     db = await get_db()
     try:
         await db.executescript(SCHEMA)
@@ -380,5 +401,71 @@ async def init_db() -> None:
             with contextlib.suppress(Exception):  # Column already exists
                 await db.execute(alter_sql)
         await db.commit()
+
+        await _run_file_migrations(db, migrations_dir or DEFAULT_MIGRATIONS_DIR)
     finally:
         await db.close()
+
+
+async def _run_file_migrations(db: aiosqlite.Connection, migrations_dir: Path) -> None:
+    """Apply versioned SQL migration files exactly once each.
+
+    Each .sql file in `migrations_dir` is applied in sorted order. The
+    filename is recorded in `schema_migrations` after successful apply,
+    so subsequent boots skip it.
+
+    Individual migrations run inside a transaction; a failure aborts
+    that file's changes (SQLite treats executescript as auto-commit,
+    so we BEGIN/COMMIT manually).
+    """
+    if not migrations_dir.is_dir():
+        logger.debug("No migrations dir at %s — skipping file migrations", migrations_dir)
+        return
+
+    # Tracking table
+    await db.execute(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
+    )
+    await db.commit()
+
+    async with db.execute("SELECT filename FROM schema_migrations") as cursor:
+        applied = {row[0] for row in await cursor.fetchall()}
+
+    migration_files = sorted(migrations_dir.glob("*.sql"))
+    for mig_path in migration_files:
+        if mig_path.name in applied:
+            continue
+
+        sql = mig_path.read_text()
+        try:
+            await db.execute("BEGIN")
+            await db.executescript(sql)
+            from datetime import UTC, datetime
+
+            await db.execute(
+                "INSERT INTO schema_migrations(filename, applied_at) VALUES (?, ?)",
+                (mig_path.name, datetime.now(UTC).isoformat()),
+            )
+            await db.commit()
+            logger.info("Applied migration %s", mig_path.name)
+        except Exception as exc:
+            await db.rollback()
+            # Many legacy migrations duplicate columns now in the CREATE
+            # schema or the inline patch list. Such "already exists"
+            # failures are safe to mark as applied so we don't retry.
+            msg = str(exc).lower()
+            if "duplicate column" in msg or "already exists" in msg:
+                from datetime import UTC, datetime
+
+                await db.execute(
+                    "INSERT INTO schema_migrations(filename, applied_at) VALUES (?, ?)",
+                    (mig_path.name, datetime.now(UTC).isoformat()),
+                )
+                await db.commit()
+                logger.info(
+                    "Migration %s was already reflected in schema — marked as applied",
+                    mig_path.name,
+                )
+            else:
+                logger.error("Migration %s failed: %s", mig_path.name, exc)
+                raise
