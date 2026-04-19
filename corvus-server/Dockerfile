@@ -34,6 +34,9 @@ RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 # Copy application code
 COPY src/ src/
 COPY runbooks/ /app/config/runbooks/
+# Versioned SQL migrations applied on startup by init_db(). Path is
+# relative to src/, so it must land at /app/migrations/ (next to src/).
+COPY migrations/ migrations/
 
 # Security: Set proper ownership
 RUN chown -R corvus:corvus /app
