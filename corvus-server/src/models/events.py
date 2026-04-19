@@ -27,6 +27,11 @@ EVENT_TYPE_ALLOWLIST = frozenset(
         # Sweep/Scan
         "sweep.completed",
         "sweep.anomaly",
+        # Detection (outside a sweep context — e.g. continuous monitors)
+        "anomaly.detected",
+        # LLM Investigation (read-only forensics with start/end lifecycle)
+        "llm.investigation_started",
+        "llm.investigation_completed",
         # Actions
         "action.approved",
         "action.denied",
