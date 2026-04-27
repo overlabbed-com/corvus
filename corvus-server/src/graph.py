@@ -201,16 +201,20 @@ async def run_query_with_timeout(
     cypher: str,
     params: dict | None = None,
     timeout: float = QUERY_TIMEOUT_SECONDS,
+    max_results: int | None = 1000,  # Story 5.2: Limit result size
 ) -> list[dict]:
     """Execute a Neo4j query with deterministic timeout enforcement.
+
+    Story 5.2: Added max_results parameter to prevent explosive results.
 
     Args:
         cypher: Cypher query string (already sanitized by caller)
         params: Query parameters
-        timeout: Maximum execution time in seconds (default: 500ms)
+        timeout: Maximum execution time in seconds (default: 5.0 seconds, NOT 500ms)
+        max_results: Maximum number of results to return (default: 1000, None = unlimited)
 
     Returns:
-        List of record dictionaries
+        List of record dictionaries (truncated to max_results if specified)
 
     Raises:
         asyncio.TimeoutError: If query exceeds timeout
@@ -225,12 +229,23 @@ async def run_query_with_timeout(
         async def _execute_query() -> list[dict]:
             async with _driver.session() as session:
                 result = await session.run(cypher, params or {})
-                records = await result.fetch(n=100)
-                return [dict(record) for record in records]
+                # Story 5.2: Limit results if max_results specified
+                if max_results:
+                    records = await result.fetch(n=max_results)
+                    # Check if more results exist
+                    remaining = await result.remaining()
+                    truncated = remaining > 0
+                else:
+                    records = await result.fetch()
+                    truncated = False
+                return [dict(record) for record in records], truncated
 
         result = await asyncio.wait_for(_execute_query(), timeout=timeout)
         _health.record_success()
-        return result
+        records, truncated = result
+        if truncated:
+            logger.warning("Query results truncated to %d results", max_results)
+        return records
     except TimeoutError:
         _health.record_failure()
         logger.warning("Query timed out after %fs: %s", timeout, cypher[:100])

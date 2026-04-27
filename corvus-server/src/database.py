@@ -385,6 +385,8 @@ async def get_db() -> aiosqlite.Connection:
     await db.execute("PRAGMA journal_mode=WAL")
     await db.execute("PRAGMA busy_timeout=5000")
     await db.execute("PRAGMA foreign_keys=ON")
+    # Story 5.1: Configure WAL auto-checkpoint to prevent bloat
+    await db.execute("PRAGMA wal_autocheckpoint=1000")
     return db
 
 
