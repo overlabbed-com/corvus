@@ -112,6 +112,11 @@ async def lifespan(app: FastAPI):
     # Start background tasks
     expiry_task = asyncio.create_task(run_change_expiry_loop())
     cleanup_task = asyncio.create_task(run_cleanup_loop())
+    
+    # Story 5.5: Start SIEM initialization
+    from src.tasks.siem_init import initialize_siem_adapters, retry_siem_initialization
+    await initialize_siem_adapters()
+    siem_retry_task = asyncio.create_task(retry_siem_initialization())
     gap_sweep_task = asyncio.create_task(run_gap_sweep_loop())
     step_timeout_task = asyncio.create_task(run_step_timeout_loop())
     metrics_task = asyncio.create_task(run_metrics_collector_loop())
@@ -135,6 +140,7 @@ async def lifespan(app: FastAPI):
         metrics_task,
         correlation_task,
         drift_task,
+        siem_retry_task,
     ):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -264,3 +270,19 @@ async def health():
         "safe_mode": get_safe_mode_state(),
         "graph_health": graph_health(),
     }
+
+# Story 5.5: Start SIEM initialization background task
+async def _start_siem_init_task():
+    """Start SIEM initialization at startup."""
+    from src.tasks.siem_init import initialize_siem_adapters, retry_siem_initialization
+    
+    # Initial initialization
+    await initialize_siem_adapters()
+    
+    # Start retry loop in background
+    asyncio.create_task(retry_siem_initialization())
+
+# Story 5.8: Add response compression middleware
+from starlette.middleware.compression import CompressionMiddleware
+
+app.add_middleware(CompressionMiddleware, minimum_size=1024)  # Compress responses > 1KB
