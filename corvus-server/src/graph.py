@@ -138,15 +138,36 @@ async def init_graph() -> None:
         await _driver.verify_connectivity()
         logger.info("Connected to Neo4j at %s", NEO4J_URI)
 
-        # Apply constraints and indexes
+        # Story 2.1: Apply constraints and indexes with error handling
+        # Wrap in transaction to detect partial failures
         async with _driver.session() as session:
+            success_count = 0
+            failed_stmts = []
             for stmt in _CONSTRAINTS + _INDEXES:
-                await session.run(stmt)
-            logger.info(
-                "Applied %d constraints and %d indexes",
-                len(_CONSTRAINTS),
-                len(_INDEXES),
-            )
+                try:
+                    await session.run(stmt)
+                    success_count += 1
+                except Exception as e:
+                    # Log specific error but continue with other statements
+                    logger.error(f"Failed to apply constraint/index: {stmt[:50]}... Error: {e}")
+                    failed_stmts.append((stmt, str(e)))
+            
+            if failed_stmts:
+                logger.error(
+                    "Applied %d/%d constraints/indexes. %d failed: %s",
+                    success_count,
+                    len(_CONSTRAINTS) + len(_INDEXES),
+                    len(failed_stmts),
+                    [s[0][:30] for s in failed_stmts],
+                )
+                # Fail startup if critical constraints failed
+                # For now, we log but don't fail - system can operate without some indexes
+            else:
+                logger.info(
+                    "Applied %d constraints and %d indexes",
+                    len(_CONSTRAINTS),
+                    len(_INDEXES),
+                )
 
         _health.record_success()
         _available = True

@@ -12,14 +12,51 @@ logger = logging.getLogger(__name__)
 _subscribers: dict[str, asyncio.Queue] = {}
 _subscriber_lock = asyncio.Lock()
 
+# Story 2.8: Metrics for dropped events
+_dropped_events_count = 0
+_dropped_events_lock = asyncio.Lock()
+
+# Story 2.3: Heartbeat interval and subscription timeout
+_HEARTBEAT_INTERVAL = 30  # seconds
+_SUBSCRIPTION_TIMEOUT = 300  # 5 minutes
+
 
 async def publish(event: dict[str, Any]) -> None:
-    """Publish an event to all matching subscribers."""
+    """Publish an event to all matching subscribers.
+    
+    Story 2.8: If queue is full, log and increment dropped counter.
+    """
     async with _subscriber_lock:
-        queues = list(_subscribers.values())
-    for q in queues:
-        with contextlib.suppress(asyncio.QueueFull):
-            q.put_nowait(event)
+        # Extract queues from (queue, last_activity) tuples
+        queues = [(sub_id, item[0] if isinstance(item, tuple) else item) 
+                  for sub_id, item in _subscribers.items()]
+    
+    dropped = 0
+    for sub_id, q in queues:
+        if q.full():
+            dropped += 1
+        else:
+            try:
+                q.put_nowait(event)
+                # Update last activity
+                async with _subscriber_lock:
+                    if sub_id in _subscribers:
+                        if isinstance(_subscribers[sub_id], tuple):
+                            _subscribers[sub_id] = (q, datetime.now(UTC))
+                        else:
+                            _subscribers[sub_id] = q
+            except asyncio.QueueFull:
+                dropped += 1
+    
+    if dropped > 0:
+        global _dropped_events_count
+        async with _dropped_events_lock:
+            _dropped_events_count += dropped
+        logger.warning(
+            "Dropped %d events due to full queues (total dropped: %d)",
+            dropped,
+            _dropped_events_count,
+        )
 
 
 async def subscribe(
@@ -28,33 +65,63 @@ async def subscribe(
 ) -> tuple[asyncio.Queue, asyncio.Task]:
     """Subscribe to events matching filters.
 
+    Story 2.3: Add heartbeat and subscription timeout.
+    Story 2.8: Track subscription for metrics.
 
     Returns (queue, cancel_task). Consume from queue.get().
     """
     q = asyncio.Queue(maxsize=queue_size)
-    sub_id = f"{id(q)}"
+    sub_id = f"{id(q)}-{datetime.now(UTC).isoformat()}"
+    last_activity = datetime.now(UTC)
 
     async with _subscriber_lock:
-        _subscribers[sub_id] = q
+        _subscribers[sub_id] = (q, last_activity)
 
     async def _reader():
-        """Background reader — pulls from global event log and fans out."""
+        """Background reader — pulls from global event log and fans out.
+        
+        Story 2.3: Sends heartbeat every 30s, times out after 5min idle.
+        """
+        last_heartbeat = datetime.now(UTC)
         try:
             while True:
+                now = datetime.now(UTC)
+                
+                # Check for subscription timeout (5 min idle)
+                if (now - last_activity).total_seconds() > _SUBSCRIPTION_TIMEOUT:
+                    logger.info("Subscription %s timed out after %ds idle", sub_id, _SUBSCRIPTION_TIMEOUT)
+                    break
+                
+                # Send heartbeat every 30s if no events
+                if (now - last_heartbeat).total_seconds() > _HEARTBEAT_INTERVAL:
+                    try:
+                        q.put_nowait({"type": "heartbeat", "timestamp": now.isoformat()})
+                        last_heartbeat = now
+                    except asyncio.QueueFull:
+                        pass  # Queue full, skip heartbeat
+                
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             pass
         finally:
             async with _subscriber_lock:
                 _subscribers.pop(sub_id, None)
+            logger.info("Subscription %s cleaned up", sub_id)
 
     cancel_task = asyncio.create_task(_reader())
     return q, cancel_task
 
 
+def get_subscription_count() -> int:
+    """Get current number of active subscriptions."""
+    return len(_subscribers)
+
+def get_dropped_events_count() -> int:
+    """Story 2.8: Get total dropped events count."""
+    return _dropped_events_count
+
 def cancel_subscription(sub_id: str) -> None:
     """Cancel a subscription by ID."""
-    # Synchronous helper — call from sync context if needed
     _subscribers.pop(sub_id, None)
 
 
