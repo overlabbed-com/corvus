@@ -117,6 +117,10 @@ async def lifespan(app: FastAPI):
     from src.tasks.siem_init import initialize_siem_adapters, retry_siem_initialization
     await initialize_siem_adapters()
     siem_retry_task = asyncio.create_task(retry_siem_initialization())
+    
+    # Story 6.2: Start feedback loop
+    from src.tasks.feedback_loop import run_feedback_loop
+    feedback_task = asyncio.create_task(run_feedback_loop())
     gap_sweep_task = asyncio.create_task(run_gap_sweep_loop())
     step_timeout_task = asyncio.create_task(run_step_timeout_loop())
     metrics_task = asyncio.create_task(run_metrics_collector_loop())
@@ -141,6 +145,7 @@ async def lifespan(app: FastAPI):
         correlation_task,
         drift_task,
         siem_retry_task,
+        feedback_task,
     ):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
