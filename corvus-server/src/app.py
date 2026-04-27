@@ -37,6 +37,7 @@ from src.routers import (
     knowledge,
     lean_metrics,
     metrics,
+    metrics_prometheus,  # Story 3.1: Prometheus metrics
     patterns,
     plans,
     problems,
@@ -220,6 +221,9 @@ app.include_router(graph_triage.router, tags=["triage-graph"])
 app.include_router(discovery.router, prefix="/ops/discovery", tags=["discovery"])
 app.include_router(graph_queries.router, prefix="/ops/graph", tags=["graph"])
 app.include_router(dashboard_router)
+
+# Story 3.1: Prometheus metrics endpoint
+app.include_router(metrics_prometheus.router)
 
 
 # MCP SSE endpoint (conditionally mounted)
