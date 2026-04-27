@@ -121,6 +121,10 @@ async def lifespan(app: FastAPI):
     # Story 6.2: Start feedback loop
     from src.tasks.feedback_loop import run_feedback_loop
     feedback_task = asyncio.create_task(run_feedback_loop())
+    
+    # Story 6.3: Start performance baseline collection
+    from src.tasks.performance_baseline import run_performance_baseline_collection
+    baseline_task = asyncio.create_task(run_performance_baseline_collection())
     gap_sweep_task = asyncio.create_task(run_gap_sweep_loop())
     step_timeout_task = asyncio.create_task(run_step_timeout_loop())
     metrics_task = asyncio.create_task(run_metrics_collector_loop())
@@ -146,6 +150,7 @@ async def lifespan(app: FastAPI):
         drift_task,
         siem_retry_task,
         feedback_task,
+        baseline_task,
     ):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
