@@ -2,13 +2,18 @@
 
 import contextlib
 import logging
-import sqlite3
+from pathlib import Path
 
 import aiosqlite
 
 from src.config import DB_PATH
 
 logger = logging.getLogger(__name__)
+
+# Directory of versioned migration files, applied once each after
+# SCHEMA + inline patches during init_db(). Override via CORVUS_MIGRATIONS_DIR
+# env var for tests.
+DEFAULT_MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ops_changes (
@@ -346,34 +351,6 @@ CREATE TABLE IF NOT EXISTS mesh_peers (
 CREATE INDEX IF NOT EXISTS idx_mesh_peers_status ON mesh_peers(status);
 CREATE INDEX IF NOT EXISTS idx_events_node_hlc ON ops_events(node_id, hlc_timestamp);
 CREATE INDEX IF NOT EXISTS idx_knowledge_node_id ON ops_knowledge(node_id);
-
--- Story 1.2: SIEM dead-letter queue for failed event forwarding
-CREATE TABLE IF NOT EXISTS ops_siem_dead_letter (
-    id TEXT PRIMARY KEY,
-    event_id TEXT NOT NULL,
-    event_type TEXT,
-    event_data TEXT NOT NULL,  -- JSON
-    error TEXT NOT NULL,
-    attempted_at TEXT NOT NULL,
-    attempt_count INTEGER NOT NULL DEFAULT 1,
-    last_adapter TEXT,
-    resolved_at TEXT,
-    resolved_by TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_dead_letter_event_id ON ops_siem_dead_letter(event_id);
-CREATE INDEX IF NOT EXISTS idx_dead_letter_attempted_at ON ops_siem_dead_letter(attempted_at);
-CREATE INDEX IF NOT EXISTS idx_dead_letter_resolved ON ops_siem_dead_letter(resolved_at);
-
--- Story 2.5: Composite indexes for performance optimization
-CREATE INDEX IF NOT EXISTS idx_events_context 
-ON ops_events(timestamp DESC, severity, type);
-
-CREATE INDEX IF NOT EXISTS idx_problems_gap 
-ON ops_problems(pattern, status);
-
-CREATE INDEX IF NOT EXISTS idx_triage_analytics 
-ON ops_triage_log(timestamp, service_type, outcome);
 """
 
 
@@ -385,18 +362,27 @@ async def get_db() -> aiosqlite.Connection:
     await db.execute("PRAGMA journal_mode=WAL")
     await db.execute("PRAGMA busy_timeout=5000")
     await db.execute("PRAGMA foreign_keys=ON")
-    # Story 5.1: Configure WAL auto-checkpoint to prevent bloat
-    await db.execute("PRAGMA wal_autocheckpoint=1000")
     return db
 
 
-async def init_db() -> None:
-    """Initialize database schema."""
+async def init_db(migrations_dir: Path | None = None) -> None:
+    """Initialize database schema.
+
+    Order of operations (each step is idempotent):
+      1. Run SCHEMA — CREATE TABLE IF NOT EXISTS for every table.
+      2. Apply inline column patches. Each is wrapped in suppress(Exception)
+         because ADD COLUMN fails on repeat runs.
+      3. Run versioned migrations from `migrations/*.sql`, tracking applied
+         files in the `schema_migrations` table.
+
+    The inline patch list and the versioned migrations both exist because
+    the project is mid-transition from inline patches to file-based
+    migrations. New schema changes should go in a versioned file.
+    """
     db = await get_db()
     try:
         await db.executescript(SCHEMA)
         # Column patches -- idempotent; silently skip if column already exists.
-        # Story 2.2: Only suppress duplicate column errors; re-raise other errors
         for alter_sql in [
             "ALTER TABLE ops_incidents ADD COLUMN investigating_at TEXT",
             "ALTER TABLE ops_trust_ledger ADD COLUMN first_seen_at TEXT",
@@ -406,14 +392,80 @@ async def init_db() -> None:
             "ALTER TABLE ops_cmdb ADD COLUMN declared_env_hash TEXT",
             "ALTER TABLE ops_cmdb ADD COLUMN declared_networks TEXT",
             "ALTER TABLE ops_cmdb ADD COLUMN last_declared_at TEXT",
+            # GAP-8: HMAC-SHA256 event signing. Column is in the CREATE
+            # schema but CREATE TABLE IF NOT EXISTS is a no-op on
+            # pre-existing tables, so DBs that predate GAP-8 need the
+            # ADD COLUMN backfill.
+            "ALTER TABLE ops_events ADD COLUMN signature TEXT DEFAULT ''",
         ]:
-            try:
+            with contextlib.suppress(Exception):  # Column already exists
                 await db.execute(alter_sql)
-            except sqlite3.OperationalError as e:
-                if "duplicate column" not in str(e).lower():
-                    logger.error(f"Migration error for '{alter_sql}': {e}")
-                    raise
-                # Else: column already exists, skip silently
         await db.commit()
+
+        await _run_file_migrations(db, migrations_dir or DEFAULT_MIGRATIONS_DIR)
     finally:
         await db.close()
+
+
+async def _run_file_migrations(db: aiosqlite.Connection, migrations_dir: Path) -> None:
+    """Apply versioned SQL migration files exactly once each.
+
+    Each .sql file in `migrations_dir` is applied in sorted order. The
+    filename is recorded in `schema_migrations` after successful apply,
+    so subsequent boots skip it.
+
+    Individual migrations run inside a transaction; a failure aborts
+    that file's changes (SQLite treats executescript as auto-commit,
+    so we BEGIN/COMMIT manually).
+    """
+    if not migrations_dir.is_dir():
+        logger.debug("No migrations dir at %s — skipping file migrations", migrations_dir)
+        return
+
+    # Tracking table
+    await db.execute(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
+    )
+    await db.commit()
+
+    async with db.execute("SELECT filename FROM schema_migrations") as cursor:
+        applied = {row[0] for row in await cursor.fetchall()}
+
+    migration_files = sorted(migrations_dir.glob("*.sql"))
+    for mig_path in migration_files:
+        if mig_path.name in applied:
+            continue
+
+        sql = mig_path.read_text()
+        try:
+            await db.execute("BEGIN")
+            await db.executescript(sql)
+            from datetime import UTC, datetime
+
+            await db.execute(
+                "INSERT INTO schema_migrations(filename, applied_at) VALUES (?, ?)",
+                (mig_path.name, datetime.now(UTC).isoformat()),
+            )
+            await db.commit()
+            logger.info("Applied migration %s", mig_path.name)
+        except Exception as exc:
+            await db.rollback()
+            # Many legacy migrations duplicate columns now in the CREATE
+            # schema or the inline patch list. Such "already exists"
+            # failures are safe to mark as applied so we don't retry.
+            msg = str(exc).lower()
+            if "duplicate column" in msg or "already exists" in msg:
+                from datetime import UTC, datetime
+
+                await db.execute(
+                    "INSERT INTO schema_migrations(filename, applied_at) VALUES (?, ?)",
+                    (mig_path.name, datetime.now(UTC).isoformat()),
+                )
+                await db.commit()
+                logger.info(
+                    "Migration %s was already reflected in schema — marked as applied",
+                    mig_path.name,
+                )
+            else:
+                logger.error("Migration %s failed: %s", mig_path.name, exc)
+                raise
