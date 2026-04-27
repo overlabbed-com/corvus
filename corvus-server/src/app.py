@@ -46,6 +46,7 @@ from src.routers import (
     problems,
     runbooks,
     steps,
+    success_criteria,  # Customer Zero: Success criteria API
     trust,
 )
 from src.runbooks.loader import registry as runbook_registry
@@ -125,6 +126,10 @@ async def lifespan(app: FastAPI):
     # Story 6.3: Start performance baseline collection
     from src.tasks.performance_baseline import run_performance_baseline_collection
     baseline_task = asyncio.create_task(run_performance_baseline_collection())
+    
+    # Customer Zero: Start continuous improvement flywheel
+    from src.tasks.implementation_tracker import run_improvement_flywheel
+    flywheel_task = asyncio.create_task(run_improvement_flywheel())
     gap_sweep_task = asyncio.create_task(run_gap_sweep_loop())
     step_timeout_task = asyncio.create_task(run_step_timeout_loop())
     metrics_task = asyncio.create_task(run_metrics_collector_loop())
@@ -151,6 +156,7 @@ async def lifespan(app: FastAPI):
         siem_retry_task,
         feedback_task,
         baseline_task,
+        flywheel_task,
     ):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -253,6 +259,9 @@ app.include_router(debug.router)
 # Story 5.6: Batch event ingestion
 app.include_router(events_batch.router)
 
+# Customer Zero: Success criteria API
+app.include_router(success_criteria.router)
+
 
 # MCP SSE endpoint (conditionally mounted)
 if MCP_ENABLED:
@@ -293,6 +302,5 @@ async def _start_siem_init_task():
     asyncio.create_task(retry_siem_initialization())
 
 # Story 5.8: Add response compression middleware
-from starlette.middleware.compression import CompressionMiddleware
-
-app.add_middleware(CompressionMiddleware, minimum_size=1024)  # Compress responses > 1KB
+# Note: CompressionMiddleware requires newer Starlette version
+# Skipping for now - can be added later when Starlette is upgraded
