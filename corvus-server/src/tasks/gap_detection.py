@@ -28,23 +28,12 @@ from src.tasks.task_metrics import track_task
 
 logger = logging.getLogger(__name__)
 
-# Baseline resolution times by service_type (minutes)
-RESOLUTION_BASELINES: dict[str, int] = {
-    "inference": 15,
-    "database": 30,
-    "proxy": 10,
-    "mcp_bridge": 5,
-    "secrets": 60,
-    "iot_gateway": 20,
-    "home_automation": 15,
-    "media": 10,
-    "monitoring": 20,
-    "automation": 15,
-    "dns": 30,
-    "utility": 5,
-}
-
-DEFAULT_BASELINE = 20  # minutes
+# Story 2.7: Baselines are now configurable via CMDB
+# Import from baseline_config module
+from src.tasks.baseline_config import (
+    DEFAULT_BASELINE,
+    get_resolution_baseline,
+)
 
 
 async def check_incident_gaps(incident_id: str) -> list[str]:
@@ -81,7 +70,8 @@ async def check_incident_gaps(incident_id: str) -> list[str]:
             cursor = await db.execute("SELECT service_type FROM ops_cmdb WHERE name = ?", (target,))
             svc = await cursor.fetchone()
             service_type = svc["service_type"] if svc else None
-            baseline = RESOLUTION_BASELINES.get(service_type or "", DEFAULT_BASELINE)
+            # Story 2.7: Get baseline from CMDB or use default
+            baseline = await get_resolution_baseline(service_type)
 
             if incident["resolution_time_minutes"] > baseline * 2:
                 pid = await _create_gap(

@@ -28,20 +28,25 @@ from src.routers import (
     ci,
     cmdb,
     correlations,
+    debug,  # Story 3.4: Debug endpoints
     discovery,
     events,
+    events_batch,  # Story 5.6: Batch event ingestion
     gaps,
     graph_queries,
     graph_triage,
+    health_detailed,  # Story 3.2: Enhanced health checks
     incidents,
     knowledge,
     lean_metrics,
     metrics,
+    metrics_prometheus,  # Story 3.1: Prometheus metrics
     patterns,
     plans,
     problems,
     runbooks,
     steps,
+    success_criteria,  # Customer Zero: Success criteria API
     trust,
 )
 from src.runbooks.loader import registry as runbook_registry
@@ -108,6 +113,23 @@ async def lifespan(app: FastAPI):
     # Start background tasks
     expiry_task = asyncio.create_task(run_change_expiry_loop())
     cleanup_task = asyncio.create_task(run_cleanup_loop())
+    
+    # Story 5.5: Start SIEM initialization
+    from src.tasks.siem_init import initialize_siem_adapters, retry_siem_initialization
+    await initialize_siem_adapters()
+    siem_retry_task = asyncio.create_task(retry_siem_initialization())
+    
+    # Story 6.2: Start feedback loop
+    from src.tasks.feedback_loop import run_feedback_loop
+    feedback_task = asyncio.create_task(run_feedback_loop())
+    
+    # Story 6.3: Start performance baseline collection
+    from src.tasks.performance_baseline import run_performance_baseline_collection
+    baseline_task = asyncio.create_task(run_performance_baseline_collection())
+    
+    # Customer Zero: Start continuous improvement flywheel
+    from src.tasks.implementation_tracker import run_improvement_flywheel
+    flywheel_task = asyncio.create_task(run_improvement_flywheel())
     gap_sweep_task = asyncio.create_task(run_gap_sweep_loop())
     step_timeout_task = asyncio.create_task(run_step_timeout_loop())
     metrics_task = asyncio.create_task(run_metrics_collector_loop())
@@ -131,6 +153,10 @@ async def lifespan(app: FastAPI):
         metrics_task,
         correlation_task,
         drift_task,
+        siem_retry_task,
+        feedback_task,
+        baseline_task,
+        flywheel_task,
     ):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -221,6 +247,21 @@ app.include_router(discovery.router, prefix="/ops/discovery", tags=["discovery"]
 app.include_router(graph_queries.router, prefix="/ops/graph", tags=["graph"])
 app.include_router(dashboard_router)
 
+# Story 3.1: Prometheus metrics endpoint
+app.include_router(metrics_prometheus.router)
+
+# Story 3.2: Enhanced health checks
+app.include_router(health_detailed.router)
+
+# Story 3.4: Debug endpoints (admin only)
+app.include_router(debug.router)
+
+# Story 5.6: Batch event ingestion
+app.include_router(events_batch.router)
+
+# Customer Zero: Success criteria API
+app.include_router(success_criteria.router)
+
 
 # MCP SSE endpoint (conditionally mounted)
 if MCP_ENABLED:
@@ -248,3 +289,18 @@ async def health():
         "safe_mode": get_safe_mode_state(),
         "graph_health": graph_health(),
     }
+
+# Story 5.5: Start SIEM initialization background task
+async def _start_siem_init_task():
+    """Start SIEM initialization at startup."""
+    from src.tasks.siem_init import initialize_siem_adapters, retry_siem_initialization
+    
+    # Initial initialization
+    await initialize_siem_adapters()
+    
+    # Start retry loop in background
+    asyncio.create_task(retry_siem_initialization())
+
+# Story 5.8: Add response compression middleware
+# Note: CompressionMiddleware requires newer Starlette version
+# Skipping for now - can be added later when Starlette is upgraded

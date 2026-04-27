@@ -173,10 +173,23 @@ def authenticate_request(request: Request) -> AuthContext | None:
                             identity=identity,
                         )
                     except Exception as e:
-                        logger.debug(f"OIDC validation failed: {e}")
-                        # Fall through to API key auth
+                        logger.error(f"OIDC validation failed: {e}")
+                        # Story 1.1: Only fall through to API key auth in dev mode
+                        if not CORVUS_DEV_MODE:
+                            raise HTTPException(
+                                status_code=503,
+                                detail="OIDC provider unavailable",
+                            )
+                        # Fall through to API key auth in dev mode only
         except Exception as e:
-            logger.debug(f"OIDC auth module error, falling back to API keys: {e}")
+            logger.error(f"OIDC auth module error: {e}")
+            # Story 1.1: Only fall through to API key auth in dev mode
+            if not CORVUS_DEV_MODE:
+                raise HTTPException(
+                    status_code=503,
+                    detail="OIDC provider unavailable",
+                )
+            # Fall through to API key auth in dev mode only
 
     # Priority 2: API key auth (backward compat)
     token = _extract_bearer_token(request)

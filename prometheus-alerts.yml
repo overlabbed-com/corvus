@@ -1,0 +1,98 @@
+# Story 3.3: Prometheus alerting rules for Corvus
+# Deploy with Prometheus Alertmanager
+
+groups:
+  - name: corvus_critical
+    interval: 30s
+    rules:
+      # SIEM Forwarding Failed
+      - alert: CorvusSIEMForwardingFailed
+        expr: rate(corvus_siem_forwarded_failure_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SIEM forwarding failing"
+          description: "SIEM adapter {{ $labels.adapter }} has failed to forward events for 2 minutes"
+      
+      # Graph Database Unhealthy
+      - alert: CorvusGraphUnhealthy
+        expr: corvus_graph_connections == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Graph database unavailable"
+          description: "Neo4j graph connections dropped to 0"
+      
+      # Event Queue Backlog
+      - alert: CorvusEventQueueBacklog
+        expr: rate(corvus_events_dropped_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Events being dropped due to queue full"
+          description: "{{ $value }} events dropped per second"
+      
+      # Database Connection Failed
+      - alert: CorvusDatabaseUnhealthy
+        expr: up{job="corvus"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Corvus instance down"
+          description: "Corvus instance {{ $labels.instance }} is not responding"
+
+  - name: corvus_warning
+    interval: 1m
+    rules:
+      # High Triage Latency
+      - alert: CorvusHighTriageLatency
+        expr: histogram_quantile(0.95, rate(corvus_triage_duration_seconds_bucket[5m])) > 30
+        labels:
+          severity: warning
+        annotations:
+          summary: "High triage latency"
+          description: "95th percentile triage duration is {{ $value }}s (>30s threshold)"
+      
+      # Gap Detection Not Running
+      - alert: CorvusGapDetectionStale
+        expr: time() - corvus_gaps_open_total > 7200  # 2 hours
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gap detection not running"
+          description: "No gaps updated in over 2 hours"
+      
+      # High Error Rate
+      - alert: CorvusHighErrorRate
+        expr: rate(corvus_requests_total{status=~"5.."}[5m]) / rate(corvus_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP error rate"
+          description: "{{ $value | humanizePercentage }} of requests are failing with 5xx"
+
+  - name: corvus_info
+    interval: 5m
+    rules:
+      # Change Window Expiring
+      - alert: CorvusChangeWindowExpiring
+        expr: time() - corvus_changes_expiring_soon > 3600  # 1 hour
+        labels:
+          severity: info
+        annotations:
+          summary: "Change window expiring soon"
+          description: "Change window expiring within 1 hour"
+      
+      # Subscription Count High
+      - alert: CorvusHighSubscriptionCount
+        expr: corvus_sse_subscriptions > 100
+        labels:
+          severity: info
+        annotations:
+          summary: "High number of SSE subscriptions"
+          description: "{{ $value }} active subscriptions"
