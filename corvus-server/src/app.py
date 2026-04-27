@@ -28,6 +28,7 @@ from src.routers import (
     ci,
     cmdb,
     correlations,
+    debug,  # Story 3.4: Debug endpoints
     discovery,
     events,
     gaps,
@@ -38,7 +39,7 @@ from src.routers import (
     knowledge,
     lean_metrics,
     metrics,
-    metrics_prometheus,
+    metrics_prometheus,  # Story 3.1: Prometheus metrics
     patterns,
     plans,
     problems,
@@ -228,6 +229,9 @@ app.include_router(metrics_prometheus.router)
 
 # Story 3.2: Enhanced health checks
 app.include_router(health_detailed.router)
+
+# Story 3.4: Debug endpoints (admin only)
+app.include_router(debug.router)
 
 
 # MCP SSE endpoint (conditionally mounted)
