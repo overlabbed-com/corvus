@@ -21,6 +21,98 @@ logger = logging.getLogger(__name__)
 # Valid alert_policy values — prevents silent suppression via arbitrary strings (E1.4)
 VALID_ALERT_POLICIES = frozenset({"default", "silent", "critical-only", "all"})
 
+# Story 1.4: Valid field names for UPDATE operations — prevents SQL injection via dynamic column names
+VALID_UPDATE_FIELDS = frozenset({
+    "host",
+    "service_type",
+    "critical",
+    "dependencies",
+    "baseline_behavior",
+    "alert_policy",
+    "last_seen",
+    "registered_by",
+    "declared_image",
+    "declared_healthcheck",
+    "declared_env_hash",
+    "declared_networks",
+    "last_declared_at",
+})
+
+
+
+def _validate_update_fields(fields: list[str]) -> list[str]:
+    """Validate field names against allowlist.
+
+
+    Story 1.4: Prevents SQL injection via dynamic column names in UPDATE operations.
+    All field names must be in VALID_UPDATE_FIELDS.
+
+
+    Raises HTTPException if any field is invalid.
+    """
+    invalid = [f for f in fields if f not in VALID_UPDATE_FIELDS]
+    if invalid:
+        # Log as potential SQL injection attempt
+        logger.warning(
+            "Attempted SQL injection via invalid field names: %s",
+            invalid,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid field: {invalid[0]!r}. Valid fields: {', '.join(sorted(VALID_UPDATE_FIELDS))}",
+        )
+    return fields
+
+
+def _build_update_sets(update: ServiceUpdate) -> tuple[list[str], list]:
+    """Build SET clause from ServiceUpdate, validating field names.
+
+    Story 1.4: Ensures only allowlisted fields can be updated.
+    Returns (sets, params) for SQL UPDATE statement.
+    """
+    sets = []
+    params = []
+    # Track which fields are being updated for validation
+    updated_fields: list[str] = []
+
+    if update.host is not None:
+        sets.append("host = ?")
+        params.append(update.host)
+        updated_fields.append("host")
+    if update.service_type is not None:
+        sets.append("service_type = ?")
+        params.append(update.service_type)
+        updated_fields.append("service_type")
+    if update.critical is not None:
+        sets.append("critical = ?")
+        params.append(1 if update.critical else 0)
+        updated_fields.append("critical")
+    if update.dependencies is not None:
+        sets.append("dependencies = ?")
+        params.append(json.dumps(update.dependencies))
+        updated_fields.append("dependencies")
+    if update.baseline_behavior is not None:
+        sets.append("baseline_behavior = ?")
+        params.append(json.dumps(update.baseline_behavior))
+        updated_fields.append("baseline_behavior")
+    if update.alert_policy is not None:
+        # E1.4: Validate alert_policy against allowlist
+        if update.alert_policy not in VALID_ALERT_POLICIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid alert_policy '{update.alert_policy}'. "
+                f"Valid values: {', '.join(sorted(VALID_ALERT_POLICIES))}",
+            )
+        sets.append("alert_policy = ?")
+        params.append(update.alert_policy)
+        updated_fields.append("alert_policy")
+
+    # Story 1.4: Validate all updated field names against allowlist
+    _validate_update_fields(updated_fields)
+
+    return sets, params
+
+
 router = APIRouter(prefix="/ops/cmdb", tags=["cmdb"])
 
 
@@ -173,41 +265,16 @@ async def update_service(name: str, update: ServiceUpdate, request: Request):
         if not existing:
             raise HTTPException(status_code=404, detail="Service not found")
 
-        sets = []
-        params: list = []
+        # Story 1.4: Build SET clause with field validation
+        sets, params = _build_update_sets(update)
 
-        if update.host is not None:
-            sets.append("host = ?")
-            params.append(update.host)
-        if update.service_type is not None:
-            sets.append("service_type = ?")
-            params.append(update.service_type)
-        if update.critical is not None:
-            sets.append("critical = ?")
-            params.append(1 if update.critical else 0)
-        if update.dependencies is not None:
-            sets.append("dependencies = ?")
-            params.append(json.dumps(update.dependencies))
-        if update.baseline_behavior is not None:
-            sets.append("baseline_behavior = ?")
-            params.append(json.dumps(update.baseline_behavior))
-        if update.alert_policy is not None:
-            # E1.4: Validate alert_policy against allowlist
-            if update.alert_policy not in VALID_ALERT_POLICIES:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid alert_policy '{update.alert_policy}'. "
-                    f"Valid values: {', '.join(sorted(VALID_ALERT_POLICIES))}",
-                )
-            sets.append("alert_policy = ?")
-            params.append(update.alert_policy)
 
         if not sets:
             raise HTTPException(status_code=400, detail="No fields to update")
 
         params.append(name)
         await db.execute(
-            f"UPDATE ops_cmdb SET {', '.join(sets)} WHERE name = ?",  # nosec B608 - Dynamic SQL uses allowlist
+            f"UPDATE ops_cmdb SET {', '.join(sets)} WHERE name = ?",  # nosec B608 - Field names validated by _build_update_sets
             params,
         )
         await db.commit()

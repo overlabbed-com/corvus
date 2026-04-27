@@ -342,6 +342,24 @@ CREATE TABLE IF NOT EXISTS mesh_peers (
 CREATE INDEX IF NOT EXISTS idx_mesh_peers_status ON mesh_peers(status);
 CREATE INDEX IF NOT EXISTS idx_events_node_hlc ON ops_events(node_id, hlc_timestamp);
 CREATE INDEX IF NOT EXISTS idx_knowledge_node_id ON ops_knowledge(node_id);
+
+-- Story 1.2: SIEM dead-letter queue for failed event forwarding
+CREATE TABLE IF NOT EXISTS ops_siem_dead_letter (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    event_type TEXT,
+    event_data TEXT NOT NULL,  -- JSON
+    error TEXT NOT NULL,
+    attempted_at TEXT NOT NULL,
+    attempt_count INTEGER NOT NULL DEFAULT 1,
+    last_adapter TEXT,
+    resolved_at TEXT,
+    resolved_by TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_dead_letter_event_id ON ops_siem_dead_letter(event_id);
+CREATE INDEX IF NOT EXISTS idx_dead_letter_attempted_at ON ops_siem_dead_letter(attempted_at);
+CREATE INDEX IF NOT EXISTS idx_dead_letter_resolved ON ops_siem_dead_letter(resolved_at);
 """
 
 

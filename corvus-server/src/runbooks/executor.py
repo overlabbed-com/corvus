@@ -4,6 +4,7 @@ Executes runbook investigation steps, matches diagnosis hints,
 and returns structured triage results.
 """
 
+import asyncio
 import logging
 import re
 from typing import Any
@@ -78,8 +79,21 @@ async def _execute_step(step: dict[str, Any], context: dict[str, str]) -> StepRe
     handler = STEP_HANDLERS.get(step_type)
     if handler:
         try:
-            output = await handler(resolved_params, timeout)
+            # Story 1.3: Wrap handler with timeout using asyncio.wait_for
+            output = await asyncio.wait_for(
+                handler(resolved_params, timeout),
+                timeout=timeout,
+            )
             return StepResult(step_name, success=True, output=output)
+        except asyncio.TimeoutError:
+            logger.error(
+                "Step %s timed out after %ds (type=%s, timeout=%d)",
+                step_name,
+                timeout,
+                step_type,
+                timeout,
+            )
+            return StepResult(step_name, success=False, error=f"Timeout after {timeout}s")
         except Exception as e:
             return StepResult(step_name, success=False, error=str(e))
 
