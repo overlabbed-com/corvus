@@ -31,6 +31,7 @@ from src.routers import (
     debug,  # Story 3.4: Debug endpoints
     discovery,
     events,
+    events_batch,  # Story 5.6: Batch event ingestion
     gaps,
     graph_queries,
     graph_triage,
@@ -232,6 +233,9 @@ app.include_router(health_detailed.router)
 
 # Story 3.4: Debug endpoints (admin only)
 app.include_router(debug.router)
+
+# Story 5.6: Batch event ingestion
+app.include_router(events_batch.router)
 
 
 # MCP SSE endpoint (conditionally mounted)
