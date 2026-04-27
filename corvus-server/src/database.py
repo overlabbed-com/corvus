@@ -1,10 +1,14 @@
 """SQLite database setup and connection management."""
 
 import contextlib
+import logging
+import sqlite3
 
 import aiosqlite
 
 from src.config import DB_PATH
+
+logger = logging.getLogger(__name__)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ops_changes (
@@ -360,6 +364,16 @@ CREATE TABLE IF NOT EXISTS ops_siem_dead_letter (
 CREATE INDEX IF NOT EXISTS idx_dead_letter_event_id ON ops_siem_dead_letter(event_id);
 CREATE INDEX IF NOT EXISTS idx_dead_letter_attempted_at ON ops_siem_dead_letter(attempted_at);
 CREATE INDEX IF NOT EXISTS idx_dead_letter_resolved ON ops_siem_dead_letter(resolved_at);
+
+-- Story 2.5: Composite indexes for performance optimization
+CREATE INDEX IF NOT EXISTS idx_events_context 
+ON ops_events(timestamp DESC, severity, type);
+
+CREATE INDEX IF NOT EXISTS idx_problems_gap 
+ON ops_problems(pattern, status);
+
+CREATE INDEX IF NOT EXISTS idx_triage_analytics 
+ON ops_triage_log(timestamp, service_type, outcome);
 """
 
 
@@ -380,6 +394,7 @@ async def init_db() -> None:
     try:
         await db.executescript(SCHEMA)
         # Column patches -- idempotent; silently skip if column already exists.
+        # Story 2.2: Only suppress duplicate column errors; re-raise other errors
         for alter_sql in [
             "ALTER TABLE ops_incidents ADD COLUMN investigating_at TEXT",
             "ALTER TABLE ops_trust_ledger ADD COLUMN first_seen_at TEXT",
@@ -390,8 +405,13 @@ async def init_db() -> None:
             "ALTER TABLE ops_cmdb ADD COLUMN declared_networks TEXT",
             "ALTER TABLE ops_cmdb ADD COLUMN last_declared_at TEXT",
         ]:
-            with contextlib.suppress(Exception):  # Column already exists
+            try:
                 await db.execute(alter_sql)
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    logger.error(f"Migration error for '{alter_sql}': {e}")
+                    raise
+                # Else: column already exists, skip silently
         await db.commit()
     finally:
         await db.close()
