@@ -33,11 +33,12 @@ from src.routers import (
     gaps,
     graph_queries,
     graph_triage,
+    health_detailed,  # Story 3.2: Enhanced health checks
     incidents,
     knowledge,
     lean_metrics,
     metrics,
-    metrics_prometheus,  # Story 3.1: Prometheus metrics
+    metrics_prometheus,
     patterns,
     plans,
     problems,
@@ -224,6 +225,9 @@ app.include_router(dashboard_router)
 
 # Story 3.1: Prometheus metrics endpoint
 app.include_router(metrics_prometheus.router)
+
+# Story 3.2: Enhanced health checks
+app.include_router(health_detailed.router)
 
 
 # MCP SSE endpoint (conditionally mounted)
