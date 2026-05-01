@@ -30,6 +30,9 @@ async def debug_state(auth: dict = Depends(get_auth)):
         raise HTTPException(status_code=403, detail="Admin access required")
     
     try:
+        forwarding_stats = await get_forwarding_stats()
+        dead_letters = await get_dead_letters()
+        gaps = await get_gap_summary()
         return JSONResponse(content={
             "timestamp": datetime.now(UTC).isoformat(),
             "subscriptions": {
@@ -37,10 +40,10 @@ async def debug_state(auth: dict = Depends(get_auth)):
                 "dropped_events": get_dropped_events_count(),
             },
             "siem": {
-                "forwarding_stats": get_forwarding_stats(),
-                "dead_letter_count": len(get_dead_letters()),
+                "forwarding_stats": forwarding_stats,
+                "dead_letter_count": len(dead_letters),
             },
-            "gaps": await get_gap_summary(),
+            "gaps": gaps,
         })
     except Exception as e:
         logger.error(f"Debug state failed: {e}")
