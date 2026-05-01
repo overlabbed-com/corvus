@@ -85,7 +85,7 @@ async def _execute_step(step: dict[str, Any], context: dict[str, str]) -> StepRe
                 timeout=timeout,
             )
             return StepResult(step_name, success=True, output=output)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
                 "Step %s timed out after %ds (type=%s, timeout=%d)",
                 step_name,

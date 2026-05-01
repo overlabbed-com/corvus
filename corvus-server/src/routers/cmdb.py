@@ -22,22 +22,23 @@ logger = logging.getLogger(__name__)
 VALID_ALERT_POLICIES = frozenset({"default", "silent", "critical-only", "all"})
 
 # Story 1.4: Valid field names for UPDATE operations — prevents SQL injection via dynamic column names
-VALID_UPDATE_FIELDS = frozenset({
-    "host",
-    "service_type",
-    "critical",
-    "dependencies",
-    "baseline_behavior",
-    "alert_policy",
-    "last_seen",
-    "registered_by",
-    "declared_image",
-    "declared_healthcheck",
-    "declared_env_hash",
-    "declared_networks",
-    "last_declared_at",
-})
-
+VALID_UPDATE_FIELDS = frozenset(
+    {
+        "host",
+        "service_type",
+        "critical",
+        "dependencies",
+        "baseline_behavior",
+        "alert_policy",
+        "last_seen",
+        "registered_by",
+        "declared_image",
+        "declared_healthcheck",
+        "declared_env_hash",
+        "declared_networks",
+        "last_declared_at",
+    }
+)
 
 
 def _validate_update_fields(fields: list[str]) -> list[str]:
@@ -267,7 +268,6 @@ async def update_service(name: str, update: ServiceUpdate, request: Request):
 
         # Story 1.4: Build SET clause with field validation
         sets, params = _build_update_sets(update)
-
 
         if not sets:
             raise HTTPException(status_code=400, detail="No fields to update")

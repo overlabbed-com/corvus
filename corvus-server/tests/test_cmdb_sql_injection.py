@@ -4,15 +4,17 @@ Story 1.4: All dynamic column names should be validated against
 an allowlist before building SQL SET clauses.
 """
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.mark.asyncio
 async def test_malicious_column_name_rejected(client):
     """Malicious column names should be rejected."""
-    from src.routers.cmdb import _validate_update_fields
     from fastapi import HTTPException
+
+    from src.routers.cmdb import _validate_update_fields
 
     # Attempt SQL injection via column name
     malicious_fields = ["host", "'; DROP TABLE ops_cmdb; --"]
@@ -39,8 +41,8 @@ async def test_valid_fields_pass_through(client):
 @pytest.mark.asyncio
 async def test_attempted_injection_logged_as_security_event(client):
     """Attempted injection should be logged as a security event."""
+
     from src.routers.cmdb import _validate_update_fields
-    import logging
 
     malicious_fields = ["host", "1=1"]
 

@@ -1,6 +1,7 @@
 """Tests for database migration error handling (Story 2.2)."""
 
 import sqlite3
+
 import pytest
 
 
@@ -13,7 +14,7 @@ class TestMigrationErrorHandling:
         # The init_db function should handle duplicate columns gracefully
         # This test verifies that the database is usable after init
         from src.database import get_db
-        
+
         db = await get_db()
         try:
             # Verify ops_events table exists and is usable
@@ -27,7 +28,7 @@ class TestMigrationErrorHandling:
     async def test_other_errors_raised(self):
         """Non-duplicate-column errors should be raised."""
         from src.database import get_db
-        
+
         db = await get_db()
         try:
             # Try to add a column with invalid syntax
@@ -40,21 +41,14 @@ class TestMigrationErrorHandling:
     async def test_composite_indexes_exist(self, client):
         """Story 2.5: Composite indexes should be created."""
         from src.database import get_db
-        
+
         db = await get_db()
         try:
             # Check that the composite indexes exist
-            indexes = [
-                "idx_events_context",
-                "idx_problems_gap",
-                "idx_triage_analytics"
-            ]
-            
+            indexes = ["idx_events_context", "idx_problems_gap", "idx_triage_analytics"]
+
             for index in indexes:
-                cursor = await db.execute(
-                    "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
-                    (index,)
-                )
+                cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name=?", (index,))
                 result = await cursor.fetchone()
                 assert result is not None, f"Index {index} not found"
         finally:
@@ -64,13 +58,11 @@ class TestMigrationErrorHandling:
     async def test_index_composite_structure(self, client):
         """Story 2.5: Verify composite index structure."""
         from src.database import get_db
-        
+
         db = await get_db()
         try:
             # Check idx_events_context structure
-            cursor = await db.execute(
-                "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_events_context'"
-            )
+            cursor = await db.execute("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_events_context'")
             result = await cursor.fetchone()
             assert result is not None
             sql = result[0]

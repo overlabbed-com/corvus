@@ -5,13 +5,12 @@ Endpoints to track, report, and verify success criteria achievement.
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from src.tasks.implementation_tracker import (
     ImplementationTracker,
     OperationalIssueHarvester,
-    ContinuousImprovementFlywheel,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,6 +23,7 @@ harvester = OperationalIssueHarvester()
 
 class SuccessCriteria(BaseModel):
     """Success criteria definition."""
+
     name: str
     description: str
     metric: str
@@ -33,6 +33,7 @@ class SuccessCriteria(BaseModel):
 
 class CriteriaResponse(BaseModel):
     """Success criteria status response."""
+
     name: str
     achieved: bool
     current_value: float
@@ -44,7 +45,7 @@ class CriteriaResponse(BaseModel):
 @router.get("/ops/success-criteria")
 async def list_success_criteria():
     """List all success criteria for the implementation plan.
-    
+
     Customer Zero: Define what success looks like.
     """
     criteria = [
@@ -98,7 +99,7 @@ async def list_success_criteria():
             weight=1.0,
         ),
     ]
-    
+
     return {
         "timestamp": __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat(),
         "criteria": [
@@ -118,18 +119,18 @@ async def list_success_criteria():
 @router.get("/ops/success-criteria/status")
 async def get_criteria_status():
     """Get current status of all success criteria.
-    
+
     Customer Zero: Real-time achievement tracking.
     """
-    from src.tasks.gap_detection import get_gap_summary
-    from src.siem.forwarder import get_forwarding_stats
     from src.event_bus import get_dropped_events_count
-    
+    from src.siem.forwarder import get_forwarding_stats
+    from src.tasks.gap_detection import get_gap_summary
+
     # Gather current metrics
     gap_summary = await get_gap_summary()
     siem_stats = await get_forwarding_stats()
     dropped_events = get_dropped_events_count()
-    
+
     # Calculate criterion status
     criteria_status = [
         {
@@ -189,15 +190,12 @@ async def get_criteria_status():
             "weight": 1.0,
         },
     ]
-    
+
     # Calculate overall score
     total_weight = sum(c["weight"] for c in criteria_status)
-    weighted_score = sum(
-        c["progress_percentage"] * c["weight"] 
-        for c in criteria_status
-    )
+    weighted_score = sum(c["progress_percentage"] * c["weight"] for c in criteria_status)
     overall_score = weighted_score / total_weight if total_weight > 0 else 0
-    
+
     return {
         "timestamp": __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat(),
         "criteria": criteria_status,
@@ -211,14 +209,14 @@ async def get_criteria_status():
 @router.post("/ops/success-criteria/harvest")
 async def harvest_operational_issues():
     """Manually trigger operational issue harvesting.
-    
+
     Customer Zero: Force flywheel cycle for immediate issue capture.
     """
     issues = await harvester.harvest_issues()
-    
+
     for issue in issues:
         await harvester.create_issue_event(issue)
-    
+
     return {
         "timestamp": __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat(),
         "issues_harvested": len(issues),
@@ -229,7 +227,7 @@ async def harvest_operational_issues():
 @router.get("/ops/implementation/status")
 async def get_implementation_status():
     """Get current implementation plan status.
-    
+
     Customer Zero: Track progress against the full implementation plan.
     """
     status = await tracker.get_implementation_status()

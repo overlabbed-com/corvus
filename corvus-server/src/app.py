@@ -113,22 +113,26 @@ async def lifespan(app: FastAPI):
     # Start background tasks
     expiry_task = asyncio.create_task(run_change_expiry_loop())
     cleanup_task = asyncio.create_task(run_cleanup_loop())
-    
+
     # Story 5.5: Start SIEM initialization
     from src.tasks.siem_init import initialize_siem_adapters, retry_siem_initialization
+
     await initialize_siem_adapters()
     siem_retry_task = asyncio.create_task(retry_siem_initialization())
-    
+
     # Story 6.2: Start feedback loop
     from src.tasks.feedback_loop import run_feedback_loop
+
     feedback_task = asyncio.create_task(run_feedback_loop())
-    
+
     # Story 6.3: Start performance baseline collection
     from src.tasks.performance_baseline import run_performance_baseline_collection
+
     baseline_task = asyncio.create_task(run_performance_baseline_collection())
-    
+
     # Customer Zero: Start continuous improvement flywheel
     from src.tasks.implementation_tracker import run_improvement_flywheel
+
     flywheel_task = asyncio.create_task(run_improvement_flywheel())
     gap_sweep_task = asyncio.create_task(run_gap_sweep_loop())
     step_timeout_task = asyncio.create_task(run_step_timeout_loop())
@@ -290,16 +294,18 @@ async def health():
         "graph_health": graph_health(),
     }
 
+
 # Story 5.5: Start SIEM initialization background task
 async def _start_siem_init_task():
     """Start SIEM initialization at startup."""
     from src.tasks.siem_init import initialize_siem_adapters, retry_siem_initialization
-    
+
     # Initial initialization
     await initialize_siem_adapters()
-    
+
     # Start retry loop in background
     asyncio.create_task(retry_siem_initialization())
+
 
 # Story 5.8: Add response compression middleware
 # Note: CompressionMiddleware requires newer Starlette version

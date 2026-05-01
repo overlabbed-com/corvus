@@ -10,12 +10,12 @@ logger = logging.getLogger(__name__)
 
 async def configure_wal_checkpoint():
     """Configure WAL auto-checkpoint to prevent file bloat.
-    
+
     Story 5.1: Long-running transactions could cause WAL file bloat.
     Set auto-checkpoint to 1000 pages (~8MB) to prevent this.
     """
     from src.database import get_db
-    
+
     try:
         db = await get_db()
         try:
@@ -30,11 +30,11 @@ async def configure_wal_checkpoint():
 
 async def checkpoint_wal():
     """Manually checkpoint the WAL file.
-    
+
     Can be called periodically or when disk space is low.
     """
     from src.database import get_db
-    
+
     try:
         db = await get_db()
         try:

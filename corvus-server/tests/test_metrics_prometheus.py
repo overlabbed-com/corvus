@@ -18,7 +18,7 @@ class TestPrometheusMetrics:
         """Metrics should contain Corvus-specific metrics."""
         resp = await client.get("/metrics")
         metrics_text = resp.text
-        
+
         # Check for some expected metric names
         expected_metrics = [
             "corvus_events_received_total",
@@ -27,7 +27,7 @@ class TestPrometheusMetrics:
             "corvus_sse_subscriptions",
             "corvus_gaps_open_total",
         ]
-        
+
         for metric in expected_metrics:
             assert metric in metrics_text, f"Expected metric {metric} not found"
 
@@ -36,16 +36,16 @@ class TestPrometheusMetrics:
         """Metrics should be in valid Prometheus format."""
         resp = await client.get("/metrics")
         metrics_text = resp.text
-        
+
         # Each line should be either a comment, help, type, or metric
-        for line in metrics_text.split('\n'):
+        for line in metrics_text.split("\n"):
             if not line.strip():
                 continue
             # Comments start with #
-            if line.startswith('#'):
+            if line.startswith("#"):
                 continue
             # Metric lines should have a value
-            assert ':' in line or ' ' in line, f"Invalid metric line: {line}"
+            assert ":" in line or " " in line, f"Invalid metric line: {line}"
 
 
 class TestMetricsIntegration:
@@ -55,10 +55,10 @@ class TestMetricsIntegration:
     async def test_event_metrics_recorded(self, client):
         """Event emission should update metrics."""
         from src.metrics import record_event_received
-        
+
         # Record an event
         record_event_received("test.event", "info")
-        
+
         # Check metrics endpoint
         resp = await client.get("/metrics")
         assert resp.status_code == 200

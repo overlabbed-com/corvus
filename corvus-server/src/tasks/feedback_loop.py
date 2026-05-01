@@ -25,7 +25,7 @@ class FeedbackLoop:
 
     async def sweep_gaps_and_create_issues(self):
         """Sweep for high-priority gaps and create GitHub issues.
-        
+
         Story 6.2: Automated feedback loop to dev pipeline.
         """
         if not self.enabled:
@@ -75,7 +75,7 @@ This gap was automatically detected by Corvus gap detection.
 
 ## Recommended Fix
 
-{gap.get('recommended_fix', 'See gap detection logic')}
+{gap.get("recommended_fix", "See gap detection logic")}
 
 ---
 *Automatically created by Corvus feedback loop*

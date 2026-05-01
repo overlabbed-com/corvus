@@ -151,7 +151,7 @@ async def init_graph() -> None:
                     # Log specific error but continue with other statements
                     logger.error(f"Failed to apply constraint/index: {stmt[:50]}... Error: {e}")
                     failed_stmts.append((stmt, str(e)))
-            
+
             if failed_stmts:
                 logger.error(
                     "Applied %d/%d constraints/indexes. %d failed: %s",

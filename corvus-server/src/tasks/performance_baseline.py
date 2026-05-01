@@ -5,7 +5,7 @@ Collect and track performance baselines from production data.
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class PerformanceBaselines:
 
     async def collect_metrics(self) -> dict[str, Any]:
         """Collect current performance metrics.
-        
+
         Story 6.3: Gather baseline data from production.
         """
         from src.database import get_db
@@ -53,6 +53,7 @@ class PerformanceBaselines:
 
             # SIEM forwarding stats
             from src.siem.forwarder import get_forwarding_stats
+
             siem_stats = await get_forwarding_stats()
 
             return {
@@ -67,8 +68,9 @@ class PerformanceBaselines:
 
     async def store_baseline(self, metrics: dict[str, Any]) -> bool:
         """Store collected metrics for baseline analysis."""
-        from src.database import get_db
         import json
+
+        from src.database import get_db
 
         try:
             db = await get_db()
@@ -96,7 +98,7 @@ class PerformanceBaselines:
 
     async def calculate_baselines(self) -> dict[str, Any]:
         """Calculate performance baselines from historical data.
-        
+
         Returns average, p50, p95, p99 metrics.
         """
         from src.database import get_db
@@ -120,6 +122,7 @@ class PerformanceBaselines:
 
             for row in rows:
                 import json
+
                 metrics = json.loads(row["metrics"])
                 if "events_per_hour" in metrics:
                     event_rates.append(metrics["events_per_hour"])

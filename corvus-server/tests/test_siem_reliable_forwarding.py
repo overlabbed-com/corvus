@@ -4,9 +4,9 @@ Story 1.2: SIEM forwarding should use retry with exponential backoff.
 Failed events should be stored in dead-letter queue (DB table).
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-import asyncio
+
+import pytest
 
 
 @pytest.mark.asyncio
@@ -49,8 +49,8 @@ async def test_siem_down_events_queued_for_retry(client):
 @pytest.mark.asyncio
 async def test_dead_letter_queue_accessible_via_api(client):
     """Dead-letter queue should be accessible via API endpoint."""
-    from src.siem.forwarder import get_dead_letters
     from src.database import get_db
+    from src.siem.forwarder import get_dead_letters
 
     # Insert test dead-letter entries directly into database
     db = await get_db()

@@ -246,9 +246,7 @@ async def get_forwarding_stats() -> dict[str, Any]:
 
         db = await get_db()
         try:
-            cursor = await db.execute(
-                "SELECT COUNT(*) as cnt FROM ops_siem_dead_letter WHERE resolved_at IS NULL"
-            )
+            cursor = await db.execute("SELECT COUNT(*) as cnt FROM ops_siem_dead_letter WHERE resolved_at IS NULL")
             row = await cursor.fetchone()
             dl_count = row["cnt"] if row else 0
         finally:
@@ -300,16 +298,18 @@ async def get_dead_letters(limit: int = 100, offset: int = 0) -> list[dict[str, 
             rows = await cursor.fetchall()
             result = []
             for row in rows:
-                result.append({
-                    "id": row["id"],
-                    "event_id": row["event_id"],
-                    "event_type": row["event_type"],
-                    "event_data": json.loads(row["event_data"]),
-                    "error": row["error"],
-                    "attempted_at": row["attempted_at"],
-                    "attempt_count": row["attempt_count"],
-                    "last_adapter": row["last_adapter"],
-                })
+                result.append(
+                    {
+                        "id": row["id"],
+                        "event_id": row["event_id"],
+                        "event_type": row["event_type"],
+                        "event_data": json.loads(row["event_data"]),
+                        "error": row["error"],
+                        "attempted_at": row["attempted_at"],
+                        "attempt_count": row["attempt_count"],
+                        "last_adapter": row["last_adapter"],
+                    }
+                )
             return result
         finally:
             await db.close()

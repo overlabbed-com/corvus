@@ -31,7 +31,6 @@ logger = logging.getLogger(__name__)
 # Story 2.7: Baselines are now configurable via CMDB
 # Import from baseline_config module
 from src.tasks.baseline_config import (
-    DEFAULT_BASELINE,
     get_resolution_baseline,
 )
 

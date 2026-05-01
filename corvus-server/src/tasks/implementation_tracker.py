@@ -7,7 +7,7 @@ continuous improvement back into the dev pipeline.
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class ImplementationTracker:
         """Calculate overall implementation progress."""
         total_stories = sum(p["stories"] for p in self._phases.values())
         complete_phases = sum(1 for p in self._phases.values() if p["status"] == "complete")
-        
+
         return {
             "total_phases": len(self._phases),
             "complete_phases": complete_phases,
@@ -80,53 +80,60 @@ class OperationalIssueHarvester:
 
     async def harvest_issues(self) -> list[dict[str, Any]]:
         """Harvest operational issues from the system.
-        
+
         Customer Zero: Capture real issues to feed flywheel.
         """
-        from src.tasks.gap_detection import get_gap_summary
-        from src.siem.forwarder import get_forwarding_stats
         from src.event_bus import get_dropped_events_count
+        from src.siem.forwarder import get_forwarding_stats
+        from src.tasks.gap_detection import get_gap_summary
 
         issues = []
 
         # Check for gaps (operational blind spots)
         gap_summary = await get_gap_summary()
         if gap_summary.get("total_open_gaps", 0) > 0:
-            issues.append({
-                "type": "operational_gap",
-                "severity": "warning" if gap_summary["total_open_gaps"] < 5 else "critical",
-                "description": f"{gap_summary['total_open_gaps']} operational gaps detected",
-                "details": gap_summary,
-                "timestamp": datetime.now(UTC).isoformat(),
-            })
+            issues.append(
+                {
+                    "type": "operational_gap",
+                    "severity": "warning" if gap_summary["total_open_gaps"] < 5 else "critical",
+                    "description": f"{gap_summary['total_open_gaps']} operational gaps detected",
+                    "details": gap_summary,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+            )
 
         # Check SIEM forwarding health
         siem_stats = await get_forwarding_stats()
         if siem_stats.get("failed", 0) > 0:
-            issues.append({
-                "type": "integration_failure",
-                "severity": "critical",
-                "description": f"SIEM forwarding failures: {siem_stats['failed']}",
-                "details": siem_stats,
-                "timestamp": datetime.now(UTC).isoformat(),
-            })
+            issues.append(
+                {
+                    "type": "integration_failure",
+                    "severity": "critical",
+                    "description": f"SIEM forwarding failures: {siem_stats['failed']}",
+                    "details": siem_stats,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+            )
 
         # Check dropped events
         dropped = get_dropped_events_count()
         if dropped > 0:
-            issues.append({
-                "type": "resource_exhaustion",
-                "severity": "warning",
-                "description": f"Events dropped due to queue full: {dropped}",
-                "timestamp": datetime.now(UTC).isoformat(),
-            })
+            issues.append(
+                {
+                    "type": "resource_exhaustion",
+                    "severity": "warning",
+                    "description": f"Events dropped due to queue full: {dropped}",
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+            )
 
         return issues
 
     async def create_issue_event(self, issue: dict[str, Any]) -> str:
         """Create a Corvus event for the operational issue."""
-        from src.database import get_db
         import uuid
+
+        from src.database import get_db
 
         event_id = f"ISSUE-{uuid.uuid4().hex[:8].upper()}"
         now = datetime.now(UTC).isoformat()
@@ -164,7 +171,7 @@ class ContinuousImprovementFlywheel:
 
     async def run_flywheel_cycle(self) -> dict[str, Any]:
         """Run one cycle of the continuous improvement flywheel.
-        
+
         Customer Zero: Harvest issues → Create improvements → Track progress
         """
         cycle_start = datetime.now(UTC)
@@ -202,8 +209,9 @@ class ContinuousImprovementFlywheel:
 
     async def _create_improvement_from_issue(self, issue: dict[str, Any]):
         """Create an improvement task from a critical issue."""
-        from src.database import get_db
         import uuid
+
+        from src.database import get_db
 
         improvement_id = f"IMP-{uuid.uuid4().hex[:8].upper()}"
         now = datetime.now(UTC).isoformat()
@@ -261,14 +269,20 @@ class ContinuousImprovementFlywheel:
 
         results = []
         for crit in criteria:
-            achieved = crit["current"] >= crit["target"] if crit["metric"] != "mttr_minutes" else crit["current"] <= crit["target"]
-            results.append({
-                "name": crit["name"],
-                "achieved": achieved,
-                "target": crit["target"],
-                "current": crit["current"],
-                "timestamp": datetime.now(UTC).isoformat(),
-            })
+            achieved = (
+                crit["current"] >= crit["target"]
+                if crit["metric"] != "mttr_minutes"
+                else crit["current"] <= crit["target"]
+            )
+            results.append(
+                {
+                    "name": crit["name"],
+                    "achieved": achieved,
+                    "target": crit["target"],
+                    "current": crit["current"],
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+            )
 
         return results
 
