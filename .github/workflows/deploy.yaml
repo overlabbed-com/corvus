@@ -3,6 +3,9 @@ name: Deploy
 on:
   workflow_dispatch:
 
+env:
+  STACK_DIR: /mnt/docker/stacks/dockp04-corvus
+
 jobs:
   deploy:
     name: Deploy corvus to dockp04
@@ -15,17 +18,48 @@ jobs:
         run: |
           docker build -t ghcr.io/overlabbed-com/corvus:latest corvus-server/
 
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+          OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+          CORVUS_API_KEYS: op://Homelab/services/dockp04-corvus-secrets/CORVUS_API_KEYS
+          NEO4J_PASSWORD: op://Homelab/services/dockp04-corvus-secrets/NEO4J_PASSWORD
+          GITHUB_TOKEN_FOR_CORVUS: op://Homelab/services/dockp04-corvus-secrets/GITHUB_TOKEN
+          GITHUB_REPO_FOR_CORVUS: op://Homelab/services/dockp04-corvus-secrets/GITHUB_REPO
+
+      - name: Render .env from 1Password values
+        run: |
+          # Stable rendering — every value sourced from 1P; no hand-edits.
+          # Empty SIEM/LLM keys are intentional placeholders preserved from prior shape.
+          sudo tee "$STACK_DIR/.env" >/dev/null <<EOF
+          OP_CONNECT_HOST=$OP_CONNECT_HOST
+          OP_CONNECT_TOKEN=$OP_CONNECT_TOKEN
+          CORVUS_API_KEYS=$CORVUS_API_KEYS
+          NEO4J_PASSWORD=$NEO4J_PASSWORD
+          CORVUS_SIEM_URL=
+          CORVUS_SIEM_TOKEN=
+          CORVUS_LLM_URL=
+          GITHUB_TOKEN=$GITHUB_TOKEN_FOR_CORVUS
+          GITHUB_REPO=$GITHUB_REPO_FOR_CORVUS
+          EOF
+          sudo chown github-runner:docker "$STACK_DIR/.env"
+          sudo chmod 640 "$STACK_DIR/.env"
+
       - name: Deploy stack
         run: |
-          cd /mnt/docker/stacks/dockp04-corvus
-          sudo docker compose up -d --remove-orphans
+          cd "$STACK_DIR"
+          # --force-recreate ensures env changes propagate to running containers
+          sudo docker compose up -d --force-recreate --remove-orphans
 
       - name: Verify health
         run: |
           echo "Waiting for healthy..."
           for i in $(seq 1 30); do
             sleep 2
-            STATUS=$(docker inspect corvus --format '{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+            STATUS=$(docker inspect dockp04-corvus-corvus-1 --format '{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
             if [ "$STATUS" = "healthy" ]; then
               echo "corvus is healthy"
               exit 0
