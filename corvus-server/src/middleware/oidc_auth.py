@@ -76,201 +76,175 @@ class OIDCConfig:
         """OIDC discovery endpoint."""
         return f"{self.issuer_url}/.well-known/openid-configuration"
 
-    @property
-    def jwks_url(self) -> str:
-        """JWKS endpoint - fetch from discovery if possible."""
-        # Try to fetch from discovery endpoint
+    async def _resolve_jwks_url(self) -> str:
+        """Resolve JWKS URL via the OIDC discovery document.
+
+        B3 (replaces broken `_async_fetch_jwks_from_discovery` which used
+        `anyio.open_file` on a URL — a filesystem API). Fail-fast on errors;
+        do not silently return empty.
+        """
         try:
-            # Use httpx.AsyncClient for async, fallback to sync for cache
-            import asyncio
-
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop:
-                # We're in an async context
-                import anyio
-
-                with anyio.move_on_after(5):
-                    response = anyio.run(self._async_fetch_jwks_from_discovery)
-                    if response and "jwks_uri" in response:
-                        return response["jwks_uri"]
-            else:
-                # Sync context
-                import httpx
-
-                try:
-                    with httpx.Client() as client:
-                        resp = client.get(self.discovery_url, timeout=5.0)
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            if "jwks_uri" in data:
-                                return data["jwks_uri"]
-                except Exception:
-                    logger.debug("Failed to fetch JWKS URL from discovery endpoint")
-
-            # Fallback: try common patterns
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(self.discovery_url)
+                resp.raise_for_status()
+                data = resp.json()
+            if "jwks_uri" not in data:
+                raise ValueError("OIDC discovery document missing 'jwks_uri'")
+            return data["jwks_uri"]
+        except (httpx.HTTPError, json.JSONDecodeError, ValueError):
+            # Provider-specific fallbacks for issuers that we know.
             if "accounts.google.com" in self.issuer_url:
                 return "https://www.googleapis.com/oauth2/v3/certs"
-            elif "login.microsoftonline.com" in self.issuer_url:
+            if "login.microsoftonline.com" in self.issuer_url:
                 tenant = self.issuer_url.split("/")[3]
                 return f"https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys"
-            elif "okta.com" in self.issuer_url:
-                org_url = self.issuer_url.replace("/oauth2/default", "").replace("/oauth2", "")
-                return f"{org_url}/.well-known/openid-configuration"
+            raise
 
-        except Exception as e:
-            logger.debug(f"Could not fetch JWKS URL from discovery: {e}")
+    async def fetch_jwks(self, *, force_refresh: bool = False) -> list[dict]:
+        """Fetch and cache JWKS keys from issuer.
 
-        # Last fallback - caller must provide jwks_uri
-        return ""
-
-    async def _async_fetch_jwks_from_discovery(self) -> dict:
-        """Async fetch of discovery document."""
-        import anyio
-
-        async with anyio.create_task_group():
-            results = {}
-
-            async def fetch():
-                async with anyio.open_file(self.discovery_url, "rb"):
-                    pass
-
-            return results
-
-    async def fetch_jwks(self) -> list[dict]:
-        """Fetch and cache JWKS keys from issuer."""
+        B4 — `force_refresh=True` skips the cache (used on `kid` miss to
+        absorb a Hydra signing-key rotation without the documented 1h
+        blind window).
+        """
         current_time = datetime.now(UTC).timestamp()
 
-        # Return cached if still valid
-        if self._jwks_cache and current_time - self._jwks_cache_time < self._jwks_cache_ttl:
+        if (
+            not force_refresh
+            and self._jwks_cache
+            and current_time - self._jwks_cache_time < self._jwks_cache_ttl
+        ):
             return self._jwks_cache
 
+        jwks_url = await self._resolve_jwks_url()
         try:
-            jwks_url = self.jwks_url
-            if not jwks_url:
-                raise ValueError("JWKS URL not available")
-
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(jwks_url)
                 response.raise_for_status()
                 jwks_data = response.json()
-
-                keys = jwks_data.get("keys", [])
-                if not keys:
-                    raise ValueError("No keys in JWKS response")
-
-                self._jwks_cache = keys
-                self._jwks_cache_time = current_time
-                return keys
-
-        except httpx.RequestError as e:
-            logger.error(f"Failed to fetch JWKS from {jwks_url}: {e}")
+        except httpx.RequestError:
+            # B6 — never log {e} in token-validation context (may transit token-derived material).
+            logger.error(
+                "Failed to fetch JWKS",
+                extra={"jwks_url": jwks_url, "error_class": "RequestError"},
+            )
             raise
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in JWKS response: {e}")
-            raise
-        except ValueError as e:
-            logger.error(f"Invalid JWKS response: {e}")
+        except json.JSONDecodeError:
+            logger.error(
+                "Invalid JSON in JWKS response",
+                extra={"jwks_url": jwks_url, "error_class": "JSONDecodeError"},
+            )
             raise
 
-    def get_key_for_token(self, token: str) -> Any:
-        """Get the JWKS key matching the token's kid."""
+        keys = jwks_data.get("keys", [])
+        if not keys:
+            logger.error("Empty JWKS response", extra={"jwks_url": jwks_url})
+            raise ValueError("No keys in JWKS response")
+
+        self._jwks_cache = keys
+        self._jwks_cache_time = current_time
+        return keys
+
+    async def get_key_for_token(self, token: str) -> Any:
+        """Get the JWKS key matching the token's kid.
+
+        B4 — async-coherent (no asyncio.run). On `kid` miss, refresh JWKS
+        once before raising — closes the rotation blind window.
+        """
         try:
-            # Decode header without verification to get kid
             header = jwt.get_unverified_header(token)
-            if not header or "kid" not in header:
-                raise ValueError("Token header missing kid")
+        except PyJWTError:
+            logger.warning(
+                "Could not extract token header",
+                extra={"error_class": "PyJWTError"},
+            )
+            raise
 
-            kid = header["kid"]
+        if not header or "kid" not in header:
+            raise ValueError("Token header missing kid")
+        kid = header["kid"]
 
-            # Fetch JWKS and find matching key
-            import asyncio
-
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            keys = asyncio.run(self.fetch_jwks()) if loop else self._jwks_cache
-
+        for force_refresh in (False, True):
+            keys = await self.fetch_jwks(force_refresh=force_refresh)
             for key_data in keys:
                 if key_data.get("kid") == kid:
-                    # Convert JWK to PEM or use jwt directly
                     return jwt.PyJWK(key_data).key
+            # First pass missed; force a refresh and try once more.
 
-            raise ValueError(f"No matching key for kid: {kid}")
+        raise ValueError(f"No matching key for kid: {kid}")
 
-        except PyJWTError as e:
-            logger.debug(f"Error extracting key from token: {e}")
-            raise
+    async def validate_token(self, token: str, expected_audience: str | None = None) -> Identity:
+        """Validate JWT token and return Identity.
 
-    def validate_token(self, token: str, expected_audience: str | None = None) -> Identity:
-        """Validate JWT token and return Identity."""
+        B1 — `expected_audience` defaults to `self.client_id`; `verify_aud`
+        is unconditionally `True`. Callers that pass `None` get fail-safe
+        audience checking against the configured client_id, not silent
+        skip-of-audience.
+        B4 — async-coherent.
+        B6 — exception messages never leak token bytes into logs.
+        """
         if not JWT_AVAILABLE:
             raise RuntimeError("PyJWT not installed")
 
+        # B1 fail-safe default.
+        audience = expected_audience or self.client_id
+        if not audience:
+            raise InvalidTokenError(
+                "Cannot validate token: no audience configured (set OIDC_CLIENT_ID)"
+            )
+
         try:
-            # Get the key for this token
-            key = self.get_key_for_token(token)
-
-            # Decode and validate
-            options = {
-                "verify_signature": True,
-                "verify_exp": True,
-                "verify_iss": True,
-                "verify_aud": expected_audience is not None,
-                "require": ["exp", "iss", "sub"],
-            }
-
-            if expected_audience:
-                options["audience"] = expected_audience
+            key = await self.get_key_for_token(token)
 
             payload = jwt.decode(
                 token,
                 key,
                 algorithms=["RS256", "ES256"],
-                options=options,
+                options={
+                    "verify_signature": True,
+                    "verify_exp": True,
+                    "verify_iss": True,
+                    "verify_aud": True,  # B1 — ALWAYS on
+                    "require": ["exp", "iss", "sub", "aud"],
+                },
                 issuer=self.issuer_url,
-                audience=expected_audience if expected_audience else self.client_id,
+                audience=audience,
             )
-
-            # Extract claims
-            sub = payload.get("sub")
-            iss = payload.get("iss")
-            aud = payload.get("aud")
-            exp = payload.get("exp")
-            roles = payload.get("roles", [])
-
-            # Handle single role or list
-            if isinstance(roles, str):
-                roles = [roles]
-
-            # Validate required claims
-            if not sub:
-                raise InvalidTokenError("Missing 'sub' claim")
-
-            identity = Identity(
-                sub=sub,
-                issuer=iss or self.issuer_url,
-                audience=aud or [],
-                exp=exp,
-                roles=roles,
-            )
-
-            if identity.is_expired:
-                raise ExpiredSignatureError("Token expired")
-
-            return identity
-
         except PyJWTError as e:
-            logger.warning(f"JWT validation failed: {e}")
-            raise InvalidTokenError(str(e)) from e
+            # B6 — log error class only, not the exception message which
+            # may contain token-derived material from chained exceptions.
+            logger.warning(
+                "JWT validation failed",
+                extra={"error_class": type(e).__name__},
+            )
+            raise InvalidTokenError(type(e).__name__) from e
         except Exception as e:
-            logger.error(f"Unexpected error validating token: {e}")
-            raise InvalidTokenError(str(e)) from e
+            logger.error(
+                "Unexpected error validating token",
+                extra={"error_class": type(e).__name__},
+            )
+            raise InvalidTokenError(type(e).__name__) from e
+
+        sub = payload.get("sub")
+        if not sub:
+            raise InvalidTokenError("Missing 'sub' claim")
+
+        roles = payload.get("roles", [])
+        if isinstance(roles, str):
+            roles = [roles]
+
+        identity = Identity(
+            sub=sub,
+            issuer=payload.get("iss") or self.issuer_url,
+            audience=payload.get("aud") or [],
+            exp=payload.get("exp"),
+            roles=roles,
+        )
+
+        if identity.is_expired:
+            raise ExpiredSignatureError("Token expired")
+
+        return identity
 
 
 # Singleton config instance
@@ -351,7 +325,7 @@ class OIDCAuthMiddleware(BaseHTTPMiddleware):
 
         # Validate token
         try:
-            identity = config.validate_token(token, expected_audience=OIDC_CLIENT_ID)
+            identity = await config.validate_token(token, expected_audience=OIDC_CLIENT_ID)
             request.state.identity = identity
             logger.debug(f"Authenticated: {identity}")
         except (InvalidTokenError, ExpiredSignatureError, ValueError) as e:
@@ -375,4 +349,4 @@ async def oidc_verify_token(token: str) -> Identity:
     if config is None:
         raise RuntimeError("OIDC not configured")
 
-    return config.validate_token(token, expected_audience=OIDC_CLIENT_ID)
+    return await config.validate_token(token, expected_audience=OIDC_CLIENT_ID)

@@ -38,6 +38,9 @@ EVENT_TYPE_ALLOWLIST = frozenset(
         # Sessions
         "session.started",
         "session.ended",
+        # Auth — OIDC migration observability (B2)
+        "auth.oidc_validation_failed",
+        "auth.break_glass_used",
         # Plan lifecycle
         "plan.created",
         "plan.approved",

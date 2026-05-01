@@ -52,9 +52,22 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 
+# Dev mode — explicit flag instead of inferring from empty API_KEYS
+CORVUS_DEV_MODE: bool = os.getenv("CORVUS_DEV_MODE", "false").lower() == "true"
+
 # MCP endpoint
 MCP_ENABLED = os.getenv("CORVUS_MCP_ENABLED", "true").lower() == "true"
-MCP_INTERNAL_KEY = os.getenv("CORVUS_MCP_INTERNAL_KEY", "corvus-mcp-internal")
+# B7: no hardcoded default. Production must set CORVUS_MCP_INTERNAL_KEY explicitly.
+# Dev mode keeps a literal so existing tests continue to work without env config.
+MCP_INTERNAL_KEY = os.getenv("CORVUS_MCP_INTERNAL_KEY")
+if MCP_ENABLED and not MCP_INTERNAL_KEY:
+    if CORVUS_DEV_MODE:
+        MCP_INTERNAL_KEY = "corvus-mcp-internal-dev"
+    else:
+        raise RuntimeError(
+            "CORVUS_MCP_INTERNAL_KEY must be set when CORVUS_MCP_ENABLED=true in production. "
+            "Set the env var or disable MCP via CORVUS_MCP_ENABLED=false."
+        )
 
 # Register the internal MCP key so tool calls pass auth
 if MCP_ENABLED and MCP_INTERNAL_KEY:
@@ -63,14 +76,17 @@ if MCP_ENABLED and MCP_INTERNAL_KEY:
 # Change window defaults
 CHANGE_EXPIRY_HOURS = int(os.getenv("CORVUS_CHANGE_EXPIRY_HOURS", "4"))
 
-# Dev mode — explicit flag instead of inferring from empty API_KEYS
-CORVUS_DEV_MODE: bool = os.getenv("CORVUS_DEV_MODE", "false").lower() == "true"
-
 # OIDC (OpenID Connect) configuration
 OIDC_ISSUER_URL: str = os.getenv("OIDC_ISSUER_URL", "https://accounts.google.com")
 OIDC_CLIENT_ID: str = os.getenv("OIDC_CLIENT_ID", "")
 OIDC_CLIENT_SECRET: str = os.getenv("OIDC_CLIENT_SECRET", "")
 OIDC_ENABLED: bool = os.getenv("OIDC_ENABLED", "false").lower() == "true"
+# OIDC strict mode: when true (default), OIDC validation failures raise 503.
+# When false (Phase 3-4 dual-mode), failures fall through to API-key auth with audit event.
+# See projects/corvus-oidc/reports/2026-05-01-architect-design-v2.md §3.5.
+OIDC_STRICT: bool = os.getenv("CORVUS_OIDC_STRICT", "true").lower() == "true"
+# Break-glass key name — when matched, emits P1 auth.break_glass_used event.
+OIDC_BREAK_GLASS_KEY_NAME: str = os.getenv("CORVUS_BREAK_GLASS_KEY_NAME", "corvus-break-glass")
 
 # Infrastructure config — loaded from external YAML so no instance-specific
 # data lives in source code.  Set CORVUS_INFRA_CONFIG to override the path.
