@@ -190,7 +190,7 @@ class TestAdapterForwarding:
 class TestForwarderModule:
     @pytest.mark.asyncio
     async def test_no_adapters_stats(self):
-        """"With no SIEM configured, stats report none."""
+        """ "With no SIEM configured, stats report none."""
         stats = await get_forwarding_stats()
         assert stats["siem_configured"] is False
         assert stats["adapter"] == "none"
@@ -277,7 +277,7 @@ class TestForwarderModule:
 
     @pytest.mark.asyncio
     async def test_dead_letters_empty_no_adapters(self):
-        """"Dead letters returns empty when no adapters configured."""
+        """ "Dead letters returns empty when no adapters configured."""
         from src.siem import forwarder
 
         old = forwarder._adapters

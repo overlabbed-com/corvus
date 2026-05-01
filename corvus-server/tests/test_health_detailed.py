@@ -19,7 +19,7 @@ class TestHealthReadiness:
         """Readiness should check database health."""
         resp = await client.get("/health/ready")
         checks = resp.json()["checks"]
-        
+
         assert "database" in checks
         assert "healthy" in checks["database"]
         assert "graph" in checks
@@ -34,7 +34,7 @@ class TestHealthDetailed:
         resp = await client.get("/health/detailed")
         assert resp.status_code == 200
         data = resp.json()
-        
+
         assert "status" in data
         assert "database" in data
         assert "graph" in data
@@ -46,7 +46,7 @@ class TestHealthDetailed:
         """Detailed health should include subscription info."""
         resp = await client.get("/health/detailed")
         data = resp.json()
-        
+
         assert "active_count" in data["subscriptions"]
         assert "dropped_events" in data["subscriptions"]
 
@@ -55,6 +55,6 @@ class TestHealthDetailed:
         """Detailed health should include SIEM forwarding stats."""
         resp = await client.get("/health/detailed")
         data = resp.json()
-        
+
         assert "siem" in data
         assert "siem_configured" in data["siem"]

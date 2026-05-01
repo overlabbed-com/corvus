@@ -5,10 +5,8 @@ Previously, both had duplicated validation logic.
 """
 
 import logging
-from typing import Any
 
 from fastapi import HTTPException, Request
-from starlette.responses import JSONResponse
 
 from src.config import API_KEYS, CORVUS_DEV_MODE, OIDC_ENABLED
 
@@ -29,15 +27,15 @@ __all__ = [
 
 def authenticate_request(request: Request) -> AuthContext | None:
     """Authenticate a request and return AuthContext, or None for errors.
-    
+
     This is the SHARED authentication function used by both:
     - AuthMiddleware.dispatch()
     - get_auth() (for backward compatibility)
-    
+
     Priority order:
     1. OIDC/JWT validation if enabled
     2. API key validation (backward compat)
-    
+
     Returns AuthContext on success.
     Raises HTTPException on auth failures in production.
     """
@@ -62,7 +60,7 @@ def authenticate_request(request: Request) -> AuthContext | None:
                     try:
                         identity = config.validate_token(token)
                         # Map OIDC roles to local roles
-                        roles = identity.roles if isinstance(identity, Identity) else getattr(identity, 'roles', [])
+                        roles = identity.roles if isinstance(identity, Identity) else getattr(identity, "roles", [])
                         role = Role.AGENT  # default
                         if "admin" in roles:
                             role = Role.ADMIN
@@ -109,10 +107,10 @@ def authenticate_request(request: Request) -> AuthContext | None:
 
 async def get_auth(request: Request) -> AuthContext:
     """Extract and validate auth from request (FastAPI Depends).
-    
+
     Story 5.3: Now delegates to shared authenticate_request() function.
     No longer duplicates logic from AuthMiddleware.
-    
+
     When AuthMiddleware is active, this reads from request.state.auth.
     When used standalone (e.g., in tests), performs full validation.
     """
@@ -124,11 +122,13 @@ async def get_auth(request: Request) -> AuthContext:
     auth = authenticate_request(request)
     if auth is None:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
 
     # Check role permissions
     if not _check_permission(auth.role, request.url.path, request.method):
         from fastapi import HTTPException
+
         raise HTTPException(
             status_code=403,
             detail=f"Role '{auth.role}' cannot {request.method} {request.url.path}",

@@ -4,9 +4,10 @@ Story 1.3: All step handlers should be wrapped with asyncio.wait_for()
 to enforce timeout limits.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
+from unittest.mock import patch
+
+import pytest
 
 
 @pytest.mark.asyncio

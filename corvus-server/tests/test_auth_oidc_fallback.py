@@ -4,16 +4,18 @@ Story 1.1: OIDC failures in production should raise HTTP 503, not silently fall 
 Dev mode still allows fallback for testing.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.mark.asyncio
 async def test_oidc_failure_in_production_raises_503(client):
     """OIDC validation failure in production (non-dev mode) should raise HTTP 503."""
     from fastapi import HTTPException
-    from src.middleware.auth import authenticate_request, AuthContext, Role
+
     from src.config import CORVUS_DEV_MODE
+    from src.middleware.auth import authenticate_request
 
     # Save original value
     original_dev_mode = CORVUS_DEV_MODE
@@ -61,9 +63,8 @@ async def test_oidc_failure_in_production_raises_503(client):
 @pytest.mark.asyncio
 async def test_oidc_failure_in_dev_mode_allows_fallback(client):
     """OIDC validation failure in dev mode should fall through to API key auth."""
-    from fastapi import HTTPException
-    from src.middleware.auth import authenticate_request, AuthContext, Role
     from src.config import CORVUS_DEV_MODE
+    from src.middleware.auth import Role, authenticate_request
 
     # Save original value
     original_dev_mode = CORVUS_DEV_MODE
@@ -96,8 +97,8 @@ async def test_oidc_failure_in_dev_mode_allows_fallback(client):
 @pytest.mark.asyncio
 async def test_oidc_validation_error_logged_at_error_level(client):
     """OIDC validation errors should be logged at ERROR level, not DEBUG."""
-    from src.middleware.auth import authenticate_request
     from src.config import CORVUS_DEV_MODE
+    from src.middleware.auth import authenticate_request
 
     # Save original value
     original_dev_mode = CORVUS_DEV_MODE
@@ -146,8 +147,9 @@ async def test_oidc_validation_error_logged_at_error_level(client):
 async def test_oidc_module_error_in_production_raises_503(client):
     """OIDC module import/load error in production should raise HTTP 503."""
     from fastapi import HTTPException
-    from src.middleware.auth import authenticate_request
+
     from src.config import CORVUS_DEV_MODE
+    from src.middleware.auth import authenticate_request
 
     # Save original value
     original_dev_mode = CORVUS_DEV_MODE

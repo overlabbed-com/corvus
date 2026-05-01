@@ -1,7 +1,6 @@
 """Event bus — asyncio.Queue pub/sub for real-time SSE streaming (GAP-4)."""
 
 import asyncio
-import contextlib
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -23,14 +22,13 @@ _SUBSCRIPTION_TIMEOUT = 300  # 5 minutes
 
 async def publish(event: dict[str, Any]) -> None:
     """Publish an event to all matching subscribers.
-    
+
     Story 2.8: If queue is full, log and increment dropped counter.
     """
     async with _subscriber_lock:
         # Extract queues from (queue, last_activity) tuples
-        queues = [(sub_id, item[0] if isinstance(item, tuple) else item) 
-                  for sub_id, item in _subscribers.items()]
-    
+        queues = [(sub_id, item[0] if isinstance(item, tuple) else item) for sub_id, item in _subscribers.items()]
+
     dropped = 0
     for sub_id, q in queues:
         if q.full():
@@ -47,7 +45,7 @@ async def publish(event: dict[str, Any]) -> None:
                             _subscribers[sub_id] = q
             except asyncio.QueueFull:
                 dropped += 1
-    
+
     if dropped > 0:
         global _dropped_events_count
         async with _dropped_events_lock:
@@ -79,19 +77,19 @@ async def subscribe(
 
     async def _reader():
         """Background reader — pulls from global event log and fans out.
-        
+
         Story 2.3: Sends heartbeat every 30s, times out after 5min idle.
         """
         last_heartbeat = datetime.now(UTC)
         try:
             while True:
                 now = datetime.now(UTC)
-                
+
                 # Check for subscription timeout (5 min idle)
                 if (now - last_activity).total_seconds() > _SUBSCRIPTION_TIMEOUT:
                     logger.info("Subscription %s timed out after %ds idle", sub_id, _SUBSCRIPTION_TIMEOUT)
                     break
-                
+
                 # Send heartbeat every 30s if no events
                 if (now - last_heartbeat).total_seconds() > _HEARTBEAT_INTERVAL:
                     try:
@@ -99,7 +97,7 @@ async def subscribe(
                         last_heartbeat = now
                     except asyncio.QueueFull:
                         pass  # Queue full, skip heartbeat
-                
+
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             pass
@@ -116,9 +114,11 @@ def get_subscription_count() -> int:
     """Get current number of active subscriptions."""
     return len(_subscribers)
 
+
 def get_dropped_events_count() -> int:
     """Story 2.8: Get total dropped events count."""
     return _dropped_events_count
+
 
 def cancel_subscription(sub_id: str) -> None:
     """Cancel a subscription by ID."""

@@ -15,8 +15,8 @@ from src.event_bus import publish, record_event, record_incident_state, subscrib
 from src.models.events import EventCreate, EventResponse, TargetStatus
 from src.ocsf import transform_to_ocsf
 from src.sanitizer import sanitize
+from src.siem.forwarder import get_dead_letters, get_forwarding_stats, resolve_dead_letter
 from src.tasks.trust_ledger import get_trust_tier as _get_trust
-from src.siem.forwarder import get_dead_letters, resolve_dead_letter, get_forwarding_stats
 
 logger = logging.getLogger(__name__)
 
@@ -354,7 +354,7 @@ async def list_dead_letters(
     limit: int = Query(100, le=1000),
     offset: int = Query(0, ge=0),
 ):
-    """"List SIEM dead-letter queue entries.
+    """ "List SIEM dead-letter queue entries.
 
 
     Story 1.2: Failed events that couldn't be forwarded to SIEM
@@ -372,7 +372,7 @@ async def list_dead_letters(
 
 @router.delete("/siem/dead-letter/{dl_id}")
 async def resolve_dead_letter_entry(dl_id: str, request: Request):
-    """"Mark a dead-letter entry as resolved.
+    """ "Mark a dead-letter entry as resolved.
 
 
     Story 1.2: Allows manual resolution of dead-letter entries

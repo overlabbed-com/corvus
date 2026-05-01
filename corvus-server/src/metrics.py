@@ -4,15 +4,14 @@ Exports counters, histograms, and gauges for monitoring Corvus health
 and performance.
 """
 
-import asyncio
 import logging
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Try to import prometheus_client
 try:
-    from prometheus_client import Counter, Gauge, Histogram, generate_latest, REGISTRY
+    from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -63,117 +62,59 @@ def init_metrics():
     global GAPS_OPEN, GAPS_CLOSED
     global TRUST_TIER_CHANGES
     global REQUEST_DURATION, REQUEST_COUNT
-    
+
     if not PROMETHEUS_AVAILABLE:
         return
-    
+
     # Event metrics
-    EVENTS_RECEIVED = Counter(
-        'corvus_events_received_total',
-        'Total events received',
-        ['type', 'severity']
-    )
-    EVENTS_FORWARDED = Counter(
-        'corvus_events_forwarded_total',
-        'Total events forwarded to SIEM',
-        ['adapter']
-    )
-    EVENTS_DROPPED = Counter(
-        'corvus_events_dropped_total',
-        'Total events dropped (queue full, etc.)'
-    )
-    
+    EVENTS_RECEIVED = Counter("corvus_events_received_total", "Total events received", ["type", "severity"])
+    EVENTS_FORWARDED = Counter("corvus_events_forwarded_total", "Total events forwarded to SIEM", ["adapter"])
+    EVENTS_DROPPED = Counter("corvus_events_dropped_total", "Total events dropped (queue full, etc.)")
+
     # Triage metrics
     TRIAGE_DURATION = Histogram(
-        'corvus_triage_duration_seconds',
-        'Triage execution duration',
-        ['service_type', 'outcome']
+        "corvus_triage_duration_seconds", "Triage execution duration", ["service_type", "outcome"]
     )
-    TRIAGE_SUCCESS_RATE = Counter(
-        'corvus_triage_success_total',
-        'Successful triages',
-        ['service_type']
-    )
-    TRIAGE_SUCCESS_RATE = Counter(
-        'corvus_triage_failure_total',
-        'Failed triages',
-        ['service_type']
-    )
-    
+    TRIAGE_SUCCESS_RATE = Counter("corvus_triage_success_total", "Successful triages", ["service_type"])
+    TRIAGE_SUCCESS_RATE = Counter("corvus_triage_failure_total", "Failed triages", ["service_type"])
+
     # Graph metrics
-    GRAPH_QUERY_DURATION = Histogram(
-        'corvus_graph_query_duration_seconds',
-        'Neo4j query duration',
-        ['query_type']
-    )
-    GRAPH_CONNECTIONS = Gauge(
-        'corvus_graph_connections',
-        'Active Neo4j connections'
-    )
-    
+    GRAPH_QUERY_DURATION = Histogram("corvus_graph_query_duration_seconds", "Neo4j query duration", ["query_type"])
+    GRAPH_CONNECTIONS = Gauge("corvus_graph_connections", "Active Neo4j connections")
+
     # Subscription metrics
-    ACTIVE_SUBSCRIPTIONS = Gauge(
-        'corvus_sse_subscriptions',
-        'Active SSE subscriptions'
-    )
-    SUBSCRIPTION_DROPPED = Counter(
-        'corvus_subscriptions_dropped_total',
-        'Dropped subscriptions (timeout, error)'
-    )
-    
+    ACTIVE_SUBSCRIPTIONS = Gauge("corvus_sse_subscriptions", "Active SSE subscriptions")
+    SUBSCRIPTION_DROPPED = Counter("corvus_subscriptions_dropped_total", "Dropped subscriptions (timeout, error)")
+
     # SIEM metrics
     SIEM_ADAPTER_HEALTH = Gauge(
-        'corvus_siem_adapter_health',
-        'SIEM adapter health (1=healthy, 0=unhealthy)',
-        ['adapter']
+        "corvus_siem_adapter_health", "SIEM adapter health (1=healthy, 0=unhealthy)", ["adapter"]
     )
     SIEM_FORWARDING_SUCCESS = Counter(
-        'corvus_siem_forwarded_success_total',
-        'Successfully forwarded events',
-        ['adapter']
+        "corvus_siem_forwarded_success_total", "Successfully forwarded events", ["adapter"]
     )
-    SIEM_FORWARDING_FAILURE = Counter(
-        'corvus_siem_forwarded_failure_total',
-        'Failed event forwards',
-        ['adapter']
-    )
-    
+    SIEM_FORWARDING_FAILURE = Counter("corvus_siem_forwarded_failure_total", "Failed event forwards", ["adapter"])
+
     # Gap metrics
-    GAPS_OPEN = Gauge(
-        'corvus_gaps_open_total',
-        'Open operational gaps',
-        ['category', 'workstream']
-    )
-    GAPS_CLOSED = Counter(
-        'corvus_gaps_closed_total',
-        'Closed operational gaps',
-        ['category']
-    )
-    
+    GAPS_OPEN = Gauge("corvus_gaps_open_total", "Open operational gaps", ["category", "workstream"])
+    GAPS_CLOSED = Counter("corvus_gaps_closed_total", "Closed operational gaps", ["category"])
+
     # Trust metrics
     TRUST_TIER_CHANGES = Counter(
-        'corvus_trust_tier_changes_total',
-        'Trust tier changes',
-        ['action_type', 'old_tier', 'new_tier']
+        "corvus_trust_tier_changes_total", "Trust tier changes", ["action_type", "old_tier", "new_tier"]
     )
-    
+
     # Request metrics
     REQUEST_DURATION = Histogram(
-        'corvus_request_duration_seconds',
-        'HTTP request duration',
-        ['endpoint', 'method', 'status']
+        "corvus_request_duration_seconds", "HTTP request duration", ["endpoint", "method", "status"]
     )
-    REQUEST_COUNT = Counter(
-        'corvus_requests_total',
-        'Total HTTP requests',
-        ['endpoint', 'method', 'status']
-    )
+    REQUEST_COUNT = Counter("corvus_requests_total", "Total HTTP requests", ["endpoint", "method", "status"])
 
 
 def get_metrics() -> bytes:
     """Get Prometheus-formatted metrics."""
     if not PROMETHEUS_AVAILABLE:
-        return b'# Prometheus metrics not available\n'
+        return b"# Prometheus metrics not available\n"
     return generate_latest(REGISTRY)
 
 
@@ -225,7 +166,7 @@ def record_gap_closed(category: str):
     if GAPS_CLOSED:
         GAPS_CLOSED.labels(category=category).inc()
         if GAPS_OPEN:
-            GAPS_OPEN.labels(category=category, workstream='all').dec()
+            GAPS_OPEN.labels(category=category, workstream="all").dec()
 
 
 def record_request(endpoint: str, method: str, status: int, duration: float):
