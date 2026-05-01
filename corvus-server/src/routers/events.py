@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import EventSourceResponse
 
 from src.database import get_db
@@ -48,8 +48,6 @@ async def emit_event(event: EventCreate, request: Request):
     from src.models.events import EVENT_TYPE_ALLOWLIST, VALID_SEVERITIES
 
     if event.type not in EVENT_TYPE_ALLOWLIST:
-        from fastapi import HTTPException
-
         valid = sorted(EVENT_TYPE_ALLOWLIST)
         raise HTTPException(
             status_code=400,
@@ -57,8 +55,6 @@ async def emit_event(event: EventCreate, request: Request):
         )
 
     if event.severity not in VALID_SEVERITIES:
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=400,
             detail=f"Invalid severity: {event.severity!r}. Must be one of: {sorted(VALID_SEVERITIES)}",

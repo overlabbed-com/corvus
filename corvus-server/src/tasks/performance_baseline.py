@@ -53,7 +53,7 @@ class PerformanceBaselines:
 
             # SIEM forwarding stats
             from src.siem.forwarder import get_forwarding_stats
-            siem_stats = get_forwarding_stats()
+            siem_stats = await get_forwarding_stats()
 
             return {
                 "timestamp": datetime.now(UTC).isoformat(),

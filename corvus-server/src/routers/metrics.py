@@ -261,7 +261,7 @@ async def get_metrics():
         # SIEM forwarding stats
         from src.siem.forwarder import get_forwarding_stats
 
-        metrics["siem"] = get_forwarding_stats()
+        metrics["siem"] = await get_forwarding_stats()
 
         # Runbook coverage
         from src.runbooks.loader import registry

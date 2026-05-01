@@ -48,7 +48,7 @@ class TestGraphTimeout:
         """Story 4.1: Timeout should be logged with query details."""
         import logging
         
-        from src.graph import run_query_with_timeout, graph_health
+        from src.graph import graph_available, run_query_with_timeout
         
         if not graph_available():
             pytest.skip("Neo4j not available")
