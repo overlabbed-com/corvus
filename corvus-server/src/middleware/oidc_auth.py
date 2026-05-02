@@ -73,8 +73,17 @@ class OIDCConfig:
 
     @property
     def discovery_url(self) -> str:
-        """OIDC discovery endpoint."""
-        return f"{self.issuer_url}/.well-known/openid-configuration"
+        """OIDC discovery endpoint.
+
+        B8 — strip trailing slashes from the issuer before joining. Per
+        OIDC Discovery 1.0 §4 the issuer identifier may carry a trailing
+        slash (Hydra and many other IdPs do — their JWTs carry that exact
+        `iss` value, so config must keep it for `verify_iss=True`), but
+        the well-known path always begins with `/`. Without the rstrip
+        we get `https://issuer//.well-known/...` which most providers,
+        including Hydra, reject (403 / 404).
+        """
+        return f"{self.issuer_url.rstrip('/')}/.well-known/openid-configuration"
 
     async def _resolve_jwks_url(self) -> str:
         """Resolve JWKS URL via the OIDC discovery document.
