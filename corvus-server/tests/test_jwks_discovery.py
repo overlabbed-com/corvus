@@ -33,6 +33,26 @@ async def test_resolve_jwks_url_via_discovery(monkeypatch):
     assert url == "https://hydra.example/.well-known/jwks.json"
 
 
+def test_discovery_url_strips_trailing_slash():
+    """B8 — issuer URLs that include a trailing slash (Ory Hydra and many
+    other OIDC providers issue tokens whose `iss` has one) must not produce
+    `//.well-known/...` when the discovery URL is composed. The well-known
+    URL must always have exactly one slash before `.well-known`.
+    """
+    from src.middleware.oidc_auth import OIDCConfig
+
+    with_slash = OIDCConfig(
+        issuer_url="https://hydra.example/", client_id="c", client_secret=""
+    )
+    without_slash = OIDCConfig(
+        issuer_url="https://hydra.example", client_id="c", client_secret=""
+    )
+
+    expected = "https://hydra.example/.well-known/openid-configuration"
+    assert with_slash.discovery_url == expected
+    assert without_slash.discovery_url == expected
+
+
 @pytest.mark.asyncio
 async def test_resolve_jwks_url_missing_jwks_uri(monkeypatch):
     """Discovery doc lacking jwks_uri is a hard error (no silent fall-through)."""
