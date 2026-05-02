@@ -4,7 +4,7 @@ Story 1.1: OIDC failures in production should raise HTTP 503, not silently fall 
 Dev mode still allows fallback for testing.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -44,12 +44,13 @@ async def test_oidc_failure_in_production_raises_503(client):
                 with patch("src.middleware.oidc_auth.get_oidc_config") as mock_get_config:
                     # Make OIDC validation fail
                     mock_oidc = MagicMock()
-                    mock_oidc.validate_token.side_effect = Exception("Token expired")
+                    mock_oidc.validate_token = AsyncMock(side_effect=Exception("Token expired"))
                     mock_get_config.return_value = mock_oidc
 
-                    # In production mode with OIDC failure, should raise HTTP 503
+                    # In production mode with OIDC_STRICT=true (default),
+                    # OIDC failure should raise HTTP 503.
                     with pytest.raises(HTTPException) as exc_info:
-                        authenticate_request(mock_request)
+                        await authenticate_request(mock_request)
 
                     assert exc_info.value.status_code == 503
                     assert "OIDC provider unavailable" in exc_info.value.detail
@@ -82,7 +83,7 @@ async def test_oidc_failure_in_dev_mode_allows_fallback(client):
         mock_request.state.auth = None
 
         # In dev mode, should return anonymous admin context without checking OIDC
-        result = authenticate_request(mock_request)
+        result = await authenticate_request(mock_request)
 
         assert result is not None
         assert result.role == Role.ADMIN
@@ -95,8 +96,13 @@ async def test_oidc_failure_in_dev_mode_allows_fallback(client):
 
 
 @pytest.mark.asyncio
-async def test_oidc_validation_error_logged_at_error_level(client):
-    """OIDC validation errors should be logged at ERROR level, not DEBUG."""
+async def test_oidc_validation_error_logged_at_warning_level(client):
+    """OIDC validation errors should be logged at WARNING (not DEBUG, not ERROR).
+
+    B2 (design v2.1) — WARNING is the right severity: failure is observable
+    and Sentinel-alertable, but not a hard system error like a corrupted
+    DB. Story 1.1's prior choice of ERROR is superseded by F-02.
+    """
     from src.config import CORVUS_DEV_MODE
     from src.middleware.auth import authenticate_request
 
@@ -123,7 +129,7 @@ async def test_oidc_validation_error_logged_at_error_level(client):
                 with patch("src.middleware.oidc_auth.get_oidc_config") as mock_get_config:
                     # Make OIDC validation fail
                     mock_oidc = MagicMock()
-                    mock_oidc.validate_token.side_effect = Exception("Token expired")
+                    mock_oidc.validate_token = AsyncMock(side_effect=Exception("Token expired"))
                     mock_get_config.return_value = mock_oidc
 
                     with patch.object(auth_module, "logger") as mock_logger:
@@ -131,11 +137,11 @@ async def test_oidc_validation_error_logged_at_error_level(client):
                         from fastapi import HTTPException
 
                         with pytest.raises(HTTPException) as exc_info:
-                            authenticate_request(mock_request)
+                            await authenticate_request(mock_request)
 
                         assert exc_info.value.status_code == 503
-                        # Should have logged at error level
-                        assert mock_logger.error.called
+                        # B2: log at WARNING (was ERROR pre-2026-05-01)
+                        assert mock_logger.warning.called
     finally:
         # Restore original value
         import src.config as config_module
@@ -178,11 +184,11 @@ async def test_oidc_module_error_in_production_raises_503(client):
                     with patch.object(auth_module, "logger") as mock_logger:
                         # Should raise HTTP 503, not silently fall back
                         with pytest.raises(HTTPException) as exc_info:
-                            authenticate_request(mock_request)
+                            await authenticate_request(mock_request)
 
                         assert exc_info.value.status_code == 503
-                        # Should have logged at error level
-                        assert mock_logger.error.called
+                        # B2: log at WARNING (was ERROR pre-2026-05-01)
+                        assert mock_logger.warning.called
     finally:
         # Restore original value
         import src.config as config_module

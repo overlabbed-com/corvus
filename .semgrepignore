@@ -3,3 +3,7 @@
 docs/
 # container_inspector.py uses shell=True for docker commands (intentional)
 corvus-server/src/discovery/container_inspector.py
+# OIDC audit-event tests mint syntactically-valid JWTs with a throwaway HMAC
+# secret. The tokens are designed to be rejected by validation; the secret
+# string is irrelevant.
+corvus-server/tests/test_oidc_audit_event.py
