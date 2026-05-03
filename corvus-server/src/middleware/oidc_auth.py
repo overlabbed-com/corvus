@@ -238,9 +238,39 @@ class OIDCConfig:
         if not sub:
             raise InvalidTokenError("Missing 'sub' claim")
 
-        roles = payload.get("roles", [])
-        if isinstance(roles, str):
-            roles = [roles]
+        # B9 (corvus-oidc Phase 4) — derive roles from RFC 9068 `scp` array
+        # (Hydra v2.3+ default), the legacy `scope` string (space-separated,
+        # OAuth2 §5.4), or the explicit `roles` claim — in that priority
+        # order. Maps `corvus.read|write|admin` scopes to the canonical
+        # role names AuthMiddleware reads. Falls through to whatever the
+        # IdP put in `roles` for backward compatibility with non-Hydra
+        # providers (e.g. Authentik, Keycloak with a roles mapper).
+        roles: list[str] = []
+        scp = payload.get("scp")
+        scope_str = payload.get("scope")
+        scope_tokens: list[str] = []
+        if isinstance(scp, list):
+            scope_tokens = [str(s) for s in scp]
+        elif isinstance(scope_str, str) and scope_str.strip():
+            scope_tokens = scope_str.split()
+        # Map well-known Corvus scopes → role names that AuthMiddleware
+        # already maps to Role.{ADMIN, OPS_WRITE, OPS_READ, AGENT}.
+        scope_role_map = {
+            "corvus.admin": "admin",
+            "corvus.write": "ops-write",
+            "corvus.read": "ops-read",
+        }
+        for s in scope_tokens:
+            mapped = scope_role_map.get(s)
+            if mapped and mapped not in roles:
+                roles.append(mapped)
+        # Fall back to explicit `roles` claim (legacy / non-Hydra IdPs).
+        if not roles:
+            raw = payload.get("roles", [])
+            if isinstance(raw, str):
+                roles = [raw]
+            elif isinstance(raw, list):
+                roles = [str(r) for r in raw]
 
         identity = Identity(
             sub=sub,
