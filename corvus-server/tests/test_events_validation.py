@@ -516,3 +516,39 @@ class TestBackwardCompatibility:
             },
         )
         assert r.status_code == 201
+
+
+class TestSentinelSyntheticProbeEvents:
+    """Phase 6.3 of corvus-oidc — sentinel.synthetic_probe.{ok,failed}
+    are first-class types so audit-log filters can target them without
+    overloading change.completed / anomaly.detected with a `data.kind`
+    discriminator.
+    """
+
+    @pytest.mark.asyncio
+    async def test_synthetic_probe_ok_is_accepted(self, client):
+        r = await client.post(
+            "/ops/events",
+            json={
+                "source": "sentinel-probe",
+                "type": "sentinel.synthetic_probe.ok",
+                "target": "corvus",
+                "severity": "info",
+                "data": {"http": 200, "endpoint": "/ops/events/targets/hydra/status"},
+            },
+        )
+        assert r.status_code == 201, r.json()
+
+    @pytest.mark.asyncio
+    async def test_synthetic_probe_failed_is_accepted(self, client):
+        r = await client.post(
+            "/ops/events",
+            json={
+                "source": "sentinel-probe",
+                "type": "sentinel.synthetic_probe.failed",
+                "target": "corvus",
+                "severity": "warning",
+                "data": {"http": 503, "phase": "endpoint", "body": "service unavailable"},
+            },
+        )
+        assert r.status_code == 201, r.json()

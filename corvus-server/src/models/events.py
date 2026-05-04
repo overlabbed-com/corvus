@@ -41,6 +41,13 @@ EVENT_TYPE_ALLOWLIST = frozenset(
         # Auth — OIDC migration observability (B2)
         "auth.oidc_validation_failed",
         "auth.break_glass_used",
+        # Sentinel synthetic probes — periodic out-of-band liveness checks
+        # that mint a real JWT and exercise an authenticated endpoint.
+        # Closes the "OIDC silently broken" detection gap (Phase 6.3 of
+        # the corvus-oidc project). `ok` is the heartbeat; `failed` is
+        # the alert (any subsystem along the auth path is degraded).
+        "sentinel.synthetic_probe.ok",
+        "sentinel.synthetic_probe.failed",
         # Plan lifecycle
         "plan.created",
         "plan.approved",
