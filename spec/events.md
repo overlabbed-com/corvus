@@ -56,6 +56,14 @@ Read-only forensics driven by an LLM (not an action or a plan). Parallels sessio
 | `session.started` | Agent session begins | info |
 | `session.ended` | Agent session ends | info |
 
+### Auth (OIDC migration observability)
+| Type | When | Severity |
+|------|------|----------|
+| `auth.oidc_validation_failed` | A bearer JWT failed validation (signature, audience, expiry, scope) | warning |
+| `auth.break_glass_used` | The `corvus-break-glass` static key was used as Bearer (P1) | critical |
+| `sentinel.synthetic_probe.ok` | Periodic out-of-band liveness probe minted a JWT and exercised an authenticated endpoint successfully | info |
+| `sentinel.synthetic_probe.failed` | The synthetic probe failed at any step (mint, endpoint, emit) — auth path is degraded | warning |
+
 ### Plan Lifecycle
 | Type | When | Severity |
 |------|------|----------|
