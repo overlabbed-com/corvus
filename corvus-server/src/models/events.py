@@ -172,3 +172,6 @@ class TargetStatus(BaseModel):
     active_incidents: list[dict[str, Any]] = []
     recent_events: list[dict[str, Any]] = []
     trust_tier: str = "ESCALATE"
+    # Phase 2: CAIPE Integration - Enhanced context
+    action_type: str | None = None
+    agent_name: str | None = None

@@ -1,0 +1,715 @@
+# CAIPE Agent Runbook
+# Service Type: caipe-agent
+# Description: FMEA-based triage for CAIPE sub-agents (github, slack, docker)
+# Phase: 2 (Corvus-CAIPE Integration)
+#
+# CAIPE agents are specialized sub-agents that perform specific tasks
+# (GitHub operations, Slack messaging, Docker management) under the
+# supervision of the CAIPE supervisor.
+
+service_type: caipe-agent
+
+# General agent metadata
+description: |
+  CAIPE sub-agents are specialized AI agents that perform domain-specific
+  operations. They communicate with the supervisor via A2A protocol and
+  with external services via MCP or direct API calls.
+
+# Default investigation steps for all failure modes
+default_investigation:
+  - step: 1
+    action: Check agent health endpoint
+    command: "curl -sf http://caipe-agent-{name}:8000/.well-known/agent-card.json"
+    expected: HTTP 200 with valid AgentCard JSON
+    
+  - step: 2
+    action: Check container status
+    command: "docker inspect caipe-agent-{name} --format '{{.State.Status}}'"
+    expected: "running"
+    
+  - step: 3
+    action: Check container logs for errors
+    command: "docker logs caipe-agent-{name} --tail 100 | grep -i error"
+    expected: No recent errors
+    
+  - step: 4
+    action: Check resource usage
+    command: "docker stats caipe-agent-{name} --no-stream"
+    expected: Normal CPU/memory usage
+
+# Failure modes specific to CAIPE agents
+failure_modes:
+  # ============================================================================
+  # AGENT_UNRESPONSIVE - Agent not responding to health checks
+  # ============================================================================
+  - name: agent_unresponsive
+    description: |
+      CAIPE agent container is running but not responding to health checks.
+      This could be due to application crash, deadlock, or resource exhaustion.
+    severity: high
+    
+    detection:
+      methods:
+        - health_check_failure: 3 consecutive failures
+        - http_5xx_errors: 5xx responses from agent endpoint
+        - timeout: Request timeout (>30s)
+      
+    impact:
+      - Supervisor cannot delegate tasks to this agent
+      - Operations requiring this agent's capabilities will fail or queue
+      - Reduced overall CAIPE functionality
+      
+    affected_services:
+      - caipe-supervisor (cannot delegate)
+      - caipe-ui (user requests may fail)
+      
+    diagnosis:
+      - step: 1
+        action: Check health check logs
+        command: "docker inspect caipe-agent-{name} --format '{{.State.Health}}'"
+        expected: Healthy status with recent success
+        
+      - step: 2
+        action: Check application logs
+        command: "docker logs caipe-agent-{name} --tail 200"
+        look_for:
+          - "Traceback" (Python exceptions)
+          - "MemoryError" (OOM)
+          - "Timeout" (external service issues)
+          - "ConnectionError" (network issues)
+          
+      - step: 3
+        action: Check resource limits
+        command: "docker inspect caipe-agent-{name} --format '{{.HostConfig.Memory}} / {{.HostConfig.CpuShares}}'"
+        expected: Within configured limits
+        
+      - step: 4
+        action: Check dependent services
+        command: "docker inspect caipe-agent-{name} --format '{{.HostConfig.Links}}'"
+        note: Verify all linked services (MongoDB, LiteLLM, MCP servers) are healthy
+        
+      - step: 5
+        action: Check for deadlocks
+        command: "docker top caipe-agent-{name}"
+        look_for: All threads in WAITING state
+        
+    remediation:
+      - step: 1
+        action: Restart agent container
+        command: "docker restart caipe-agent-{name}"
+        impact: Brief service interruption (~10-30s)
+        success_criteria: Health check passes within 60s
+        
+      - step: 2
+        condition: Restart did not resolve
+        action: Check external dependencies
+        commands:
+          - "curl -sf http://litellm:4000/health" (LLM provider)
+          - "curl -sf http://mongodb:27017" (if applicable)
+          - "curl -sf http://{mcp-server}:{port}/health" (MCP dependencies)
+        expected: All dependencies healthy
+        
+      - step: 3
+        condition: External dependencies are healthy
+        action: Increase resource limits
+        command: "docker update --memory 2G --cpus 1.5 caipe-agent-{name}"
+        note: Temporary increase for testing
+        
+      - step: 4
+        condition: Issue persists after restart and resource increase
+        action: Check for application bugs
+        commands:
+          - "docker exec caipe-agent-{name} python -c 'import traceback; traceback.print_exc()'"
+          - Review recent code changes to the agent
+        
+      - step: 5
+        condition: Root cause unclear
+        action: Escalate to admin
+        notification: "CAIPE agent {name} unresponsive - manual investigation required"
+        severity: high
+        
+    prevention:
+      - Monitor agent health checks proactively
+      - Set up alerts for health check failures
+      - Implement circuit breakers for external service calls
+      - Add resource usage monitoring and alerts
+      
+    related_runbooks:
+      - docker_container_unresponsive
+      - python_application_crash
+
+  # ============================================================================
+  # AUTHENTICATION_FAILURE - Agent cannot authenticate to external service
+  # ============================================================================
+  - name: authentication_failure
+    description: |
+      CAIPE agent cannot authenticate to an external service (GitHub, Slack,
+      Docker, etc.). This is typically due to expired, revoked, or misconfigured
+      credentials.
+    severity: medium
+    
+    detection:
+      methods:
+        - http_401_errors: Unauthorized responses from external API
+        - http_403_errors: Forbidden responses from external API
+        - log_pattern: "Authentication failed" or "Invalid token"
+      
+    impact:
+      - Agent cannot perform authenticated operations
+      - User requests requiring authentication will fail
+      - Partial functionality loss (read operations may still work)
+      
+    affected_services:
+      - caipe-supervisor (receives errors from agent)
+      - caipe-ui (user sees authentication errors)
+      - External service (GitHub/Slack/Docker)
+      
+    diagnosis:
+      - step: 1
+        action: Identify failing authentication
+        command: "docker logs caipe-agent-{name} --tail 100 | grep -i '401\|403\|auth\|token'"
+        look_for:
+          - Specific service and error message
+          - Token/credential identifier (partial, for matching)
+          
+      - step: 2
+        action: Check token validity
+        commands:
+          - For GitHub: "gh auth status"
+          - For Slack: "curl -H 'Authorization: Bearer {token}' https://slack.com/api/auth.test"
+          - For Docker: "docker --config /path/to/config info"
+        expected: Valid authentication
+        
+      - step: 3
+        action: Check token expiration
+        command: "jq -r '.exp' /path/to/token.json | date -d @<timestamp>"
+        note: For JWT tokens, decode and check exp claim
+        
+      - step: 4
+        action: Verify token permissions
+        commands:
+          - For GitHub: "gh auth status --show-token | gh api /user -H 'Authorization: token ...'"
+          - Check token has required scopes
+        expected: Token has all required permissions
+        
+      - step: 5
+        action: Check service status
+        command: "curl -sf https://status.github.com/api/v2/status.json" (GitHub example)
+        expected: Service is operational
+        
+    remediation:
+      - step: 1
+        action: Rotate credentials
+        commands:
+          - Generate new token/credential
+          - Update in 1Password
+          - Update in deploy workflow
+          - Redeploy agent
+        impact: Brief service interruption
+        success_criteria: New credential works
+        
+      - step: 2
+        condition: Token rotation did not resolve
+        action: Verify token scopes/permissions
+        commands:
+          - Compare new token permissions with required permissions
+          - Check for scope changes in external service
+        
+      - step: 3
+        condition: Permissions are correct but still failing
+        action: Check for IP restrictions
+        commands:
+          - Verify agent container IP is allowed
+          - Check for network-level authentication (firewall, VPN)
+        
+      - step: 4
+        condition: Issue persists
+        action: Check for API changes
+        commands:
+          - Review external service API changelog
+          - Check for deprecated endpoints
+        
+      - step: 5
+        condition: Root cause unclear
+        action: Escalate to service provider
+        notification: "CAIPE agent {name} authentication failure - {service} support needed"
+        severity: medium
+        
+    prevention:
+      - Use long-lived tokens with rotation reminders
+      - Monitor token expiration dates
+      - Set up alerts for authentication failures
+      - Use service accounts with appropriate permissions
+      - Document required permissions for each service
+      
+    related_runbooks:
+      - github_authentication_failure
+      - slack_authentication_failure
+      - docker_authentication_failure
+
+  # ============================================================================
+  # MCP_CONNECTION_FAILURE - Agent cannot connect to MCP server
+  # ============================================================================
+  - name: mcp_connection_failure
+    description: |
+      CAIPE agent cannot connect to its MCP server. This prevents the agent
+      from accessing required tools and functionality.
+    severity: high
+    
+    detection:
+      methods:
+        - connection_refused: Cannot connect to MCP server port
+        - connection_timeout: Connection times out (>10s)
+        - log_pattern: "ConnectionError" or "Failed to connect to MCP"
+      
+    impact:
+      - Agent cannot perform its primary function
+      - All operations requiring MCP tools will fail
+      - Agent may appear healthy but be non-functional
+      
+    affected_services:
+      - caipe-supervisor (receives errors from agent)
+      - caipe-ui (user requests fail)
+      - MCP server (may be down or misconfigured)
+      
+    diagnosis:
+      - step: 1
+        action: Check MCP server health
+        command: "docker inspect {mcp-server-container} --format '{{.State.Status}}'"
+        expected: "running"
+        
+      - step: 2
+        action: Check MCP server logs
+        command: "docker logs {mcp-server-container} --tail 100"
+        look_for:
+          - Startup errors
+          - Configuration issues
+          - Authentication failures
+          
+      - step: 3
+        action: Test direct connection to MCP server
+        command: "curl -v http://{mcp-server}:{port}/health"
+        expected: HTTP 200 or MCP protocol response
+        
+      - step: 4
+        action: Check network connectivity
+        command: "docker exec caipe-agent-{name} nc -zv {mcp-server} {port}"
+        expected: Connection succeeds
+        
+      - step: 5
+        action: Check DNS resolution
+        command: "docker exec caipe-agent-{name} nslookup {mcp-server}"
+        expected: Correct IP address resolved
+        
+      - step: 6
+        action: Check network configuration
+        command: "docker network inspect {network-name}"
+        expected: Both agent and MCP server are on the same network
+        
+    remediation:
+      - step: 1
+        action: Restart MCP server
+        command: "docker restart {mcp-server-container}"
+        impact: Brief service interruption
+        success_criteria: MCP server health check passes
+        
+      - step: 2
+        condition: MCP server restart did not resolve
+        action: Check MCP server configuration
+        commands:
+          - Verify environment variables
+          - Check volume mounts
+          - Review configuration files
+        
+      - step: 3
+        condition: MCP server configuration is correct
+        action: Restart agent container
+        command: "docker restart caipe-agent-{name}"
+        impact: Brief service interruption
+        
+      - step: 4
+        condition: Issue persists
+        action: Check network configuration
+        commands:
+          - Verify both containers are on the same Docker network
+          - Check for network policies or firewalls
+          - Test connectivity from other containers
+        
+      - step: 5
+        condition: Network is functional
+        action: Check MCP server authentication
+        commands:
+          - Verify API keys or tokens
+          - Check authentication configuration
+        
+      - step: 6
+        condition: Root cause unclear
+        action: Escalate to MCP server maintainer
+        notification: "MCP server {name} connection failure - investigation needed"
+        severity: high
+        
+    prevention:
+      - Monitor MCP server health proactively
+      - Set up alerts for MCP connection failures
+      - Use health checks for MCP servers
+      - Document MCP server dependencies
+      - Test network connectivity during deployment
+      
+    related_runbooks:
+      - mcp_server_unresponsive
+      - docker_network_issues
+
+  # ============================================================================
+  # LLM_PROVIDER_FAILURE - Agent cannot connect to LLM provider
+  # ============================================================================
+  - name: llm_provider_failure
+    description: |
+      CAIPE agent cannot connect to or get responses from the LLM provider
+      (LiteLLM). This prevents the agent from performing any reasoning or
+      decision-making.
+    severity: high
+    
+    detection:
+      methods:
+        - connection_refused: Cannot connect to LiteLLM
+        - connection_timeout: Connection to LiteLLM times out
+        - http_5xx_errors: Server errors from LiteLLM
+        - log_pattern: "LLM provider error" or "Failed to get response"
+      
+    impact:
+      - Agent cannot perform any operations
+      - All user requests will fail
+      - Agent appears healthy but is non-functional
+      
+    affected_services:
+      - caipe-supervisor (cannot delegate)
+      - caipe-ui (all requests fail)
+      - litellm (may be down or overloaded)
+      
+    diagnosis:
+      - step: 1
+        action: Check LiteLLM health
+        command: "curl -sf http://litellm:4000/health"
+        expected: HTTP 200 with healthy status
+        
+      - step: 2
+        action: Check LiteLLM logs
+        command: "docker logs litellm --tail 100"
+        look_for:
+          - Model loading errors
+          - GPU memory issues
+          - Rate limiting
+          
+      - step: 3
+        action: Test LLM request
+        command: |
+          curl -X POST http://litellm:4000/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer {API_KEY}" \
+            -d '{"model": "worker", "messages": [{"role": "user", "content": "test"}]}'
+        expected: Valid JSON response
+        
+      - step: 4
+        action: Check agent API key
+        command: "docker inspect caipe-agent-{name} --format '{{index .Config.Env}}' | grep LITELLM"
+        expected: Valid API key configured
+        
+      - step: 5
+        action: Check model availability
+        command: "curl -sf http://litellm:4000/models"
+        expected: Model list includes required models
+        
+    remediation:
+      - step: 1
+        action: Restart LiteLLM
+        command: "docker restart litellm"
+        impact: Brief service interruption for all AI services
+        success_criteria: LiteLLM health check passes
+        
+      - step: 2
+        condition: LiteLLM restart did not resolve
+        action: Check GPU resources
+        command: "nvidia-smi"
+        look_for:
+          - Available memory
+          - Running processes
+          - GPU utilization
+        
+      - step: 3
+        condition: GPU resources are available
+        action: Check model configuration
+        commands:
+          - Verify model is configured in LiteLLM
+          - Check model download status
+        
+      - step: 4
+        condition: Model is configured
+        action: Rotate API key
+        commands:
+          - Generate new API key
+          - Update in 1Password
+          - Update in deploy workflow
+          - Redeploy agent
+        
+      - step: 5
+        condition: Root cause unclear
+        action: Escalate to AI infrastructure team
+        notification: "LLM provider failure affecting CAIPE agent {name}"
+        severity: high
+        
+    prevention:
+      - Monitor LiteLLM health proactively
+      - Set up alerts for LLM provider failures
+      - Monitor GPU resources
+      - Use model health checks
+      - Implement retry logic with backoff
+      
+    related_runbooks:
+      - litellm_unresponsive
+      - vllm_model_failure
+      - gpu_memory_exhaustion
+
+  # ============================================================================
+  # AGENT_CRASH - Agent process crashed
+  # ============================================================================
+  - name: agent_crash
+    description: |
+      CAIPE agent process crashed and container exited. This is typically due
+      to unhandled exceptions or fatal errors.
+    severity: critical
+    
+    detection:
+      methods:
+        - container_exited: Container status is "exited"
+        - exit_code_nonzero: Container exited with non-zero code
+        - log_pattern: "Traceback" or "Fatal error"
+      
+    impact:
+      - Agent is completely non-functional
+      - All operations requiring this agent will fail
+      - May indicate a serious bug or configuration issue
+      
+    affected_services:
+      - caipe-supervisor (cannot delegate)
+      - caipe-ui (user requests fail)
+      
+    diagnosis:
+      - step: 1
+        action: Check container exit code
+        command: "docker inspect caipe-agent-{name} --format '{{.State.ExitCode}}'"
+        expected: 0 (but container exited, so this will be non-zero)
+        
+      - step: 2
+        action: Check container logs for crash
+        command: "docker logs caipe-agent-{name}"
+        look_for:
+          - Final error message
+          - Traceback
+          - Stack trace
+          
+      - step: 3
+        action: Check for OOM kill
+        command: "docker inspect caipe-agent-{name} --format '{{.State.OOMKilled}}'"
+        expected: false
+        
+      - step: 4
+        action: Check resource usage before crash
+        command: "docker stats --no-stream caipe-agent-{name} 2>/dev/null || echo 'Container not running'"
+        note: If container exited, this won't work - check historical monitoring
+        
+      - step: 5
+        action: Check for recent code changes
+        command: "git log --oneline --since='1 hour ago' -- stacks/caipe-patched/agents/{name}/"
+        look_for: Recent commits that might have introduced the bug
+        
+    remediation:
+      - step: 1
+        action: Restart container
+        command: "docker start caipe-agent-{name}"
+        impact: Service restored if crash was transient
+        success_criteria: Container stays running for >5 minutes
+        
+      - step: 2
+        condition: Container crashes again
+        action: Increase resource limits
+        command: "docker update --memory 4G --cpus 2.0 caipe-agent-{name}"
+        note: Temporary increase for testing
+        
+      - step: 3
+        condition: Issue persists
+        action: Revert recent code changes
+        commands:
+          - Identify recent changes from step 5
+          - Revert suspicious commits
+          - Rebuild and redeploy
+        
+      - step: 4
+        condition: Root cause unclear
+        action: Collect diagnostics
+        commands:
+          - Save container logs: "docker logs caipe-agent-{name} > agent-crash.log"
+          - Save container config: "docker inspect caipe-agent-{name} > agent-config.json"
+          - Capture system state: "docker info > docker-info.txt"
+        
+      - step: 5
+        action: Escalate to development team
+        notification: "CAIPE agent {name} crash - investigation needed"
+        severity: critical
+        include: All collected diagnostics
+        
+    prevention:
+      - Implement proper exception handling
+      - Add health checks and auto-restart
+      - Monitor container restarts
+      - Set up alerts for container crashes
+      - Use resource limits to prevent OOM
+      - Add circuit breakers for external calls
+      
+    related_runbooks:
+      - python_application_crash
+      - container_crash
+      - oom_kill
+
+  # ============================================================================
+  # RATE_LIMITED - Agent is being rate limited by external service
+  # ============================================================================
+  - name: rate_limited
+    description: |
+      CAIPE agent is being rate limited by an external service (GitHub, Slack,
+      etc.). This causes operations to fail or be delayed.
+    severity: medium
+    
+    detection:
+      methods:
+        - http_429_errors: Too Many Requests responses
+        - log_pattern: "Rate limit exceeded" or "429"
+      
+    impact:
+      - Operations are delayed or fail
+      - User requests may time out
+      - Reduced throughput
+      
+    affected_services:
+      - caipe-supervisor (receives errors from agent)
+      - caipe-ui (user sees rate limit errors)
+      - External service (rate limiting the agent)
+      
+    diagnosis:
+      - step: 1
+        action: Check rate limit headers
+        command: "docker logs caipe-agent-{name} --tail 100 | grep -i 'rate\|limit\|429'"
+        look_for:
+          - Rate limit reset time
+          - Remaining requests
+          - Rate limit type
+          
+      - step: 2
+        action: Check external service rate limits
+        commands:
+          - For GitHub: "gh api /rate_limit"
+          - For Slack: Check API documentation for limits
+        expected: Within rate limits
+        
+      - step: 3
+        action: Check request rate
+        command: "docker logs caipe-agent-{name} | grep 'POST\|GET' | wc -l"
+        note: Count requests per minute
+        
+      - step: 4
+        action: Check for burst requests
+        command: "docker logs caipe-agent-{name} | grep 'POST\|GET' | tail -100"
+        look_for: Bursts of requests in short time periods
+        
+    remediation:
+      - step: 1
+        action: Wait for rate limit reset
+        command: "sleep <reset-time>"
+        impact: Operations delayed until reset
+        
+      - step: 2
+        action: Implement rate limiting in agent
+        commands:
+          - Add rate limiter to agent code
+          - Configure appropriate limits
+        
+      - step: 3
+        action: Optimize request patterns
+        commands:
+          - Batch requests where possible
+          - Cache responses
+          - Reduce request frequency
+        
+      - step: 4
+        action: Request rate limit increase
+        commands:
+          - Contact external service provider
+          - Request higher limits
+        
+      - step: 5
+        condition: Rate limiting is persistent
+        action: Distribute requests across multiple tokens
+        commands:
+          - Configure multiple API tokens
+          - Round-robin requests across tokens
+        
+    prevention:
+      - Implement client-side rate limiting
+      - Monitor rate limit usage
+      - Set up alerts for rate limit warnings
+      - Cache responses where appropriate
+      - Batch requests where possible
+      - Use exponential backoff for retries
+      
+    related_runbooks:
+      - github_rate_limit
+      - slack_rate_limit
+
+# ============================================================================
+# Default runbook for unknown failure modes
+# ============================================================================
+- name: unknown_failure
+  description: Unknown or unclassified failure mode for CAIPE agent
+  severity: medium
+  
+  detection:
+    methods:
+      - log_pattern: "ERROR\|Exception\|Failed"
+      
+  impact:
+    - Varies based on specific failure
+    
+  diagnosis:
+    - step: 1
+      action: Collect all available information
+      commands:
+        - "docker logs caipe-agent-{name} --tail 200"
+        - "docker inspect caipe-agent-{name}"
+        - "docker stats --no-stream caipe-agent-{name}"
+      
+    - step: 2
+      action: Check related services
+      commands:
+        - "docker ps --filter 'name=caipe*' --format 'table {{.Names}}\t{{.Status}}'"
+        - Check supervisor, other agents, MongoDB, LiteLLM
+      
+    - step: 3
+      action: Check external dependencies
+      commands:
+        - Test connectivity to all external services
+        - Verify all credentials
+      
+  remediation:
+    - step: 1
+      action: Restart agent
+      command: "docker restart caipe-agent-{name}"
+      
+    - step: 2
+      condition: Issue persists
+      action: Escalate for investigation
+      notification: "CAIPE agent {name} unknown failure - investigation needed"
+      severity: medium
+      
+  prevention:
+    - Improve monitoring and alerting
+    - Add more specific failure mode detection
+    - Enhance logging
