@@ -39,9 +39,11 @@ async def test_oidc_failure_in_production_raises_503(client):
         mock_request.state.auth = None
 
         # Patch OIDC to simulate failure
-        with patch.object(auth_module, "OIDC_ENABLED", True):
-            with patch.object(auth_module, "_extract_bearer_token", return_value="test-token"):
-                with patch("src.middleware.oidc_auth.get_oidc_config") as mock_get_config:
+        with (
+            patch.object(auth_module, "OIDC_ENABLED", True),
+            patch.object(auth_module, "_extract_bearer_token", return_value="test-token"),
+            patch("src.middleware.oidc_auth.get_oidc_config") as mock_get_config,
+        ):
                     # Make OIDC validation fail
                     mock_oidc = MagicMock()
                     mock_oidc.validate_token = AsyncMock(side_effect=Exception("Token expired"))
@@ -183,16 +185,15 @@ async def test_oidc_module_error_in_production_raises_503(client):
             patch(
                 "src.middleware.oidc_auth.get_oidc_config",
                 side_effect=Exception("OIDC configuration error"),
-            ),
+            ),patch.object(auth_module, "logger") as mock_logger
         ):
-                    with patch.object(auth_module, "logger") as mock_logger:
-                        # Should raise HTTP 503, not silently fall back
-                        with pytest.raises(HTTPException) as exc_info:
-                            await authenticate_request(mock_request)
+            # Should raise HTTP 503, not silently fall back
+            with pytest.raises(HTTPException) as exc_info:
+                await authenticate_request(mock_request)
 
-                        assert exc_info.value.status_code == 503
-                        # B2: log at WARNING (was ERROR pre-2026-05-01)
-                        assert mock_logger.warning.called
+            assert exc_info.value.status_code == 503
+            # B2: log at WARNING (was ERROR pre-2026-05-01)
+            assert mock_logger.warning.called
     finally:
         # Restore original value
         import src.config as config_module

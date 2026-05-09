@@ -24,11 +24,10 @@ from datetime import UTC, datetime, timedelta
 
 from src.config import RuntimeConfig
 from src.database import get_db
+from src.tasks.baseline_config import get_resolution_baseline
 from src.tasks.task_metrics import track_task
 
 logger = logging.getLogger(__name__)
-
-from src.tasks.baseline_config import get_resolution_baseline
 
 # Story 2.7: Baselines are now configurable via CMDB
 

@@ -29,7 +29,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["F811", "S106"]  # F811: pytest fixtures, S106: test credential strings
+"tests/**" = ["F811", "S106", "B017", "SIM105", "SIM117"]  # F811: pytest fixtures, S106: test credential strings, B017: blind exceptions in tests, SIM105: suppress in tests, SIM117: nested with in tests
 
 [tool.bandit]
 exclude_dirs = ["tests"]
