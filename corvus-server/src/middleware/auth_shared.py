@@ -10,10 +10,10 @@ from fastapi import HTTPException, Request
 
 from src.config import API_KEYS, CORVUS_DEV_MODE, OIDC_ENABLED
 
-logger = logging.getLogger(__name__)
-
 # Re-export AuthContext and Role from auth.py for backward compatibility
 from src.middleware.auth import AuthContext, Role, _check_permission, _extract_bearer_token
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "AuthContext",
@@ -78,12 +78,16 @@ def authenticate_request(request: Request) -> AuthContext | None:
                     except Exception as e:
                         logger.error(f"OIDC validation failed: {e}")
                         if not CORVUS_DEV_MODE:
-                            raise HTTPException(status_code=503, detail="OIDC provider unavailable")
+                            raise HTTPException(
+                                status_code=503, detail="OIDC provider unavailable"
+                            ) from e
                         # Fall through to API key auth in dev mode
         except Exception as e:
             logger.error(f"OIDC auth module error: {e}")
             if not CORVUS_DEV_MODE:
-                raise HTTPException(status_code=503, detail="OIDC provider unavailable")
+                raise HTTPException(
+                    status_code=503, detail="OIDC provider unavailable"
+                ) from e
             # Fall through to API key auth in dev mode
 
     # Priority 2: API key auth (backward compat)

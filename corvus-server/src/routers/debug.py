@@ -49,7 +49,9 @@ async def debug_state(auth: dict = Depends(get_auth)):
         )
     except Exception as e:
         logger.error(f"Debug state failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Debug state failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Debug state failed: {str(e)}"
+        ) from e
 
 
 @router.get("/debug/memory")

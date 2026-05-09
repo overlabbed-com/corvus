@@ -1,9 +1,9 @@
 """Service type definitions for Corvus CMDB."""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class ServiceType(str, Enum):
+class ServiceType(StrEnum):
     """Service types for failure mode analysis and triage."""
 
     # Infrastructure
