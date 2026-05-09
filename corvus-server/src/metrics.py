@@ -75,16 +75,16 @@ def init_metrics():
     triage_duration = Histogram(
         "corvus_triage_duration_seconds", "Triage execution duration", ["service_type", "outcome"]
     )
-    triage_success_rate = Counter("corvus_triage_success_total", "Successful triages", ["service_type"])
-    triage_failure_rate = Counter("corvus_triage_failure_total", "Failed triages", ["service_type"])
+    triage_success_rate = Counter("corvus_triage_success_total", "Successful triages", ["service_type"])  # noqa: F841
+    triage_failure_rate = Counter("corvus_triage_failure_total", "Failed triages", ["service_type"])  # noqa: F841
 
     # Graph metrics
-    graph_query_duration = Histogram("corvus_graph_query_duration_seconds", "Neo4j query duration", ["query_type"])
-    graph_connections = Gauge("corvus_graph_connections", "Active Neo4j connections")
+    graph_query_duration = Histogram("corvus_graph_query_duration_seconds", "Neo4j query duration", ["query_type"])  # noqa: F841
+    graph_connections = Gauge("corvus_graph_connections", "Active Neo4j connections")  # noqa: F841
 
     # Subscription metrics
-    active_subscriptions = Gauge("corvus_sse_subscriptions", "Active SSE subscriptions")
-    subscription_dropped = Counter("corvus_subscriptions_dropped_total", "Dropped subscriptions (timeout, error)")
+    active_subscriptions = Gauge("corvus_sse_subscriptions", "Active SSE subscriptions")  # noqa: F841
+    subscription_dropped = Counter("corvus_subscriptions_dropped_total", "Dropped subscriptions (timeout, error)")  # noqa: F841
 
     # SIEM metrics
     SIEM_ADAPTER_HEALTH = Gauge(
