@@ -124,9 +124,11 @@ async def test_oidc_validation_error_logged_at_warning_level(client):
         from src.middleware import auth as auth_module
 
         # Spy on logger
-        with patch.object(auth_module, "OIDC_ENABLED", True):
-            with patch.object(auth_module, "_extract_bearer_token", return_value="test-token"):
-                with patch("src.middleware.oidc_auth.get_oidc_config") as mock_get_config:
+        with (
+            patch.object(auth_module, "OIDC_ENABLED", True),
+            patch.object(auth_module, "_extract_bearer_token", return_value="test-token"),
+            patch("src.middleware.oidc_auth.get_oidc_config") as mock_get_config,
+        ):
                     # Make OIDC validation fail
                     mock_oidc = MagicMock()
                     mock_oidc.validate_token = AsyncMock(side_effect=Exception("Token expired"))
@@ -175,12 +177,14 @@ async def test_oidc_module_error_in_production_raises_503(client):
         mock_request.state.auth = None
 
         # Patch to simulate OIDC module error
-        with patch.object(auth_module, "OIDC_ENABLED", True):
-            with patch.object(auth_module, "_extract_bearer_token", return_value="test-token"):
-                with patch(
-                    "src.middleware.oidc_auth.get_oidc_config",
-                    side_effect=Exception("OIDC configuration error"),
-                ):
+        with (
+            patch.object(auth_module, "OIDC_ENABLED", True),
+            patch.object(auth_module, "_extract_bearer_token", return_value="test-token"),
+            patch(
+                "src.middleware.oidc_auth.get_oidc_config",
+                side_effect=Exception("OIDC configuration error"),
+            ),
+        ):
                     with patch.object(auth_module, "logger") as mock_logger:
                         # Should raise HTTP 503, not silently fall back
                         with pytest.raises(HTTPException) as exc_info:
