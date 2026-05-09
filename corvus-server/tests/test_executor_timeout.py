@@ -80,16 +80,18 @@ async def test_timeout_error_logged_with_step_details(client):
         await asyncio.sleep(10)
         return {"status": "ok"}
 
-    with patch.object(executor, "STEP_HANDLERS", {"slow.step": slow_handler}):
-        with patch.object(executor, "logger") as mock_logger:
-            result = await executor._execute_step(step, context)
+    with (
+        patch.object(executor, "STEP_HANDLERS", {"slow.step": slow_handler}),
+        patch.object(executor, "logger") as mock_logger,
+    ):
+        result = await executor._execute_step(step, context)
 
-            # Should have logged at error level
-            assert result.success is False
-            assert mock_logger.error.called
-            # Error message should contain step name and timeout
-            error_call_args = str(mock_logger.error.call_args)
-            assert "slow-check" in error_call_args
+        # Should have logged at error level
+        assert result.success is False
+        assert mock_logger.error.called
+        # Error message should contain step name and timeout
+        error_call_args = str(mock_logger.error.call_args)
+        assert "slow-check" in error_call_args
 
 
 @pytest.mark.asyncio

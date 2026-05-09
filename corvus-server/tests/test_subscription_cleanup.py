@@ -63,7 +63,7 @@ class TestSubscriptionCleanup:
 
         # Create multiple subscriptions
         subs = []
-        for i in range(5):
+        for _ in range(5):
             q, cancel_task = await subscribe(queue_size=100)
             subs.append(cancel_task)
 

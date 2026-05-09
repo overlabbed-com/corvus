@@ -45,8 +45,7 @@ async def test_dual_mode_oidc_failure_falls_through_to_api_key(client, monkeypat
     mock_request.client.host = "10.0.0.1"
 
     # Patch _extract_bearer_token to return our test token
-    monkeypatch.setattr(auth_module, "_extract_bearer_token",
-                        lambda req: "some-jwt-shaped-bearer.token.here")
+    monkeypatch.setattr(auth_module, "_extract_bearer_token", lambda req: "some-jwt-shaped-bearer.token.here")
 
     with patch("src.middleware.oidc_auth.get_oidc_config") as mock_get_config:
         mock_oidc = MagicMock()
@@ -56,6 +55,7 @@ async def test_dual_mode_oidc_failure_falls_through_to_api_key(client, monkeypat
         # Stub out audit event emission so we don't depend on DB.
         async def noop(**kw):
             return None
+
         monkeypatch.setattr(auth_module, "_emit_auth_event", noop)
 
         # In dual-mode, this should NOT raise; should return None
@@ -106,6 +106,7 @@ async def test_dual_mode_oidc_failure_then_static_key_succeeds(client, monkeypat
 
         async def noop(**kw):
             return None
+
         monkeypatch.setattr(auth_module, "_emit_auth_event", noop)
 
         result = await authenticate_request(mock_request)
@@ -127,6 +128,7 @@ async def test_strict_mode_default_still_raises_503(client, monkeypatch):
     import src.config as _config
     from src.middleware import auth as auth_module
     from src.middleware.auth import authenticate_request
+
     assert _config.OIDC_STRICT is True, "OIDC_STRICT default must be True (backward-compat)"
 
     monkeypatch.setattr(auth_module, "OIDC_STRICT", True)
@@ -154,6 +156,7 @@ async def test_strict_mode_default_still_raises_503(client, monkeypatch):
 
         async def noop(**kw):
             return None
+
         monkeypatch.setattr(auth_module, "_emit_auth_event", noop)
 
         with pytest.raises(HTTPException) as excinfo:

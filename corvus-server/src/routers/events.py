@@ -358,7 +358,7 @@ async def get_target_status(
             if action_type.lower() in write_actions:
                 # Check if any agent is currently working on this target
                 cursor = await db.execute(
-                    """SELECT source, type, timestamp FROM ops_events 
+                    """SELECT source, type, timestamp FROM ops_events
                        WHERE target = ? AND type LIKE 'change.%'
                        AND timestamp >= datetime('now', '-5 minutes')
                        ORDER BY timestamp DESC LIMIT 1""",
@@ -436,7 +436,6 @@ async def resolve_dead_letter_entry(dl_id: str, request: Request):
 async def get_agent_context(
     agent_name: str = Query(..., description="Name of the agent requesting context"),
     target: str | None = Query(None, description="Target service/container being worked on"),
-    request: Request | None = None,
 ):
     """Get operational briefing for an agent working on a specific target.
 
@@ -470,14 +469,16 @@ async def get_agent_context(
             (f"%{target}%" if target else "%", agent_name),
         )
         for row in rows:
-            active_changes.append({
-                "id": row["id"],
-                "targets": json.loads(row["targets"]),
-                "description": row["description"],
-                "status": row["status"],
-                "created_at": row["created_at"],
-                "created_by": row["created_by"],
-            })
+            active_changes.append(
+                {
+                    "id": row["id"],
+                    "targets": json.loads(row["targets"]),
+                    "description": row["description"],
+                    "status": row["status"],
+                    "created_at": row["created_at"],
+                    "created_by": row["created_by"],
+                }
+            )
         context["active_changes"] = active_changes
 
         # Get recent incidents for this agent/target
@@ -492,14 +493,16 @@ async def get_agent_context(
             (f"%{target}%" if target else "%", agent_name),
         )
         for row in rows:
-            recent_incidents.append({
-                "id": row["id"],
-                "target": row["target"],
-                "title": row["title"],
-                "severity": row["severity"],
-                "status": row["status"],
-                "detected_at": row["detected_at"],
-            })
+            recent_incidents.append(
+                {
+                    "id": row["id"],
+                    "target": row["target"],
+                    "title": row["title"],
+                    "severity": row["severity"],
+                    "status": row["status"],
+                    "detected_at": row["detected_at"],
+                }
+            )
         context["recent_incidents"] = recent_incidents
 
         # Get related services from CMDB
@@ -515,13 +518,15 @@ async def get_agent_context(
                 (target, f"%{target}%", f"%{target}%", f"%{target}%"),
             )
             for row in rows:
-                related_services.append({
-                    "name": row["name"],
-                    "service_type": row["service_type"],
-                    "host": row["host"],
-                    "stack": row["stack"],
-                    "criticality": row["criticality"],
-                })
+                related_services.append(
+                    {
+                        "name": row["name"],
+                        "service_type": row["service_type"],
+                        "host": row["host"],
+                        "stack": row["stack"],
+                        "criticality": row["criticality"],
+                    }
+                )
         context["related_services"] = related_services
 
         # Get recent events for this agent/target
@@ -536,77 +541,89 @@ async def get_agent_context(
             (f"%{target}%" if target else "%", agent_name),
         )
         for row in rows:
-            recent_events.append({
-                "id": row["id"],
-                "timestamp": row["timestamp"],
-                "source": row["source"],
-                "type": row["type"],
-                "target": row["target"],
-                "severity": row["severity"],
-                "data": json.loads(row["data"]) if row["data"] else {},
-            })
+            recent_events.append(
+                {
+                    "id": row["id"],
+                    "timestamp": row["timestamp"],
+                    "source": row["source"],
+                    "type": row["type"],
+                    "target": row["target"],
+                    "severity": row["severity"],
+                    "data": json.loads(row["data"]) if row["data"] else {},
+                }
+            )
         context["recent_events"] = recent_events
 
         # Generate recommendations
         recommendations = []
-        
+
         # Recommendation: Check for active changes
         if active_changes:
             for change in active_changes:
                 if target and target in json.loads(change["targets"]):
-                    recommendations.append({
-                        "type": "warning",
-                        "message": f"Active change {change['id']} is in progress for this target",
-                        "action": "Review change before proceeding",
-                        "priority": "high",
-                    })
-        
+                    recommendations.append(
+                        {
+                            "type": "warning",
+                            "message": f"Active change {change['id']} is in progress for this target",
+                            "action": "Review change before proceeding",
+                            "priority": "high",
+                        }
+                    )
+
         # Recommendation: Check for recent incidents
         if recent_incidents:
             critical_incidents = [i for i in recent_incidents if i["severity"] in ["critical", "high"]]
             if critical_incidents:
-                recommendations.append({
-                    "type": "warning",
-                    "message": f"{len(critical_incidents)} critical/high severity incidents detected",
-                    "action": "Investigate incidents before proceeding",
-                    "priority": "high",
-                })
-        
+                recommendations.append(
+                    {
+                        "type": "warning",
+                        "message": f"{len(critical_incidents)} critical/high severity incidents detected",
+                        "action": "Investigate incidents before proceeding",
+                        "priority": "high",
+                    }
+                )
+
         # Recommendation: Check target status
         if target:
             target_status = await _get_target_status(db, target)
             if target_status:
                 context["target_status"] = target_status
                 if target_status.get("recommendation") == "STOP":
-                    recommendations.append({
-                        "type": "error",
-                        "message": f"Target {target} has STOP recommendation",
-                        "action": "DO NOT PROCEED - another agent is working on this target",
-                        "priority": "critical",
-                    })
+                    recommendations.append(
+                        {
+                            "type": "error",
+                            "message": f"Target {target} has STOP recommendation",
+                            "action": "DO NOT PROCEED - another agent is working on this target",
+                            "priority": "critical",
+                        }
+                    )
                 elif target_status.get("recommendation") == "CAUTION":
-                    recommendations.append({
-                        "type": "warning",
-                        "message": f"Target {target} has CAUTION recommendation",
-                        "action": "Review carefully before proceeding",
-                        "priority": "medium",
-                    })
-        
+                    recommendations.append(
+                        {
+                            "type": "warning",
+                            "message": f"Target {target} has CAUTION recommendation",
+                            "action": "Review carefully before proceeding",
+                            "priority": "medium",
+                        }
+                    )
+
         # Recommendation: Check for related service issues
         if related_services:
             unhealthy_services = []
             # This would need to query health endpoints, but for now we'll skip
             # as it could be slow. In production, this would be implemented.
             pass
-        
+
         if not recommendations:
-            recommendations.append({
-                "type": "info",
-                "message": "No issues detected",
-                "action": "Proceed with normal operations",
-                "priority": "low",
-            })
-        
+            recommendations.append(
+                {
+                    "type": "info",
+                    "message": "No issues detected",
+                    "action": "Proceed with normal operations",
+                    "priority": "low",
+                }
+            )
+
         context["recommendations"] = recommendations
 
         return context
@@ -626,7 +643,7 @@ async def _get_target_status(db, target: str) -> dict | None:
            LIMIT 1""",
         (f"%{target}%",),
     )
-    
+
     if rows:
         change = rows[0]
         if change["status"] in ["open", "in_progress"]:
@@ -637,7 +654,7 @@ async def _get_target_status(db, target: str) -> dict | None:
                 "change_status": change["status"],
                 "change_description": change["description"],
             }
-    
+
     # Check for active incidents
     rows = await db.fetch_all(
         """SELECT id, severity, title, status
@@ -647,7 +664,7 @@ async def _get_target_status(db, target: str) -> dict | None:
            LIMIT 1""",
         (f"%{target}%",),
     )
-    
+
     if rows:
         incident = rows[0]
         if incident["severity"] in ["critical", "high"]:
@@ -666,7 +683,7 @@ async def _get_target_status(db, target: str) -> dict | None:
                 "incident_severity": incident["severity"],
                 "incident_title": incident["title"],
             }
-    
+
     # No issues found
     return {
         "recommendation": "GO",

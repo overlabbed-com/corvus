@@ -148,7 +148,8 @@ def _safe_unverified_claims(token: str) -> dict[str, Any]:
         # already-rejected token (validation failed upstream). We never trust
         # these values for authn/authz — output keys are *_unverified and field
         # lengths are bounded below.
-        unverified = _pyjwt.decode(token, options={"verify_signature": False})  # nosemgrep: python.jwt.security.unverified-jwt-decode.unverified-jwt-decode
+        # nosemgrep: python.jwt.security.unverified-jwt-decode.unverified-jwt-decode
+        unverified = _pyjwt.decode(token, options={"verify_signature": False})
     except Exception:
         return out
     for k_in, k_out in (
@@ -283,9 +284,7 @@ async def authenticate_request(request: Request) -> AuthContext | None:
                         # B1 — pass audience explicitly. validate_token now
                         # also defaults to self.client_id if missing, so this
                         # is belt-and-suspenders.
-                        identity = await config.validate_token(
-                            token, expected_audience=OIDC_CLIENT_ID
-                        )
+                        identity = await config.validate_token(token, expected_audience=OIDC_CLIENT_ID)
                         roles = identity.roles
                         role = Role.AGENT  # default
                         if "admin" in roles:
@@ -380,9 +379,7 @@ async def authenticate_request(request: Request) -> AuthContext | None:
                     "key_name": key_name,
                     "path": request.url.path,
                     "method": request.method,
-                    "client_host": (
-                        request.client.host if request.client else None
-                    ),
+                    "client_host": (request.client.host if request.client else None),
                     "authenticated_as": key_name,
                 },
             )
@@ -478,9 +475,7 @@ async def get_auth(
                 if config:
                     # B1 — pass expected audience.
                     # B4 — await async validate_token.
-                    identity = await config.validate_token(
-                        token, expected_audience=OIDC_CLIENT_ID
-                    )
+                    identity = await config.validate_token(token, expected_audience=OIDC_CLIENT_ID)
                     roles = identity.roles
                     role = Role.AGENT
                     if "admin" in roles:
