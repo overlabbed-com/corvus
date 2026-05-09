@@ -79,7 +79,9 @@ async def debug_memory(auth: dict = Depends(get_auth)):
         return JSONResponse(content=mem_info)
     except Exception as e:
         logger.error(f"Memory debug failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Memory debug failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Memory debug failed: {str(e)}"
+        ) from e
 
 
 @router.get("/debug/triage/in-progress")

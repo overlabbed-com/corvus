@@ -358,7 +358,7 @@ async def get_target_status(
             if action_type.lower() in write_actions:
                 # Check if any agent is currently working on this target
                 cursor = await db.execute(
-                    """SELECT source, type, timestamp FROM ops_events 
+                    """SELECT source, type, timestamp FROM ops_events
                        WHERE target = ? AND type LIKE 'change.%'
                        AND timestamp >= datetime('now', '-5 minutes')
                        ORDER BY timestamp DESC LIMIT 1""",
@@ -548,7 +548,7 @@ async def get_agent_context(
 
         # Generate recommendations
         recommendations = []
-        
+
         # Recommendation: Check for active changes
         if active_changes:
             for change in active_changes:
@@ -559,7 +559,7 @@ async def get_agent_context(
                         "action": "Review change before proceeding",
                         "priority": "high",
                     })
-        
+
         # Recommendation: Check for recent incidents
         if recent_incidents:
             critical_incidents = [i for i in recent_incidents if i["severity"] in ["critical", "high"]]
@@ -570,7 +570,7 @@ async def get_agent_context(
                     "action": "Investigate incidents before proceeding",
                     "priority": "high",
                 })
-        
+
         # Recommendation: Check target status
         if target:
             target_status = await _get_target_status(db, target)
@@ -590,14 +590,14 @@ async def get_agent_context(
                         "action": "Review carefully before proceeding",
                         "priority": "medium",
                     })
-        
+
         # Recommendation: Check for related service issues
         if related_services:
             unhealthy_services = []
             # This would need to query health endpoints, but for now we'll skip
             # as it could be slow. In production, this would be implemented.
             pass
-        
+
         if not recommendations:
             recommendations.append({
                 "type": "info",
@@ -605,7 +605,7 @@ async def get_agent_context(
                 "action": "Proceed with normal operations",
                 "priority": "low",
             })
-        
+
         context["recommendations"] = recommendations
 
         return context
@@ -625,7 +625,7 @@ async def _get_target_status(db, target: str) -> dict | None:
            LIMIT 1""",
         (f"%{target}%",),
     )
-    
+
     if rows:
         change = rows[0]
         if change["status"] in ["open", "in_progress"]:
@@ -636,7 +636,7 @@ async def _get_target_status(db, target: str) -> dict | None:
                 "change_status": change["status"],
                 "change_description": change["description"],
             }
-    
+
     # Check for active incidents
     rows = await db.fetch_all(
         """SELECT id, severity, title, status
@@ -646,7 +646,7 @@ async def _get_target_status(db, target: str) -> dict | None:
            LIMIT 1""",
         (f"%{target}%",),
     )
-    
+
     if rows:
         incident = rows[0]
         if incident["severity"] in ["critical", "high"]:
@@ -665,7 +665,7 @@ async def _get_target_status(db, target: str) -> dict | None:
                 "incident_severity": incident["severity"],
                 "incident_title": incident["title"],
             }
-    
+
     # No issues found
     return {
         "recommendation": "GO",
