@@ -1,0 +1,871 @@
+# CAIPE Supervisor Runbook
+# Service Type: caipe-supervisor
+# Description: FMEA-based triage for CAIPE supervisor
+# Phase: 2 (Corvus-CAIPE Integration)
+#
+# The CAIPE supervisor is the orchestrator that delegates tasks to sub-agents
+# and manages the overall workflow. It's the central coordination point for
+# the CAIPE multi-agent system.
+
+service_type: caipe-supervisor
+
+# General supervisor metadata
+description: |
+  CAIPE supervisor is the central orchestrator for the CAIPE multi-agent system.
+  It receives user requests, analyzes them, delegates to appropriate sub-agents,
+  and coordinates the overall workflow. It's the brain of the CAIPE system.
+
+# Default investigation steps for all failure modes
+default_investigation:
+  - step: 1
+    action: Check supervisor health endpoint
+    command: "curl -sf http://caipe-supervisor:8000/.well-known/agent-card.json"
+    expected: HTTP 200 with valid AgentCard JSON
+    
+  - step: 2
+    action: Check container status
+    command: "docker inspect caipe-supervisor --format '{{.State.Status}}'"
+    expected: "running"
+    
+  - step: 3
+    action: Check container logs for errors
+    command: "docker logs caipe-supervisor --tail 100 | grep -i error"
+    expected: No recent errors
+    
+  - step: 4
+    action: Check resource usage
+    command: "docker stats caipe-supervisor --no-stream"
+    expected: Normal CPU/memory usage
+    
+  - step: 5
+    action: Check agent connectivity
+    command: "curl -sf http://caipe-agent-github:8000/.well-known/agent-card.json && curl -sf http://caipe-agent-slack:8000/.well-known/agent-card.json && curl -sf http://caipe-agent-docker:8000/.well-known/agent-card.json"
+    expected: All agents respond with valid AgentCards
+
+# Failure modes specific to CAIPE supervisor
+failure_modes:
+  # ============================================================================
+  # SUPERVISOR_UNRESPONSIVE - Supervisor not responding to requests
+  # ============================================================================
+  - name: supervisor_unresponsive
+    description: |
+      CAIPE supervisor is running but not responding to requests. This could
+      be due to application crash, deadlock, resource exhaustion, or
+      configuration issues.
+    severity: critical
+    
+    detection:
+      methods:
+        - health_check_failure: 3 consecutive failures
+        - http_5xx_errors: 5xx responses from supervisor
+        - timeout: Request timeout (>30s)
+        - log_pattern: "Application startup failed"
+      
+    impact:
+      - All CAIPE operations fail
+      - User requests cannot be processed
+      - Complete CAIPE system outage
+      
+    affected_services:
+      - caipe-ui (cannot communicate with supervisor)
+      - All CAIPE agents (no tasks to process)
+      - Users (all requests fail)
+      
+    diagnosis:
+      - step: 1
+        action: Check health check status
+        command: "docker inspect caipe-supervisor --format '{{.State.Health.Status}}'"
+        expected: "healthy"
+        
+      - step: 2
+        action: Check application logs
+        command: "docker logs caipe-supervisor --tail 200"
+        look_for:
+          - "Traceback" (Python exceptions)
+          - "MemoryError" (OOM)
+          - "ImportError" (missing dependencies)
+          - "ConfigurationError" (bad config)
+          - "TimeoutError" (external service issues)
+          
+      - step: 3
+        action: Check resource limits
+        command: "docker inspect caipe-supervisor --format '{{.HostConfig.Memory}} / {{.HostConfig.CpuShares}}'"
+        expected: Within configured limits (3G memory, 2.0 CPUs)
+        
+      - step: 4
+        action: Check for deadlocks
+        command: "docker top caipe-supervisor"
+        look_for: All threads in WAITING state
+        
+      - step: 5
+        action: Check startup logs
+        command: "docker logs caipe-supervisor | head -100"
+        look_for:
+          - Successful initialization messages
+          - Model loading status
+          - Agent registration
+          
+      - step: 6
+        action: Check dependent services
+        commands:
+          - "curl -sf http://mongodb:27017" (MongoDB)
+          - "curl -sf http://litellm:4000/health" (LiteLLM)
+          - "curl -sf http://caipe-rag-server:9446/healthz" (RAG server)
+        expected: All dependencies healthy
+        
+    remediation:
+      - step: 1
+        action: Restart supervisor container
+        command: "docker restart caipe-supervisor"
+        impact: Brief service interruption (~30-60s)
+        success_criteria: Health check passes within 60s
+        
+      - step: 2
+        condition: Restart did not resolve
+        action: Check external dependencies
+        commands:
+          - Verify MongoDB connectivity
+          - Verify LiteLLM connectivity
+          - Verify RAG server connectivity
+          - Verify all agent connectivity
+        expected: All dependencies healthy
+        
+      - step: 3
+        condition: External dependencies are healthy
+        action: Increase resource limits
+        command: "docker update --memory 4G --cpus 2.5 caipe-supervisor"
+        note: Temporary increase for testing
+        
+      - step: 4
+        condition: Issue persists after restart and resource increase
+        action: Check for application bugs
+        commands:
+          - "docker exec caipe-supervisor python -c 'import traceback; traceback.print_exc()'"
+          - Review recent code changes to supervisor
+          - Check for syntax errors in prompt configs
+        
+      - step: 5
+        condition: Root cause unclear
+        action: Collect diagnostics
+        commands:
+          - Save container logs: "docker logs caipe-supervisor > supervisor-crash.log"
+          - Save container config: "docker inspect caipe-supervisor > supervisor-config.json"
+          - Capture stack trace: "docker exec caipe-supervisor py-spy dump --pid 1 > supervisor-stack.txt"
+        
+      - step: 6
+        action: Escalate to admin
+        notification: "CAIPE supervisor unresponsive - manual investigation required"
+        severity: critical
+        include: All collected diagnostics
+        
+    prevention:
+      - Monitor supervisor health checks proactively
+      - Set up alerts for health check failures
+      - Implement circuit breakers for external service calls
+      - Add resource usage monitoring and alerts
+      - Validate configuration on startup
+      - Use readiness probes to prevent traffic to unhealthy instances
+      
+    related_runbooks:
+      - docker_container_unresponsive
+      - python_application_crash
+      - mongodb_connection_failure
+
+  # ============================================================================
+  # AGENT_DELEGATION_FAILURE - Supervisor cannot delegate to agents
+  # ============================================================================
+  - name: agent_delegation_failure
+    description: |
+      CAIPE supervisor can receive requests but cannot delegate tasks to
+      sub-agents. This could be due to agent connectivity issues, A2A protocol
+      problems, or agent registration failures.
+    severity: high
+    
+    detection:
+      methods:
+        - log_pattern: "Failed to delegate to agent" or "No agent available"
+        - http_5xx_errors: Errors when delegating to agents
+        - timeout: Delegation timeout (>60s)
+      
+    impact:
+      - User requests cannot be processed
+      - Supervisor appears healthy but non-functional
+      - Partial CAIPE outage
+      
+    affected_services:
+      - caipe-ui (user requests fail)
+      - All CAIPE agents (no tasks received)
+      - Users (all requests fail)
+      
+    diagnosis:
+      - step: 1
+        action: Check agent health
+        command: "curl -sf http://caipe-agent-github:8000/.well-known/agent-card.json && curl -sf http://caipe-agent-slack:8000/.well-known/agent-card.json && curl -sf http://caipe-agent-docker:8000/.well-known/agent-card.json"
+        expected: All agents respond with valid AgentCards
+        
+      - step: 2
+        action: Check A2A connectivity
+        command: "docker exec caipe-supervisor curl -v http://caipe-agent-github:8000/.well-known/agent-card.json"
+        expected: HTTP 200
+        
+      - step: 3
+        action: Check agent registration
+        command: "docker logs caipe-supervisor | grep -i 'register\|agent\|a2a' | tail -50"
+        look_for:
+          - Agent registration messages
+          - A2A connection establishment
+          - Any errors during registration
+          
+      - step: 4
+        action: Check network connectivity
+        command: "docker exec caipe-supervisor nc -zv caipe-agent-github 8000"
+        expected: Connection succeeds
+        
+      - step: 5
+        action: Check DNS resolution
+        command: "docker exec caipe-supervisor nslookup caipe-agent-github"
+        expected: Correct IP address resolved
+        
+      - step: 6
+        action: Check supervisor configuration
+        command: "docker inspect caipe-supervisor --format '{{.Config.Env}}' | grep -i 'AGENT\|A2A'"
+        expected: Correct agent URLs configured
+        
+    remediation:
+      - step: 1
+        action: Restart all agents
+        command: "docker restart caipe-agent-github caipe-agent-slack caipe-agent-docker"
+        impact: Brief service interruption
+        success_criteria: All agents healthy and registered
+        
+      - step: 2
+        condition: Agents restart did not resolve
+        action: Restart supervisor
+        command: "docker restart caipe-supervisor"
+        impact: Brief service interruption
+        
+      - step: 3
+        condition: Issue persists
+        action: Check network configuration
+        commands:
+          - Verify all containers are on caipe-internal network
+          - Check for network policies or firewalls
+          - Test connectivity from supervisor to each agent
+        
+      - step: 4
+        condition: Network is functional
+        action: Check A2A protocol configuration
+        commands:
+          - Verify DISTRIBUTED_AGENTS environment variable
+          - Verify GITHUB_AGENT_URL, SLACK_AGENT_URL, DOCKER_AGENT_URL
+          - Verify agent hostnames match container names
+        
+      - step: 5
+        condition: Configuration is correct
+        action: Check for authentication issues
+        commands:
+          - Verify OAuth2 configuration
+          - Check JWT validation
+          - Test with simplified authentication
+        
+      - step: 6
+        condition: Root cause unclear
+        action: Enable debug logging
+        commands:
+          - Set LOG_LEVEL=DEBUG
+          - Restart supervisor
+          - Reproduce the issue
+          - Collect debug logs
+        
+      - step: 7
+        action: Escalate to development team
+        notification: "CAIPE supervisor agent delegation failure - investigation needed"
+        severity: high
+        
+    prevention:
+      - Monitor agent health and registration status
+      - Set up alerts for delegation failures
+      - Verify network connectivity during deployment
+      - Test A2A protocol connectivity
+      - Implement retry logic with backoff for delegation
+      - Add circuit breakers for agent calls
+      
+    related_runbooks:
+      - a2a_protocol_failure
+      - agent_unresponsive
+      - docker_network_issues
+
+  # ============================================================================
+  # MODEL_ROUTING_FAILURE - Supervisor cannot route to correct model
+  # ============================================================================
+  - name: model_routing_failure
+    description: |
+      CAIPE supervisor cannot route requests to the correct LLM model.
+      This could be due to LiteLLM configuration issues, model availability
+      problems, or routing misconfiguration.
+    severity: high
+    
+    detection:
+      methods:
+        - log_pattern: "Model not found" or "No model available"
+        - http_404_errors: Model not found errors
+        - timeout: Model inference timeout
+      
+    impact:
+      - All LLM-powered operations fail
+      - Supervisor cannot make decisions
+      - User requests time out or fail
+      
+    affected_services:
+      - caipe-supervisor (cannot process requests)
+      - litellm (may be misconfigured)
+      - Users (all requests fail)
+      
+    diagnosis:
+      - step: 1
+        action: Check LiteLLM health
+        command: "curl -sf http://litellm:4000/health"
+        expected: HTTP 200 with healthy status
+        
+      - step: 2
+        action: Check model availability
+        command: "curl -sf http://litellm:4000/models"
+        expected: Model list includes "reasoner" and "worker"
+        
+      - step: 3
+        action: Check supervisor model configuration
+        command: "docker inspect caipe-supervisor --format '{{.Config.Env}}' | grep -i 'MODEL\|LLM'"
+        expected:
+          - SUPERVISOR_MODEL=openai:reasoner
+          - OPENAI_MODEL_NAME=worker
+          - OPENAI_ENDPOINT=http://litellm:4000/v1
+          
+      - step: 4
+        action: Test model inference
+        command: |
+          curl -X POST http://litellm:4000/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${CAIPE_LITELLM_KEY_SUPERVISOR}" \
+            -d '{"model": "reasoner", "messages": [{"role": "user", "content": "test"}]}'
+        expected: Valid JSON response
+        
+      - step: 5
+        action: Check LiteLLM logs
+        command: "docker logs litellm --tail 100"
+        look_for:
+          - Model loading errors
+          - Configuration errors
+          - GPU memory issues
+          
+    remediation:
+      - step: 1
+        action: Restart LiteLLM
+        command: "docker restart litellm"
+        impact: Brief service interruption for all AI services
+        success_criteria: LiteLLM health check passes
+        
+      - step: 2
+        condition: LiteLLM restart did not resolve
+        action: Check model configuration in LiteLLM
+        command: "cat /mnt/docker/stacks/ai/litellm-config/config.yaml | grep -A5 'model_list\|reasoner\|worker'"
+        expected: Models are properly configured
+        
+      - step: 3
+        condition: Models are configured
+        action: Check model downloads
+        command: "ls -lh /mnt/docker/stacks/ai/litellm-model-store/"
+        expected: Model files present
+        
+      - step: 4
+        condition: Models are downloaded
+        action: Check GPU resources
+        command: "nvidia-smi"
+        look_for:
+          - Available memory
+          - Running processes
+          - GPU utilization
+        
+      - step: 5
+        condition: GPU resources are available
+        action: Check LiteLLM virtual keys
+        command: "curl -sf http://litellm:4000/keys"
+        expected: CAIPE keys are present and valid
+        
+      - step: 6
+        condition: Root cause unclear
+        action: Escalate to AI infrastructure team
+        notification: "CAIPE supervisor model routing failure - investigation needed"
+        severity: high
+        
+    prevention:
+      - Monitor LiteLLM health proactively
+      - Set up alerts for model availability
+      - Monitor GPU resources
+      - Use model health checks
+      - Validate model configuration on startup
+      - Implement fallback models
+      
+    related_runbooks:
+      - litellm_unresponsive
+      - vllm_model_failure
+      - gpu_memory_exhaustion
+
+  # ============================================================================
+  # MONGO_DB_FAILURE - Supervisor cannot connect to MongoDB
+  # ============================================================================
+  - name: mongodb_failure
+    description: |
+      CAIPE supervisor cannot connect to MongoDB for chat history storage.
+      This affects the supervisor's ability to persist conversation state.
+    severity: medium
+    
+    detection:
+      methods:
+        - log_pattern: "MongoDB connection error" or "pymongo"
+        - timeout: MongoDB connection timeout
+        - log_pattern: "ServerSelectionTimeoutError"
+      
+    impact:
+      - Chat history not persisted
+      - Conversation state lost on restart
+      - Reduced functionality but system remains operational
+      
+    affected_services:
+      - caipe-supervisor (cannot persist state)
+      - caipe-ui (chat history not saved)
+      - mongodb (may be down or misconfigured)
+      
+    diagnosis:
+      - step: 1
+        action: Check MongoDB health
+        command: "docker inspect mongodb --format '{{.State.Health.Status}}'"
+        expected: "healthy"
+        
+      - step: 2
+        action: Check MongoDB logs
+        command: "docker logs mongodb --tail 50"
+        look_for:
+          - Startup errors
+          - Authentication failures
+          - Connection issues
+          
+      - step: 3
+        action: Test MongoDB connectivity
+        command: "docker exec caipe-supervisor mongosh mongodb://mongodb:27017 --eval 'db.adminCommand(\"ping\")'"
+        expected: {"ok": 1}
+        
+      - step: 4
+        action: Check supervisor MongoDB configuration
+        command: "docker inspect caipe-supervisor --format '{{.Config.Env}}' | grep -i MONGO"
+        expected: MONGODB_URI=mongodb://mongodb:27017
+        
+      - step: 5
+        action: Check MongoDB authentication
+        command: "docker exec caipe-supervisor mongosh mongodb://mongodb:27017 -u <user> -p <password> --eval 'db.adminCommand(\"ping\")'"
+        note: If authentication is configured
+        
+    remediation:
+      - step: 1
+        action: Restart MongoDB
+        command: "docker restart mongodb"
+        impact: Brief service interruption for chat history
+        success_criteria: MongoDB health check passes
+        
+      - step: 2
+        condition: MongoDB restart did not resolve
+        action: Check MongoDB configuration
+        command: "docker inspect mongodb --format '{{.Config.Env}}' | grep -i AUTH"
+        expected: Correct authentication configuration
+        
+      - step: 3
+        condition: Configuration is correct
+        action: Check network connectivity
+        command: "docker exec caipe-supervisor nc -zv mongodb 27017"
+        expected: Connection succeeds
+        
+      - step: 4
+        condition: Network is functional
+        action: Check MongoDB storage
+        command: "docker exec mongodb df -h /data/db"
+        expected: Sufficient disk space
+        
+      - step: 5
+        condition: Root cause unclear
+        action: Escalate to database team
+        notification: "CAIPE supervisor MongoDB connection failure - investigation needed"
+        severity: medium
+        
+    prevention:
+      - Monitor MongoDB health proactively
+      - Set up alerts for MongoDB connection failures
+      - Use connection pooling with timeouts
+      - Implement retry logic with backoff
+      - Validate MongoDB connectivity on startup
+      
+    related_runbooks:
+      - mongodb_connection_failure
+      - mongodb_storage_full
+
+  # ============================================================================
+  # RAG_FAILURE - Supervisor cannot connect to RAG server
+  # ============================================================================
+  - name: rag_failure
+    description: |
+      CAIPE supervisor cannot connect to the RAG (Retrieval-Augmented Generation)
+      server. This affects the supervisor's ability to retrieve relevant context
+      for user queries.
+    severity: medium
+    
+    detection:
+      methods:
+        - log_pattern: "RAG connection error" or "rag-server"
+        - timeout: RAG server connection timeout
+        - http_5xx_errors: Errors from RAG server
+      
+    impact:
+      - No RAG context for user queries
+      - Reduced answer quality
+      - System remains operational but with degraded functionality
+      
+    affected_services:
+      - caipe-supervisor (cannot retrieve context)
+      - caipe-rag-server (may be down or misconfigured)
+      - Users (reduced answer quality)
+      
+    diagnosis:
+      - step: 1
+        action: Check RAG server health
+        command: "curl -sf http://caipe-rag-server:9446/healthz"
+        expected: HTTP 200
+        
+      - step: 2
+        action: Check RAG server logs
+        command: "docker logs caipe-rag-server --tail 50"
+        look_for:
+          - Startup errors
+          - Configuration issues
+          - Dependency failures
+          
+      - step: 3
+        action: Test RAG server connectivity
+        command: "docker exec caipe-supervisor curl -v http://caipe-rag-server:9446/healthz"
+        expected: HTTP 200
+        
+      - step: 4
+        action: Check supervisor RAG configuration
+        command: "docker inspect caipe-supervisor --format '{{.Config.Env}}' | grep -i RAG"
+        expected:
+          - ENABLE_RAG=true
+          - RAG_URL=http://caipe-rag-server:9446
+          - RAG_MCP_URL=http://caipe-rag-server:9446/mcp
+          
+      - step: 5
+        action: Check RAG server dependencies
+        commands:
+          - "docker inspect caipe-rag-redis --format '{{.State.Status}}'" (Redis)
+          - "docker inspect caipe-rag-neo4j --format '{{.State.Status}}'" (Neo4j)
+          - "docker inspect milvus-standalone --format '{{.State.Status}}'" (Milvus)
+        expected: All dependencies healthy
+        
+    remediation:
+      - step: 1
+        action: Restart RAG server
+        command: "docker restart caipe-rag-server"
+        impact: Brief service interruption for RAG functionality
+        success_criteria: RAG server health check passes
+        
+      - step: 2
+        condition: RAG server restart did not resolve
+        action: Check RAG server dependencies
+        commands:
+          - Restart caipe-rag-redis
+          - Restart caipe-rag-neo4j
+          - Restart milvus-standalone
+        
+      - step: 3
+        condition: Dependencies restart did not resolve
+        action: Check RAG server configuration
+        command: "docker inspect caipe-rag-server --format '{{.Config.Env}}'"
+        expected: Correct configuration
+        
+      - step: 4
+        condition: Configuration is correct
+        action: Check network connectivity
+        command: "docker exec caipe-supervisor nc -zv caipe-rag-server 9446"
+        expected: Connection succeeds
+        
+      - step: 5
+        condition: Root cause unclear
+        action: Escalate to RAG team
+        notification: "CAIPE supervisor RAG connection failure - investigation needed"
+        severity: medium
+        
+    prevention:
+      - Monitor RAG server health proactively
+      - Set up alerts for RAG connection failures
+      - Use connection pooling with timeouts
+      - Implement retry logic with backoff
+      - Validate RAG connectivity on startup
+      - Make RAG optional (fail-open)
+      
+    related_runbooks:
+      - rag_server_unresponsive
+      - redis_connection_failure
+      - neo4j_connection_failure
+
+  # ============================================================================
+  # CONFIGURATION_ERROR - Supervisor has invalid configuration
+  # ============================================================================
+  - name: configuration_error
+    description: |
+      CAIPE supervisor has invalid or missing configuration. This prevents
+      it from starting or operating correctly.
+    severity: high
+    
+    detection:
+      methods:
+        - log_pattern: "Configuration error" or "Invalid configuration"
+        - log_pattern: "Missing required environment variable"
+        - container_exited: Container exits immediately after start
+      
+    impact:
+      - Supervisor cannot start or operate correctly
+      - All CAIPE operations fail
+      - Complete CAIPE system outage
+      
+    affected_services:
+      - caipe-supervisor (cannot start)
+      - All CAIPE components (depend on supervisor)
+      
+    diagnosis:
+      - step: 1
+        action: Check container logs for startup errors
+        command: "docker logs caipe-supervisor"
+        look_for:
+          - "Missing required environment variable"
+          - "Invalid value for"
+          - "Configuration error"
+          
+      - step: 2
+        action: Check environment variables
+        command: "docker inspect caipe-supervisor --format '{{.Config.Env}}'"
+        expected: All required variables present
+        
+      - step: 3
+        action: Validate configuration
+        command: "docker exec caipe-supervisor python -c 'from ai_platform_engineering.config import Settings; print(Settings())'"
+        expected: Configuration loads without errors
+        
+      - step: 4
+        action: Check for syntax errors in config files
+        commands:
+          - "python -m py_compile stacks/caipe/prompt_config.yaml"
+          - "python -m py_compile stacks/caipe/prompt_config.*.yaml"
+        expected: No syntax errors
+        
+      - step: 5
+        action: Check for missing files
+        commands:
+          - "docker exec caipe-supervisor ls -la /app/prompt_config.yaml"
+          - "docker exec caipe-supervisor ls -la /app/data/prompt_config.*.yaml"
+        expected: All config files present
+        
+    remediation:
+      - step: 1
+        action: Fix missing environment variables
+        commands:
+          - Add missing variables to docker-compose.yml
+          - Add missing variables to deploy workflow
+          - Redeploy
+        
+      - step: 2
+        condition: Environment variables are correct
+        action: Fix invalid values
+        commands:
+          - Correct invalid values in .env file
+          - Correct invalid values in deploy workflow
+          - Redeploy
+        
+      - step: 3
+        condition: Values are correct
+        action: Fix syntax errors
+        commands:
+          - Fix syntax errors in config files
+          - Validate YAML files
+          - Redeploy
+        
+      - step: 4
+        condition: Syntax is correct
+        action: Check for version incompatibilities
+        commands:
+          - Verify CAIPE version
+          - Verify dependency versions
+          - Check for breaking changes
+        
+      - step: 5
+        condition: Root cause unclear
+        action: Escalate to development team
+        notification: "CAIPE supervisor configuration error - investigation needed"
+        severity: high
+        
+    prevention:
+      - Validate configuration on startup
+      - Use environment variable schemas
+      - Provide clear error messages for configuration issues
+      - Test configuration changes before deployment
+      - Use configuration management tools
+      
+    related_runbooks:
+      - configuration_validation_failure
+
+  # ============================================================================
+  # SUPERVISOR_CRASH - Supervisor process crashed
+  # ============================================================================
+  - name: supervisor_crash
+    description: |
+      CAIPE supervisor process crashed and container exited. This is typically
+      due to unhandled exceptions, fatal errors, or resource exhaustion.
+    severity: critical
+    
+    detection:
+      methods:
+        - container_exited: Container status is "exited"
+        - exit_code_nonzero: Container exited with non-zero code
+        - log_pattern: "Traceback" or "Fatal error"
+      
+    impact:
+      - Complete CAIPE system outage
+      - All operations fail
+      - May indicate a serious bug or configuration issue
+      
+    affected_services:
+      - All CAIPE components (depend on supervisor)
+      - Users (all requests fail)
+      
+    diagnosis:
+      - step: 1
+        action: Check container exit code
+        command: "docker inspect caipe-supervisor --format '{{.State.ExitCode}}'"
+        expected: 0 (but container exited, so this will be non-zero)
+        
+      - step: 2
+        action: Check container logs for crash
+        command: "docker logs caipe-supervisor"
+        look_for:
+          - Final error message
+          - Traceback
+          - Stack trace
+          
+      - step: 3
+        action: Check for OOM kill
+        command: "docker inspect caipe-supervisor --format '{{.State.OOMKilled}}'"
+        expected: false
+        
+      - step: 4
+        action: Check resource usage before crash
+        command: "docker stats --no-stream caipe-supervisor 2>/dev/null || echo 'Container not running'"
+        note: If container exited, check historical monitoring
+        
+      - step: 5
+        action: Check for recent code changes
+        command: "git log --oneline --since='1 hour ago' -- stacks/caipe-patched/"
+        look_for: Recent commits that might have introduced the bug
+        
+    remediation:
+      - step: 1
+        action: Restart container
+        command: "docker start caipe-supervisor"
+        impact: Service restored if crash was transient
+        success_criteria: Container stays running for >5 minutes
+        
+      - step: 2
+        condition: Container crashes again
+        action: Increase resource limits
+        command: "docker update --memory 4G --cpus 2.5 caipe-supervisor"
+        note: Temporary increase for testing
+        
+      - step: 3
+        condition: Issue persists
+        action: Revert recent code changes
+        commands:
+          - Identify recent changes from step 5
+          - Revert suspicious commits
+          - Rebuild and redeploy
+        
+      - step: 4
+        condition: Root cause unclear
+        action: Collect diagnostics
+        commands:
+          - Save container logs: "docker logs caipe-supervisor > supervisor-crash.log"
+          - Save container config: "docker inspect caipe-supervisor > supervisor-config.json"
+          - Capture system state: "docker info > docker-info.txt"
+        
+      - step: 5
+        action: Escalate to development team
+        notification: "CAIPE supervisor crash - investigation needed"
+        severity: critical
+        include: All collected diagnostics
+        
+    prevention:
+      - Implement proper exception handling
+      - Add health checks and auto-restart
+      - Monitor container restarts
+      - Set up alerts for container crashes
+      - Use resource limits to prevent OOM
+      - Add circuit breakers for external calls
+      - Implement graceful shutdown
+      
+    related_runbooks:
+      - python_application_crash
+      - container_crash
+      - oom_kill
+
+# ============================================================================
+# Default runbook for unknown failure modes
+# ============================================================================
+- name: unknown_failure
+  description: Unknown or unclassified failure mode for CAIPE supervisor
+  severity: medium
+  
+  detection:
+    methods:
+      - log_pattern: "ERROR\|Exception\|Failed"
+      
+  impact:
+    - Varies based on specific failure
+    
+  diagnosis:
+    - step: 1
+      action: Collect all available information
+      commands:
+        - "docker logs caipe-supervisor --tail 200"
+        - "docker inspect caipe-supervisor"
+        - "docker stats --no-stream caipe-supervisor"
+      
+    - step: 2
+      action: Check related services
+      commands:
+        - "docker ps --filter 'name=caipe*' --format 'table {{.Names}}\t{{.Status}}'"
+        - Check all CAIPE components
+      
+    - step: 3
+      action: Check external dependencies
+      commands:
+        - Test connectivity to MongoDB, LiteLLM, RAG server, all agents
+        - Verify all credentials
+      
+  remediation:
+    - step: 1
+      action: Restart supervisor
+      command: "docker restart caipe-supervisor"
+      
+    - step: 2
+      condition: Issue persists
+      action: Escalate for investigation
+      notification: "CAIPE supervisor unknown failure - investigation needed"
+      severity: medium
+      
+  prevention:
+    - Improve monitoring and alerting
+    - Add more specific failure mode detection
+    - Enhance logging
