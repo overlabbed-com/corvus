@@ -72,9 +72,9 @@ def init_metrics():
     EVENTS_DROPPED = Counter("corvus_events_dropped_total", "Total events dropped (queue full, etc.)")
 
     # Triage metrics
-    triage_duration = Histogram(
+    triage_duration = Histogram(  # noqa: F841
         "corvus_triage_duration_seconds", "Triage execution duration", ["service_type", "outcome"]
-    )  # noqa: F841
+    )
     triage_success_rate = Counter("corvus_triage_success_total", "Successful triages", ["service_type"])  # noqa: F841
     triage_failure_rate = Counter("corvus_triage_failure_total", "Failed triages", ["service_type"])  # noqa: F841
 
