@@ -55,8 +55,11 @@ async def test_dead_letter_queue_accessible_via_api(client):
     # Insert test dead-letter entries directly into database
     db = await get_db()
     try:
+        # Dead letter entry 1
         await db.execute(
-            "INSERT INTO ops_siem_dead_letter (id, event_id, event_type, event_data, error, attempted_at, attempt_count, last_adapter) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+            "INSERT INTO ops_siem_dead_letter "
+            "(id, event_id, event_type, event_data, error, attempted_at, attempt_count, last_adapter) "
+            "VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
             (
                 "DL-TEST001",
                 "EVT-TEST001",
@@ -67,8 +70,11 @@ async def test_dead_letter_queue_accessible_via_api(client):
                 "splunk",
             ),
         )
+        # Dead letter entry 2
         await db.execute(
-            "INSERT INTO ops_siem_dead_letter (id, event_id, event_type, event_data, error, attempted_at, attempt_count, last_adapter) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+            "INSERT INTO ops_siem_dead_letter "
+            "(id, event_id, event_type, event_data, error, attempted_at, attempt_count, last_adapter) "
+            "VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
             (
                 "DL-TEST002",
                 "EVT-TEST002",

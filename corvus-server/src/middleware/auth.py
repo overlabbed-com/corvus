@@ -148,8 +148,9 @@ def _safe_unverified_claims(token: str) -> dict[str, Any]:
         # already-rejected token (validation failed upstream). We never trust
         # these values for authn/authz — output keys are *_unverified and field
         # lengths are bounded below.
+        # nosemgrep: python.jwt.security.unverified-jwt-decode.unverified-jwt-decode
         unverified = _pyjwt.decode(
-            token, options={"verify_signature": False}  # nosemgrep: python.jwt.security.unverified-jwt-decode
+            token, options={"verify_signature": False}
         )
     except Exception:
         return out
