@@ -436,7 +436,6 @@ async def resolve_dead_letter_entry(dl_id: str, request: Request):
 async def get_agent_context(
     agent_name: str = Query(..., description="Name of the agent requesting context"),
     target: str | None = Query(None, description="Target service/container being worked on"),
-    request: Request | None = None,
 ):
     """Get operational briefing for an agent working on a specific target.
 
