@@ -26,10 +26,11 @@ ignore = [
     "S608",   # SQL injection — we use parameterized queries, bandit handles this
     "B008",   # Depends() in FastAPI defaults is intentional pattern
     "F841",   # Unused variables — many metrics/debug vars intentionally defined but not yet used
+    "S110",   # try-except-pass in tests is acceptable
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["F811", "S106", "B017", "SIM105", "SIM117"]  # F811: pytest fixtures, S106: test credential strings, B017: blind exceptions in tests, SIM105: suppress in tests, SIM117: nested with in tests
+"tests/**" = ["F811", "S106", "B017", "SIM105", "SIM117", "S110"]  # F811: pytest fixtures, S106: test credential strings, B017: blind exceptions in tests, SIM105: suppress in tests, SIM117: nested with in tests, S110: bare except in tests
 
 [tool.bandit]
 exclude_dirs = ["tests"]

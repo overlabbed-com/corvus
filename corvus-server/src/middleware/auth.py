@@ -149,8 +149,8 @@ def _safe_unverified_claims(token: str) -> dict[str, Any]:
         # these values for authn/authz — output keys are *_unverified and field
         # lengths are bounded below.
         unverified = _pyjwt.decode(
-            token, options={"verify_signature": False}
-        )  # nosemgrep: python.jwt.security.unverified-jwt-decode
+            token, options={"verify_signature": False}  # nosemgrep: python.jwt.security.unverified-jwt-decode
+        )
     except Exception:
         return out
     for k_in, k_out in (
