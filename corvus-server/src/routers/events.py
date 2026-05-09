@@ -469,14 +469,16 @@ async def get_agent_context(
             (f"%{target}%" if target else "%", agent_name),
         )
         for row in rows:
-            active_changes.append({
-                "id": row["id"],
-                "targets": json.loads(row["targets"]),
-                "description": row["description"],
-                "status": row["status"],
-                "created_at": row["created_at"],
-                "created_by": row["created_by"],
-            })
+            active_changes.append(
+                {
+                    "id": row["id"],
+                    "targets": json.loads(row["targets"]),
+                    "description": row["description"],
+                    "status": row["status"],
+                    "created_at": row["created_at"],
+                    "created_by": row["created_by"],
+                }
+            )
         context["active_changes"] = active_changes
 
         # Get recent incidents for this agent/target
@@ -491,14 +493,16 @@ async def get_agent_context(
             (f"%{target}%" if target else "%", agent_name),
         )
         for row in rows:
-            recent_incidents.append({
-                "id": row["id"],
-                "target": row["target"],
-                "title": row["title"],
-                "severity": row["severity"],
-                "status": row["status"],
-                "detected_at": row["detected_at"],
-            })
+            recent_incidents.append(
+                {
+                    "id": row["id"],
+                    "target": row["target"],
+                    "title": row["title"],
+                    "severity": row["severity"],
+                    "status": row["status"],
+                    "detected_at": row["detected_at"],
+                }
+            )
         context["recent_incidents"] = recent_incidents
 
         # Get related services from CMDB
@@ -514,13 +518,15 @@ async def get_agent_context(
                 (target, f"%{target}%", f"%{target}%", f"%{target}%"),
             )
             for row in rows:
-                related_services.append({
-                    "name": row["name"],
-                    "service_type": row["service_type"],
-                    "host": row["host"],
-                    "stack": row["stack"],
-                    "criticality": row["criticality"],
-                })
+                related_services.append(
+                    {
+                        "name": row["name"],
+                        "service_type": row["service_type"],
+                        "host": row["host"],
+                        "stack": row["stack"],
+                        "criticality": row["criticality"],
+                    }
+                )
         context["related_services"] = related_services
 
         # Get recent events for this agent/target
@@ -535,15 +541,17 @@ async def get_agent_context(
             (f"%{target}%" if target else "%", agent_name),
         )
         for row in rows:
-            recent_events.append({
-                "id": row["id"],
-                "timestamp": row["timestamp"],
-                "source": row["source"],
-                "type": row["type"],
-                "target": row["target"],
-                "severity": row["severity"],
-                "data": json.loads(row["data"]) if row["data"] else {},
-            })
+            recent_events.append(
+                {
+                    "id": row["id"],
+                    "timestamp": row["timestamp"],
+                    "source": row["source"],
+                    "type": row["type"],
+                    "target": row["target"],
+                    "severity": row["severity"],
+                    "data": json.loads(row["data"]) if row["data"] else {},
+                }
+            )
         context["recent_events"] = recent_events
 
         # Generate recommendations
@@ -553,23 +561,27 @@ async def get_agent_context(
         if active_changes:
             for change in active_changes:
                 if target and target in json.loads(change["targets"]):
-                    recommendations.append({
-                        "type": "warning",
-                        "message": f"Active change {change['id']} is in progress for this target",
-                        "action": "Review change before proceeding",
-                        "priority": "high",
-                    })
+                    recommendations.append(
+                        {
+                            "type": "warning",
+                            "message": f"Active change {change['id']} is in progress for this target",
+                            "action": "Review change before proceeding",
+                            "priority": "high",
+                        }
+                    )
 
         # Recommendation: Check for recent incidents
         if recent_incidents:
             critical_incidents = [i for i in recent_incidents if i["severity"] in ["critical", "high"]]
             if critical_incidents:
-                recommendations.append({
-                    "type": "warning",
-                    "message": f"{len(critical_incidents)} critical/high severity incidents detected",
-                    "action": "Investigate incidents before proceeding",
-                    "priority": "high",
-                })
+                recommendations.append(
+                    {
+                        "type": "warning",
+                        "message": f"{len(critical_incidents)} critical/high severity incidents detected",
+                        "action": "Investigate incidents before proceeding",
+                        "priority": "high",
+                    }
+                )
 
         # Recommendation: Check target status
         if target:
@@ -577,19 +589,23 @@ async def get_agent_context(
             if target_status:
                 context["target_status"] = target_status
                 if target_status.get("recommendation") == "STOP":
-                    recommendations.append({
-                        "type": "error",
-                        "message": f"Target {target} has STOP recommendation",
-                        "action": "DO NOT PROCEED - another agent is working on this target",
-                        "priority": "critical",
-                    })
+                    recommendations.append(
+                        {
+                            "type": "error",
+                            "message": f"Target {target} has STOP recommendation",
+                            "action": "DO NOT PROCEED - another agent is working on this target",
+                            "priority": "critical",
+                        }
+                    )
                 elif target_status.get("recommendation") == "CAUTION":
-                    recommendations.append({
-                        "type": "warning",
-                        "message": f"Target {target} has CAUTION recommendation",
-                        "action": "Review carefully before proceeding",
-                        "priority": "medium",
-                    })
+                    recommendations.append(
+                        {
+                            "type": "warning",
+                            "message": f"Target {target} has CAUTION recommendation",
+                            "action": "Review carefully before proceeding",
+                            "priority": "medium",
+                        }
+                    )
 
         # Recommendation: Check for related service issues
         if related_services:
@@ -599,12 +615,14 @@ async def get_agent_context(
             pass
 
         if not recommendations:
-            recommendations.append({
-                "type": "info",
-                "message": "No issues detected",
-                "action": "Proceed with normal operations",
-                "priority": "low",
-            })
+            recommendations.append(
+                {
+                    "type": "info",
+                    "message": "No issues detected",
+                    "action": "Proceed with normal operations",
+                    "priority": "low",
+                }
+            )
 
         context["recommendations"] = recommendations
 

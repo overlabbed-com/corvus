@@ -51,6 +51,7 @@ async def test_oidc_failed_event_payload_schema(client, monkeypatch):
     monkeypatch.setattr(auth_module, "OIDC_ENABLED", True)
 
     import src.config as config_module
+
     monkeypatch.setattr(config_module, "CORVUS_DEV_MODE", False)
 
     captured: list[dict] = []
@@ -88,6 +89,7 @@ async def test_oidc_failed_event_payload_schema(client, monkeypatch):
 
         # Yield to allow scheduled tasks to run
         import asyncio as _asyncio
+
         await _asyncio.sleep(0.01)
 
     assert len(captured) == 1
@@ -126,6 +128,7 @@ async def test_oidc_failed_event_no_token_leak(client, monkeypatch, caplog):
     monkeypatch.setattr(auth_module, "OIDC_ENABLED", True)
 
     import src.config as config_module
+
     monkeypatch.setattr(config_module, "CORVUS_DEV_MODE", False)
 
     captured: list[dict] = []
@@ -151,15 +154,14 @@ async def test_oidc_failed_event_no_token_leak(client, monkeypatch, caplog):
         mock_oidc = MagicMock()
         # Exception WHOSE MESSAGE INCLUDES THE TOKEN — worst-case scenario.
         # B6 asserts we never format `e` into log messages, so this should NOT leak.
-        mock_oidc.validate_token = AsyncMock(
-            side_effect=Exception(f"OIDC failure detail: {token}")
-        )
+        mock_oidc.validate_token = AsyncMock(side_effect=Exception(f"OIDC failure detail: {token}"))
         mock_get_config.return_value = mock_oidc
 
         with caplog.at_level(logging.DEBUG, logger="src.middleware.auth"), contextlib.suppress(Exception):
             await authenticate_request(mock_request)
 
         import asyncio as _asyncio
+
         await _asyncio.sleep(0.01)
 
     # 1. Token bytes (the full JWT string) must NOT appear in log records.
@@ -171,9 +173,7 @@ async def test_oidc_failed_event_no_token_leak(client, monkeypatch, caplog):
         # Even substring check: no contiguous JWT-shaped run.
         # The marker IS in the sub claim — but should not appear in raw form
         # in the log message itself (extra fields are OK).
-        assert MARKER not in rendered, (
-            f"Token-derived MARKER leaked into log MESSAGE: {rendered!r}"
-        )
+        assert MARKER not in rendered, f"Token-derived MARKER leaked into log MESSAGE: {rendered!r}"
 
     # 2. The captured event payload may contain MARKER ONLY in sub_unverified.
     assert len(captured) == 1
@@ -197,12 +197,11 @@ async def test_break_glass_key_emits_p1_event(client, monkeypatch):
     monkeypatch.setattr(auth_module, "OIDC_ENABLED", False)
 
     import src.config as config_module
+
     monkeypatch.setattr(config_module, "CORVUS_DEV_MODE", False)
 
     break_glass_secret = "break-glass-secret-value"  # noqa: S105 — test fixture
-    monkeypatch.setitem(
-        auth_module.API_KEYS, break_glass_secret, "corvus-break-glass:agent"
-    )
+    monkeypatch.setitem(auth_module.API_KEYS, break_glass_secret, "corvus-break-glass:agent")
     monkeypatch.setattr(auth_module, "OIDC_BREAK_GLASS_KEY_NAME", "corvus-break-glass")
 
     captured: list[dict] = []
@@ -225,6 +224,7 @@ async def test_break_glass_key_emits_p1_event(client, monkeypatch):
 
     result = await authenticate_request(mock_request)
     import asyncio as _asyncio
+
     await _asyncio.sleep(0.01)
 
     assert result is not None
@@ -237,6 +237,4 @@ async def test_break_glass_key_emits_p1_event(client, monkeypatch):
     # Secret value MUST NOT appear in payload
     for k, v in bg["payload"].items():
         if isinstance(v, str):
-            assert break_glass_secret not in v, (
-                f"break-glass secret leaked into payload[{k!r}]"
-            )
+            assert break_glass_secret not in v, f"break-glass secret leaked into payload[{k!r}]"

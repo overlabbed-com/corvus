@@ -3,7 +3,6 @@
 Reference: projects/corvus-oidc/reports/2026-05-01-corvus-server-oidc-bugs.md B3, B4
 """
 
-
 import httpx
 import pytest
 
@@ -41,12 +40,8 @@ def test_discovery_url_strips_trailing_slash():
     """
     from src.middleware.oidc_auth import OIDCConfig
 
-    with_slash = OIDCConfig(
-        issuer_url="https://hydra.example/", client_id="c", client_secret=""
-    )
-    without_slash = OIDCConfig(
-        issuer_url="https://hydra.example", client_id="c", client_secret=""
-    )
+    with_slash = OIDCConfig(issuer_url="https://hydra.example/", client_id="c", client_secret="")
+    without_slash = OIDCConfig(issuer_url="https://hydra.example", client_id="c", client_secret="")
 
     expected = "https://hydra.example/.well-known/openid-configuration"
     assert with_slash.discovery_url == expected
@@ -118,9 +113,11 @@ async def test_kid_miss_refreshes_jwks(monkeypatch):
 
     # Patch jwt.PyJWK to avoid real key parsing
     import jwt as pyjwt
+
     class FakePyJWK:
         def __init__(self, data):
             self.key = data["_test_pem"]
+
     monkeypatch.setattr(pyjwt, "PyJWK", FakePyJWK)
     # Patch jwt.get_unverified_header to return kid=k2
     monkeypatch.setattr(pyjwt, "get_unverified_header", lambda token: {"kid": "k2"})
@@ -144,6 +141,7 @@ async def test_kid_miss_after_refresh_still_misses_raises(monkeypatch):
     monkeypatch.setattr(config, "fetch_jwks", fake_fetch)
 
     import jwt as pyjwt
+
     monkeypatch.setattr(pyjwt, "get_unverified_header", lambda token: {"kid": "k99"})
 
     with pytest.raises(ValueError, match="No matching key for kid"):
@@ -173,5 +171,6 @@ def test_mcp_internal_key_optional_in_dev_mode(monkeypatch):
     monkeypatch.delenv("CORVUS_MCP_INTERNAL_KEY", raising=False)
 
     import src.config as config_module
+
     importlib.reload(config_module)
     assert config_module.MCP_INTERNAL_KEY == "corvus-mcp-internal-dev"

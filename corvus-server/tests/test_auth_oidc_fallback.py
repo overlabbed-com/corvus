@@ -44,18 +44,18 @@ async def test_oidc_failure_in_production_raises_503(client):
             patch.object(auth_module, "_extract_bearer_token", return_value="test-token"),
             patch("src.middleware.oidc_auth.get_oidc_config") as mock_get_config,
         ):
-                    # Make OIDC validation fail
-                    mock_oidc = MagicMock()
-                    mock_oidc.validate_token = AsyncMock(side_effect=Exception("Token expired"))
-                    mock_get_config.return_value = mock_oidc
+            # Make OIDC validation fail
+            mock_oidc = MagicMock()
+            mock_oidc.validate_token = AsyncMock(side_effect=Exception("Token expired"))
+            mock_get_config.return_value = mock_oidc
 
-                    # In production mode with OIDC_STRICT=true (default),
-                    # OIDC failure should raise HTTP 503.
-                    with pytest.raises(HTTPException) as exc_info:
-                        await authenticate_request(mock_request)
+            # In production mode with OIDC_STRICT=true (default),
+            # OIDC failure should raise HTTP 503.
+            with pytest.raises(HTTPException) as exc_info:
+                await authenticate_request(mock_request)
 
-                    assert exc_info.value.status_code == 503
-                    assert "OIDC provider unavailable" in exc_info.value.detail
+            assert exc_info.value.status_code == 503
+            assert "OIDC provider unavailable" in exc_info.value.detail
     finally:
         # Restore original value
         import src.config as config_module
@@ -131,21 +131,21 @@ async def test_oidc_validation_error_logged_at_warning_level(client):
             patch.object(auth_module, "_extract_bearer_token", return_value="test-token"),
             patch("src.middleware.oidc_auth.get_oidc_config") as mock_get_config,
         ):
-                    # Make OIDC validation fail
-                    mock_oidc = MagicMock()
-                    mock_oidc.validate_token = AsyncMock(side_effect=Exception("Token expired"))
-                    mock_get_config.return_value = mock_oidc
+            # Make OIDC validation fail
+            mock_oidc = MagicMock()
+            mock_oidc.validate_token = AsyncMock(side_effect=Exception("Token expired"))
+            mock_get_config.return_value = mock_oidc
 
-                    with patch.object(auth_module, "logger") as mock_logger:
-                        # Should raise HTTP 503, not silently fall back
-                        from fastapi import HTTPException
+            with patch.object(auth_module, "logger") as mock_logger:
+                # Should raise HTTP 503, not silently fall back
+                from fastapi import HTTPException
 
-                        with pytest.raises(HTTPException) as exc_info:
-                            await authenticate_request(mock_request)
+                with pytest.raises(HTTPException) as exc_info:
+                    await authenticate_request(mock_request)
 
-                        assert exc_info.value.status_code == 503
-                        # B2: log at WARNING (was ERROR pre-2026-05-01)
-                        assert mock_logger.warning.called
+                assert exc_info.value.status_code == 503
+                # B2: log at WARNING (was ERROR pre-2026-05-01)
+                assert mock_logger.warning.called
     finally:
         # Restore original value
         import src.config as config_module
@@ -185,7 +185,8 @@ async def test_oidc_module_error_in_production_raises_503(client):
             patch(
                 "src.middleware.oidc_auth.get_oidc_config",
                 side_effect=Exception("OIDC configuration error"),
-            ),patch.object(auth_module, "logger") as mock_logger
+            ),
+            patch.object(auth_module, "logger") as mock_logger,
         ):
             # Should raise HTTP 503, not silently fall back
             with pytest.raises(HTTPException) as exc_info:

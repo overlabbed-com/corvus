@@ -7,3 +7,6 @@ corvus-server/src/discovery/container_inspector.py
 # secret. The tokens are designed to be rejected by validation; the secret
 # string is irrelevant.
 corvus-server/tests/test_oidc_audit_event.py
+# JWT decode with verify=False is intentional for audit logging of already-rejected tokens
+# See comment in auth.py for rationale
+corvus-server/src/middleware/auth.py

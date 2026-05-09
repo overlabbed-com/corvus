@@ -118,11 +118,7 @@ class OIDCConfig:
         """
         current_time = datetime.now(UTC).timestamp()
 
-        if (
-            not force_refresh
-            and self._jwks_cache
-            and current_time - self._jwks_cache_time < self._jwks_cache_ttl
-        ):
+        if not force_refresh and self._jwks_cache and current_time - self._jwks_cache_time < self._jwks_cache_ttl:
             return self._jwks_cache
 
         jwks_url = await self._resolve_jwks_url()
@@ -198,9 +194,7 @@ class OIDCConfig:
         # B1 fail-safe default.
         audience = expected_audience or self.client_id
         if not audience:
-            raise InvalidTokenError(
-                "Cannot validate token: no audience configured (set OIDC_CLIENT_ID)"
-            )
+            raise InvalidTokenError("Cannot validate token: no audience configured (set OIDC_CLIENT_ID)")
 
         try:
             key = await self.get_key_for_token(token)
