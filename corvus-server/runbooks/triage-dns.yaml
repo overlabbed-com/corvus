@@ -1,50 +1,153 @@
 name: DNS Service Triage
 type: triage
 service_type: dns
-version: 1
-description: FMEA-informed investigation for DNS infrastructure
+version: 2
+description: >
+  FMEA-informed investigation for PowerDNS infrastructure.
+  DNS runs as systemd services (not Docker containers) on tmtnsp01/tmtnsp02.
+  Components: pdns-recursor (port 53), pdns-auth (port 5300), dnsdist (853/443).
+  RPZ blocklist (1.56M domains), DNSSEC validation, local root zone (RFC 7706).
 
 investigation:
-  - name: Check container logs
-    type: containers.logs
+  - name: Check recursor service
+    type: host.check
     params:
-      name: "{{ target }}"
-      lines: 100
-      grep: "error|resolve|zone|transfer|refused|timeout|SERVFAIL"
+      host: "{{ host }}"
+      check: "systemctl is-active pdns-recursor"
     outputs:
-      filtered_logs: "{{ result }}"
+      recursor_state: "{{ result }}"
+    timeout: 10
 
-  - name: Check container state
-    type: containers.inspect
+  - name: Check auth service
+    type: host.check
     params:
-      name: "{{ target }}"
-      field: "State"
+      host: "{{ host }}"
+      check: "systemctl is-active pdns"
     outputs:
-      container_state: "{{ result }}"
+      auth_state: "{{ result }}"
+    timeout: 10
+
+  - name: Check dnsdist service
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: "systemctl is-active dnsdist"
+    outputs:
+      dnsdist_state: "{{ result }}"
+    timeout: 10
+
+  - name: Check recursor logs
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: "journalctl -u pdns-recursor --since '10 min ago' --no-pager -n 50 2>&1 | grep -iE 'error|fatal|exception|rpz|bogus|servfail'"
+    outputs:
+      recursor_logs: "{{ result }}"
+    timeout: 15
+
+  - name: Check RPZ health
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: "/usr/local/bin/check-rpz-health.sh"
+    outputs:
+      rpz_health: "{{ result }}"
+    timeout: 15
+
+  - name: Check DNS resolution
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: "dig @127.0.0.1 google.com +short +timeout=3"
+    outputs:
+      resolution_test: "{{ result }}"
+    timeout: 10
+
+  - name: Check internal domain resolution
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: "dig @127.0.0.1 litellm.themillertribe-int.org +short +timeout=3"
+    outputs:
+      internal_resolution: "{{ result }}"
+    timeout: 10
+
+  - name: Check DNSSEC bogus count
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: "rec_control get dnssec-result-bogus"
+    outputs:
+      dnssec_bogus: "{{ result }}"
+    timeout: 10
+
+  - name: Check RPZ blocking
+    type: host.check
+    params:
+      host: "{{ host }}"
+      check: "dig @127.0.0.1 ads.google.com +short +timeout=3 | grep -c '.' || echo 0"
+    outputs:
+      rpz_blocking: "{{ result }}"
+    timeout: 10
 
 diagnosis_hints:
-  - pattern: "resolve.*fail|SERVFAIL|timeout|unreachable"
+  - pattern: "Exception.*RPZ|rpz.*error|rpz-health.*FAIL|rpz-health.*CRITICAL"
+    root_cause: rpz_load_failure
+    restart_safe: true
+    explanation: "RPZ blocklist failed to load — check for malformed entries in combined.rpz. Backup at combined.rpz.bak."
+
+  - pattern: "bogus.*DNSSEC|dnssec.*validate.*fail|Bogus"
+    root_cause: dnssec_validation_failure
+    restart_safe: false
+    explanation: "DNSSEC validation issue — may need Negative Trust Anchor (rec_control add-nta), not restart."
+
+  - pattern: "auth-zones.*error|root.zone.*missing|root zone"
+    root_cause: root_zone_error
+    restart_safe: true
+    explanation: "Local root zone issue — recursor falls back to remote root hints if root.zone removed."
+
+  - pattern: "unable.*forward|5300.*refused|forward.*fail"
+    root_cause: auth_unreachable
+    restart_safe: true
+    explanation: "Auth server (port 5300) unreachable — internal domains fail, external works. Restart pdns."
+
+  - pattern: "SERVFAIL|resolve.*fail|timeout|unreachable"
     root_cause: resolver_failure
     restart_safe: true
-    explanation: "DNS resolver not responding — restart safe, check upstream DNS"
+    explanation: "DNS resolver not responding — restart pdns-recursor. Check if root zone or RPZ is the cause first."
 
   - pattern: "zone.*transfer|AXFR|IXFR|secondary"
     root_cause: zone_transfer_failure
     restart_safe: false
-    explanation: "Zone transfer failure — check primary DNS server"
+    explanation: "Zone transfer failure between nsp01 (primary) and nsp02 (secondary). Check pdns logs on both."
 
-  - pattern: "record.*missing|NXDOMAIN|wrong.*record"
+  - pattern: "record.*missing|NXDOMAIN.*internal|wrong.*record"
     root_cause: record_error
     restart_safe: false
-    explanation: "DNS record issue — fix zone files, restart won't help"
+    explanation: "DNS record issue — fix via pdnsutil, restart won't help. Check both auth servers for zone drift."
+
+  - pattern: "tls|certificate|853|443|dnsdist"
+    root_cause: dnsdist_failure
+    restart_safe: true
+    explanation: "DoT/DoH issue (dnsdist). Plain DNS (:53) is unaffected. Restart dnsdist."
 
 remediation:
   restart_safe: conditional
+  pre_restart_checks:
+    - "resolution_test is not empty"
   post_restart_verification:
     - type: host.check
       params:
         host: "{{ host }}"
-        check: dns_resolution
+        check: "dig @127.0.0.1 google.com +short +timeout=5"
+        timeout: 30
+    - type: host.check
+      params:
+        host: "{{ host }}"
+        check: "/usr/local/bin/check-rpz-health.sh"
+        timeout: 30
   escalation_triggers:
-    - "all resolution failing"
+    - "both servers failing resolution"
     - "zone corruption"
+    - "DNSSEC trust anchor failure"
+    - "all blocklist sources down for 72h+"
