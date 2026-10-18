@@ -53,3 +53,16 @@ release; the commercial story (dabslabs.ai) updated to the rebuilt product.
   mutation-proven control).
 - P3→P4: a fresh fleet can onboard from the docs alone.
 - P4→P5: the estate's gates demonstrably emit to and consult Corvus.
+
+## THE acceptance gate (ADR-006, the bootstrap-time promise)
+
+**A new harness reaches full governance parity by shipping only an adapter.**
+
+The test, written down so the product can be judged against it: take a
+harness that has never seen Corvus, write one conforming adapter (the hook
+contract), and verify that the harness's agents get — without any other
+work — the conflict checks, the fleet-wide incident awareness (agent A's
+incident visible to agent B's planning), the trust grading, and the audit
+trail. The only per-harness artifact permitted is the adapter plus the
+minimal local guard. If anything else must be ported, the product has failed
+this gate.

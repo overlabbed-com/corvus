@@ -64,6 +64,12 @@ tool name, the input), the conflict-check call out, the exit-code decision
 suite for it. Every harness adapter (Claude Code, DSH, OMP, Pi, Codex, …) is
 a thin shim over the contract, proven by the suite.
 
+**This is the product's most load-bearing interface** (ADR-006): the adapter
+contract IS the bootstrap. A new harness inherits the full governance stack
+— the conflict checks, the fleet awareness, the trust grading, the audit
+trail — by shipping one conforming adapter. The contract's stability and its
+conformance suite are the bootstrap-time promise, made testable.
+
 **Context**: the review found the README claiming ten tools with three thin
 adapters; the harness landscape now includes the DSH/OMP/Pi systems with
 their own hook/extension mechanics; the HQG stack independently converged on
@@ -71,7 +77,9 @@ the same enforcement point.
 
 **Consequences**: a new harness costs an adapter, not a governance
 implementation; the conformance suite is the product's compatibility gate;
-fail-open on unreachability stays (the availability trade, unchanged).
+fail-open on unreachability stays for the delegated intelligence while the
+minimal local guard (ADR-006) stays fail-closed — the availability trade is
+layered, not binary.
 
 ## ADR-005 — The dependency graph is relational; Neo4j is an export
 
@@ -88,22 +96,39 @@ second database) contradicts ADR-001's single-binary story.
 traversal); the deployment gains simplicity; a fleet wanting Neo4j gets the
 export path.
 
-## ADR-006 — PROPOSED: the estate's governance stack feeds Corvus
+## ADR-006 — ACCEPTED: governance lives in Corvus; harnesses plug in
 
-**Decision (proposed, the operator's confirmation)**: the HQG governance stack
-(the DDR gates, the classifier, the hooks) is the ENFORCEMENT layer at the
-harness level; Corvus is the AWARENESS layer it reports into. The integration:
-the gates emit their decisions to Corvus's event ingest (the OCSF events);
-Corvus's conflict check informs the gates' pre-action decisions. Neither
-replaces the other.
+**Decision (ACCEPTED per the operator's direction, 2026-10-18)**: Corvus is
+the harness-independent governance layer. The classification, the conflict
+check, the trust tiers, the event fabric, and the change records live in the
+Corvus service. A harness reaches full governance parity by shipping ONE
+thin adapter over the hook contract (ADR-004) — the per-harness governance
+bootstrap collapses to adapter-writing.
 
-**Context**: the review named the overlap — the pre-action enforcement, the
-event emission. The operator's CCB/IR framing positions Corvus as the board
-the enforcement reports to.
+**The rationale is the bootstrap time** (the operator's framing): every new
+harness that drops — and one will — currently demands porting the governance
+stack, re-deriving the enforcement, and tweaking it over time. That per-tree
+cost is the friction Corvus exists to remove. The operator's acceptance
+criterion, verbatim in intent: *agent A finds an incident in a component and
+the rest of the fleet knows outside of any session — "I'm working on this
+thing, so if it's in your planning or your critical path, you need to know."*
+Cross-functional awareness lives outside every session because it lives in
+the service.
 
-**Consequences**: the harness enforcement keeps its local authority
-(availability, latency); the CCB gains the fleet-wide picture; the DDR records
-map to Corvus change records (the evidence chain unifies).
+**The layered exception — the minimal local guard**: the harness keeps a
+tiny, stable, fail-closed local guard (the hard-fail destructive patterns,
+the DDR presence check) that never depends on a network hop. Everything else
+— the fleet picture, the conflict checks, the trust, the events — delegates
+to Corvus. The guard is what survives a Corvus outage; the intelligence is
+what a new harness inherits by plugging in.
+
+**Consequences**: the HQG stack's long-term shape becomes the adapters plus
+the local guard — its SSOT files (the classifier, the schema) migrate toward
+Corvus's service surface over time; the hook contract (ADR-004) becomes the
+product's most load-bearing interface, because it IS the bootstrap; the
+Corvus server's availability becomes a governance dependency, which is why
+the local guard exists and why the server's own health is a first-class
+concern.
 
 ## ADR-007 — The state model keeps the spine, drops the mesh, fixes the matching
 
