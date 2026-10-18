@@ -1,7 +1,6 @@
 """The spine's tests: the HLC ordering, the ingest validation, the conflict
 check, the signing. The live behavior the prototype proved, pinned."""
 import pytest
-
 from corvus.config import FleetConfig
 from corvus.core import CorvusCore, sign_event
 from corvus.hlc import HLC
