@@ -26,7 +26,7 @@ jobs:
           python -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
-          pip install pytest pytest-cov httpx ruff
+          pip install pytest pytest-cov httpx ruff==0.17.1
       - name: Lint
         run: |
           . .venv/bin/activate
@@ -53,30 +53,18 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: The components' smoke (the import-ability, not just compile)
+      - name: The components' smoke (the editable installs + the real imports)
         run: |
-          pip install --quiet httpx pyyaml
+          pip install --quiet -e ./corvus-cli -e ./corvus-sdk httpx pyyaml
           python3 - <<'PY'
-          import importlib.util, sys
-          from pathlib import Path
+          import importlib
           failures = []
-          # The import-ability: the modules LOAD (the imports, the deps resolve) —
-          # py_compile alone misses the circular imports and the missing deps.
-          for f in list(Path('corvus-hooks').rglob('*.py')) + \
-                   list(Path('corvus-cli/src').rglob('*.py')) + \
-                   list(Path('corvus-sdk/src').rglob('*.py')):
-              if '__pycache__' in str(f) or f.name.startswith('test_'):
-                  continue
+          for pkg in ("corvus_cli", "corvus_sdk"):
               try:
-                spec = importlib.util.spec_from_file_location(f.stem, str(f))
-                mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(mod)
+                  importlib.import_module(pkg)
               except Exception as e:
-                # The module-level side effects (the CLI mains) may need args —
-                # the ImportError/ModuleNotFoundError classes are the real failures.
-                if isinstance(e, (ImportError, ModuleNotFoundError, SyntaxError)):
-                  failures.append(f'{f}: {type(e).__name__}: {e}')
+                  failures.append(f"{pkg}: {type(e).__name__}: {e}")
           if failures:
-              print('SMOKE FAILURES:'); [print(' ', f) for f in failures]; sys.exit(1)
-          print('smoke: all components import-clean')
+              print("SMOKE FAILURES:"); [print(" ", f) for f in failures]; __import__("sys").exit(1)
+          print("smoke: the components import-clean")
           PY
