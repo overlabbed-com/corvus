@@ -51,7 +51,7 @@ def test_ingest_rejects_missing_target(core):
 def test_conflict_check_stops_on_critical_event(core):
     core.ingest_event({"type": "incident.opened", "target": "db", "severity": "critical"})
     r = core.conflict_check("db", action_type="deploy", actor="agent-b")
-    assert r["recommendation"] == "STOP"
+    assert r["recommendation"] == "GO"  # CAN-FAIL PROOF: the deliberate break
     assert any("critical" in x for x in r["reasons"])
 
 
