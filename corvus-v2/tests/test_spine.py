@@ -1,10 +1,10 @@
 """The spine's tests: the HLC ordering, the ingest validation, the conflict
 check, the signing. The live behavior the prototype proved, pinned."""
 import pytest
-
 from corvus.config import FleetConfig
 from corvus.core import CorvusCore, sign_event
 from corvus.hlc import HLC
+from corvus.state import State
 
 
 @pytest.fixture
@@ -13,8 +13,6 @@ def core():
                       custom_event_types=["deploy.canary"])
     return CorvusCore(cfg, State(":memory:"))
 
-
-from corvus.state import State
 
 
 def test_hlc_causal_ordering():
