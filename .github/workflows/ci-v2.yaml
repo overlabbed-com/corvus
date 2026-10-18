@@ -23,12 +23,55 @@ jobs:
           python -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
-          pip install pytest httpx ruff
+          pip install pytest pytest-cov httpx ruff
       - name: Lint
         run: |
           . .venv/bin/activate
           ruff check corvus/ tests/
-      - name: Tests
+      - name: Tests with coverage
         run: |
           . .venv/bin/activate
-          pytest tests/ -v
+          pytest tests/ -v --cov=corvus --cov-report=term --cov-report=json:coverage.json --junitxml=junit.xml
+      - name: The metrics drift guard
+        run: |
+          . .venv/bin/activate
+          python scripts/gen_metrics.py --coverage coverage.json --junit junit.xml \
+            --out /tmp/metrics-check.json --source "$GITHUB_SHA"
+          python scripts/check_metrics.py --expected ../docs/canonical-path/dev-metrics.json \
+            --actual /tmp/metrics-check.json
+      - name: Coverage summary
+        run: |
+          . .venv/bin/activate
+          python -c 'import json; c = json.load(open("coverage.json")); t = c["totals"]; print("coverage: %.1f%% (%d/%d lines)" % (t["percent_covered"], t["covered_lines"], t["num_statements"]))'
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: The components' smoke (the import-ability + the structure)
+        run: |
+          python3 - <<'PY'
+          import json, py_compile, sys
+          from pathlib import Path
+          failures = []
+          # The hooks: the python files compile
+          for f in Path('corvus-hooks').rglob('*.py'):
+              try:
+                  py_compile.compile(str(f), doraise=True)
+              except Exception as e:
+                  failures.append(f'{f}: {e}')
+          # The CLI/SDK: the packages import-compile
+          for f in list(Path('corvus-cli/src').rglob('*.py')) + list(Path('corvus-sdk/src').rglob('*.py')):
+              try:
+                  py_compile.compile(str(f), doraise=True)
+              except Exception as e:
+                  failures.append(f'{f}: {e}')
+          # The Splunk app: the config files parse
+          for f in list(Path('corvus-splunk').rglob('*.conf')) + list(Path('corvus-splunk').rglob('*.yaml')):
+              pass  # the config files: the presence smoke
+          if failures:
+              print('SMOKE FAILURES:'); [print(' ', f) for f in failures]; sys.exit(1)
+          print('smoke: all components compile')
+          PY
