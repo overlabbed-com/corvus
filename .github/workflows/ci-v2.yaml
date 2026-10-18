@@ -6,6 +6,11 @@ on:
     paths: [corvus-v2/**, .github/workflows/ci-v2.yaml]
   pull_request:
     paths: [corvus-v2/**, .github/workflows/ci-v2.yaml]
+  # The manual re-run lever: the paths filter skips the synchronize events
+  # when GitHub's evaluation quirks bite (observed live: the fix commit on
+  # the PR produced zero runs, 2026-10-18). workflow_dispatch ignores paths —
+  # the operator/agent re-runs the required check on any sha on demand.
+  workflow_dispatch:
 
 jobs:
   test:
