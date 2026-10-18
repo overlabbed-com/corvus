@@ -55,6 +55,7 @@ jobs:
           python-version: "3.12"
       - name: The components' smoke (the import-ability, not just compile)
         run: |
+          pip install --quiet httpx pyyaml
           python3 - <<'PY'
           import importlib.util, sys
           from pathlib import Path
