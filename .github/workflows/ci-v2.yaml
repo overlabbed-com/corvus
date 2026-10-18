@@ -23,7 +23,7 @@ jobs:
           python -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
-          pip install pytest httpx ruff
+          pip install pytest pytest-cov httpx ruff
       - name: Lint
         run: |
           . .venv/bin/activate
