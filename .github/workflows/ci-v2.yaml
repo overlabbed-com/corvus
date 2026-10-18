@@ -42,7 +42,7 @@ jobs:
       - name: Coverage summary
         run: |
           . .venv/bin/activate
-          python -c "import json; c = json.load(open('coverage.json')); t = c['totals']; print(f"coverage: {t['percent_covered']:.1f}% ({t['covered_lines']}/{t['num_statements']} lines)")"
+          python -c 'import json; c = json.load(open("coverage.json")); t = c["totals"]; print(f"coverage: {t[chr(37)+chr(37)] if False else round(t[chr(112)+chr(101)+chr(114)+chr(99)+chr(101)+chr(110)+chr(116)+chr(95)+chr(99)+chr(111)+chr(118)+chr(101)+chr(114)+chr(101)+chr(100)],1)}%")'
   smoke:
     runs-on: ubuntu-latest
     steps:
