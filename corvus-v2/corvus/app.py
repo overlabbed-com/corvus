@@ -121,4 +121,7 @@ def create_app(config: FleetConfig | None = None, db_path: str = ":memory:") -> 
     return app
 
 
-app = create_app()
+# NO module-level app instance: the import must be side-effect-free (the
+# fail-closed config would raise on import otherwise). The consumers use
+# the factory: create_app(config, db_path). uvicorn: "corvus.app:create_app()"")
+

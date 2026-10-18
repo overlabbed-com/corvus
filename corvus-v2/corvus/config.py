@@ -60,9 +60,19 @@ def load_config(config_path: str | None = None) -> FleetConfig:
             api_key=raw["api_key"],
             custom_event_types=raw.get("custom_event_types", []),
         )
+    # FAIL-CLOSED (the adversarial review's high finding): a missing key must
+    # refuse to start — the silent dev-key fallback was an auth bypass waiting
+    # for a misconfigured production deploy.
+    api_key = os.environ.get("CORVUS_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "CORVUS_API_KEY is required — the fleet key must be explicitly "
+            "configured (the dev fallback was removed: a silently insecure "
+            "start is worse than no start)"
+        )
     return FleetConfig(
         name=os.environ.get("CORVUS_FLEET_NAME", "default-fleet"),
         node_id=os.environ.get("CORVUS_NODE_ID", "local"),
-        api_key=os.environ.get("CORVUS_API_KEY", "dev-key-change-me"),
+        api_key=api_key,
         custom_event_types=json.loads(os.environ.get("CORVUS_CUSTOM_EVENT_TYPES", "[]")),
     )

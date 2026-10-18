@@ -1,0 +1,7 @@
+# The repo's ruff config: the deterministic isort grouping (the local and the
+# CI agree — the version-skew flip-flop ended). corvus is first-party.
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint.isort]
+known-first-party = ["corvus"]

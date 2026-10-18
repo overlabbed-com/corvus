@@ -43,7 +43,7 @@ import sys, threading, time, json, urllib.request;\
 sys.path.insert(0, '.');\
 from corvus.app import create_app;\
 from corvus.config import FleetConfig;\
-cfg = FleetConfig(name='dev-fleet', node_id='dev-1', api_key='dev-key');\
+cfg = FleetConfig(name='dev-fleet', node_id='dev-1', api_key='dev-local-key');\
 app = create_app(config=cfg, db_path=':memory:');\
 t = threading.Thread(target=lambda: __import__('uvicorn').run(app, host='127.0.0.1', port=8932, log_level='error'), daemon=True);\
 t.start(); time.sleep(1.5);\

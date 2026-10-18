@@ -34,8 +34,16 @@ def main():
     ap.add_argument("--duration", type=float, default=0.0, help="the test run's seconds")
     args = ap.parse_args()
 
-    cov = json.loads(Path(args.coverage).read_text())
+    cov_path = Path(args.coverage)
+    if not cov_path.exists():
+        sys.exit(f"gen_metrics: {cov_path} missing — the coverage step must run first")
+    try:
+        cov = json.loads(cov_path.read_text())
+    except json.JSONDecodeError as e:
+        sys.exit(f"gen_metrics: {cov_path} is not valid JSON: {e}")
     totals = cov.get("totals", {})
+    if "percent_covered" not in totals:
+        sys.exit(f"gen_metrics: {cov_path} lacks totals.percent_covered — not a pytest-cov report")
     tests = {"total": 0, "passed": 0, "failed": 0}
     if args.junit and Path(args.junit).exists():
         import xml.etree.ElementTree as ET

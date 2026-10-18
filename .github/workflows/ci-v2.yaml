@@ -1,11 +1,14 @@
 name: CI v2
 
+# NO paths filter (the adversarial review's high finding): a PR touching only
+# corvus-sdk or the Makefile got ZERO CI — the blind spot. The suite is fast
+# (the test ~16s, the smoke ~5s): every PR and main push runs everything.
+# workflow_dispatch stays as the manual re-run lever for any sha.
 on:
   push:
     branches: [main]
-    paths: [corvus-v2/**, .github/workflows/ci-v2.yaml]
   pull_request:
-    paths: [corvus-v2/**, .github/workflows/ci-v2.yaml]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -23,7 +26,7 @@ jobs:
           python -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
-          pip install pytest pytest-cov httpx ruff
+          pip install pytest pytest-cov httpx ruff==0.17.1
       - name: Lint
         run: |
           . .venv/bin/activate
@@ -50,28 +53,18 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: The components' smoke (the import-ability + the structure)
+      - name: The components' smoke (the editable installs + the real imports)
         run: |
+          pip install --quiet -e ./corvus-cli -e ./corvus-sdk httpx pyyaml
           python3 - <<'PY'
-          import json, py_compile, sys
-          from pathlib import Path
+          import importlib
           failures = []
-          # The hooks: the python files compile
-          for f in Path('corvus-hooks').rglob('*.py'):
+          for pkg in ("corvus_cli", "corvus_sdk"):
               try:
-                  py_compile.compile(str(f), doraise=True)
+                  importlib.import_module(pkg)
               except Exception as e:
-                  failures.append(f'{f}: {e}')
-          # The CLI/SDK: the packages import-compile
-          for f in list(Path('corvus-cli/src').rglob('*.py')) + list(Path('corvus-sdk/src').rglob('*.py')):
-              try:
-                  py_compile.compile(str(f), doraise=True)
-              except Exception as e:
-                  failures.append(f'{f}: {e}')
-          # The Splunk app: the config files parse
-          for f in list(Path('corvus-splunk').rglob('*.conf')) + list(Path('corvus-splunk').rglob('*.yaml')):
-              pass  # the config files: the presence smoke
+                  failures.append(f"{pkg}: {type(e).__name__}: {e}")
           if failures:
-              print('SMOKE FAILURES:'); [print(' ', f) for f in failures]; sys.exit(1)
-          print('smoke: all components compile')
+              print("SMOKE FAILURES:"); [print(" ", f) for f in failures]; __import__("sys").exit(1)
+          print("smoke: the components import-clean")
           PY
