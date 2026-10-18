@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .config import FleetConfig
 from .hlc import HLC
@@ -20,7 +20,7 @@ from .state import State
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def sign_event(payload: dict, key: str) -> str:
