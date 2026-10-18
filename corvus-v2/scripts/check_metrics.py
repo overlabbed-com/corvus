@@ -18,9 +18,10 @@ def main():
     expected = json.loads(Path(args.expected).read_text())
     actual = json.loads(Path(args.actual).read_text())
 
+    # The source_commit is INFORMATIONAL (every commit changes the HEAD sha,
+    # so gating on it is structurally unsatisfiable — caught live by this
+    # guard's own first CI run). The MEASURABLE facts gate.
     drifts = []
-    if expected.get("source_commit") != actual.get("source_commit"):
-        drifts.append(f"source_commit: {expected.get('source_commit')} != {actual.get('source_commit')}")
     ec = expected.get("coverage", {}).get("percent")
     ac = actual.get("coverage", {}).get("percent")
     if ec is None or ac is None or abs((ac or 0) - (ec or 0)) > args.tolerance:
