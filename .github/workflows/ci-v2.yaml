@@ -37,7 +37,7 @@ jobs:
           . .venv/bin/activate
           python scripts/gen_metrics.py --coverage coverage.json --junit junit.xml \
             --out /tmp/metrics-check.json --source "$GITHUB_SHA"
-          python scripts/check_metrics.py --expected ../../docs/canonical-path/dev-metrics.json \
+          python scripts/check_metrics.py --expected ../docs/canonical-path/dev-metrics.json \
             --actual /tmp/metrics-check.json
       - name: Coverage summary
         run: |
