@@ -53,7 +53,8 @@ def load_config(config_path: str | None = None) -> FleetConfig:
       CORVUS_CUSTOM_EVENT_TYPES (a JSON array)
     """
     if config_path and os.path.exists(config_path):
-        raw = json.loads(open(config_path).read())
+        with open(config_path) as fh:
+            raw = json.loads(fh.read())
         return FleetConfig(
             name=raw["name"], node_id=raw.get("node_id", raw["name"]),
             api_key=raw["api_key"],

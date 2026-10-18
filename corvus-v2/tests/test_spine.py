@@ -14,7 +14,7 @@ def core():
     return CorvusCore(cfg, State(":memory:"))
 
 
-from corvus.state import State  # noqa: E402 (after the fixture import order)
+from corvus.state import State
 
 
 def test_hlc_causal_ordering():
