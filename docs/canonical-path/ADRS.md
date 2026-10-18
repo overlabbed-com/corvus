@@ -1,0 +1,123 @@
+# Architecture Decision Records — the canonical path
+
+Each ADR: the decision, the context (from the source review), and the
+consequences. Statuses: ACCEPTED (the canonical path's decisions) /
+PROPOSED (needing the operator's confirmation).
+
+## ADR-001 — Self-hosted single-binary per fleet; multi-agent, not multi-tenant SaaS
+
+**Decision**: Corvus deploys as one self-contained binary (the API + the
+embedded SQLite) per fleet. The concurrency model is many agents per fleet;
+the tenancy model is one deployment per fleet. No SaaS multi-tenancy in the
+core.
+
+**Context**: the review (SOURCE-REVIEW.md) found the old code single-tenant
+(the deployment identity implicit); the product-first claim targets other
+fleets. The README's framing (self-hosted, the SIEM forwarding, the per-fleet
+secrets) is self-hosted-per-fleet, not SaaS.
+
+**Consequences**: the fleet identity is the deployment's configuration, not a
+row column — the data model stays flat; the multi-fleet scale is operational
+(more deployments), not architectural; the embedded database keeps the
+deployment story at docker-run; the isolation story is the deployment
+boundary, which is what a CCB wants anyway (a fleet's change control is its
+own).
+
+## ADR-002 — The event vocabulary is data, the schema is code
+
+**Decision**: the event-type registry moves to configuration (the fleet's
+vocabulary, validated server-side against the OCSF class map); the core
+lifecycle types (the change/incident/remediation/sweep/session families) ship
+built-in; the custom types register without a code change.
+
+**Context**: the review found the hardcoded `EVENT_TYPE_ALLOWLIST` frozenset
+(models/events.py:11-50) — every new type is a release, a tax the product
+cannot carry for other fleets.
+
+**Consequences**: the strict schema stays (the OCSF classes, the validation)
+— the flexibility is the vocabulary, never the shape; a misconfigured
+vocabulary fails loudly at registration, not silently at ingest.
+
+## ADR-003 — Trust is per (fleet, agent, action_type); outcomes move the tiers
+
+**Decision**: the trust ledger's key becomes (agent, action_type) within the
+fleet deployment. The tiers: AUTO / SUPERVISED / ESCALATE (unchanged
+vocabulary). The mechanics the old code lacked: the outcome events
+(action.approved/denied, incident.linked-change) adjust the tier's stats; the
+tier changes are themselves emitted events (`trust.promoted`,
+`trust.demoted` — added to the built-in vocabulary); the plan approval reads
+the tiers per step.
+
+**Context**: the review found the tiers global-per-action_type with no
+promotion mechanics (the README's "promote/demote based on outcomes" was
+aspirational).
+
+**Consequences**: an agent earns autonomy by its own record; the tier
+changes are auditable events (the CCB's own decisions are on the record);
+the ESCALATE default stays safe.
+
+## ADR-004 — One hook enforcement contract; per-harness adapters are thin shims
+
+**Decision**: the product ships ONE hook contract — the stdin JSON in (the
+tool name, the input), the conflict-check call out, the exit-code decision
+(0 allow / 2 block) plus the post-action event emission — and a conformance
+suite for it. Every harness adapter (Claude Code, DSH, OMP, Pi, Codex, …) is
+a thin shim over the contract, proven by the suite.
+
+**Context**: the review found the README claiming ten tools with three thin
+adapters; the harness landscape now includes the DSH/OMP/Pi systems with
+their own hook/extension mechanics; the HQG stack independently converged on
+the same enforcement point.
+
+**Consequences**: a new harness costs an adapter, not a governance
+implementation; the conformance suite is the product's compatibility gate;
+fail-open on unreachability stays (the availability trade, unchanged).
+
+## ADR-005 — The dependency graph is relational; Neo4j is an export
+
+**Decision**: the dependency graph and the blast-radius queries live in the
+embedded database (the edges table + the recursive queries). The Neo4j
+forwarder becomes an optional export (like the SIEM forwarder), not a core
+dependency.
+
+**Context**: the review found Neo4j as a hard dependency (graph.py, 437
+lines) for queries that fit the relational model; the deployment tax (a
+second database) contradicts ADR-001's single-binary story.
+
+**Consequences**: the blast-radius capability keeps its depth (the recursive
+traversal); the deployment gains simplicity; a fleet wanting Neo4j gets the
+export path.
+
+## ADR-006 — PROPOSED: the estate's governance stack feeds Corvus
+
+**Decision (proposed, the operator's confirmation)**: the HQG governance stack
+(the DDR gates, the classifier, the hooks) is the ENFORCEMENT layer at the
+harness level; Corvus is the AWARENESS layer it reports into. The integration:
+the gates emit their decisions to Corvus's event ingest (the OCSF events);
+Corvus's conflict check informs the gates' pre-action decisions. Neither
+replaces the other.
+
+**Context**: the review named the overlap — the pre-action enforcement, the
+event emission. The operator's CCB/IR framing positions Corvus as the board
+the enforcement reports to.
+
+**Consequences**: the harness enforcement keeps its local authority
+(availability, latency); the CCB gains the fleet-wide picture; the DDR records
+map to Corvus change records (the evidence chain unifies).
+
+## ADR-007 — The state model keeps the spine, drops the mesh, fixes the matching
+
+**Decision**: the ten-table spine survives (changes/events/incidents/problems/
+cmdb/ci/audit/triage/steps/knowledge). The mesh-federation columns
+(node_id/hlc_timestamp/mesh_sync_status/synced_peers) are dropped — except the
+event ordering quality, preserved via the HLC as the event's timestamp source
+(single-node causal ordering across agents). The target matching becomes
+exact-and-relational: the targets normalize into a change_targets table
+(change_id, target) with exact matching, replacing the LIKE-on-JSON.
+
+**Context**: the review found the mesh columns on every table serving an
+empty `src/mesh/`, and the LIKE matching false-positive/negative-prone.
+
+**Consequences**: the schema loses its dead weight; the conflict check gains
+correctness; the HLC salvage keeps the event-ordering quality the federation
+ambition was reaching for.
