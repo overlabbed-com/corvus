@@ -21,6 +21,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from corvus.capture import CaptureStore
+from corvus.contract_codes import ERROR_CODES
+
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -34,7 +37,7 @@ VALID_TYPES = {"choice", "score", "noul"}
 # THE CLOSED ERROR ENUM (the contract v1.1): every error the boundary emits,
 # compiler-verified against the fixture corpus (the error-enum coverage
 # invariant — an uncovered code is a corpus gap = build failure).
-from corvus.contract_codes import ERROR_CODES
+# (the import itself lives at the module's top with the other imports)
 
 
 def err(code: str, status: int, **fields):
@@ -71,9 +74,6 @@ def _site_resolution(site_id: str) -> dict | None:
 # replay index (the SQLite WAL — F10: a restart does not wipe the replay).
 # The spike defaults to :memory:; the production config points
 # CORVUS_CAPTURE_DB at the file.
-import os
-
-from corvus.capture import CaptureStore
 
 _CAPTURE = CaptureStore(db_path=os.environ.get("CORVUS_CAPTURE_DB", ":memory:"),
                         max_rows=10_000)
