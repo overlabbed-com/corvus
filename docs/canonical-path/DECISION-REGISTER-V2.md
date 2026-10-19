@@ -20,6 +20,27 @@ phase's first task; this document is the design of record for the v2 shape.
   reach); re-checks on trigger (base movement, incident start on a shared
   dependency, window entry); the seven→four collapse is the site's judgment
   with deterministic pre-classifications riding in the facts.
+
+**The seven-class conflict taxonomy** (the input spec, from the estate's
+real conflicts — the fleet operator's chunk 4):
+
+| Class | What was contested | Estate grounding |
+|---|---|---|
+| LIVE-STATE | two writers, one object, no git conflict — visible only in serve-time ownership | the Deployment ping-ponging ReplicaSets under Flux (the managedFields two-writer attribution) |
+| SEMANTIC | both apply, result broken | the vhost displacement (different files, no textual overlap, one composed route) |
+| SERIALIZE | shared resource/ownership; resolution is ORDERING, not exclusion | the bake-off vs production traffic; the CI lane vs deploy lane; the single-Kustomization serialization; the GPU-tenancy races |
+| OWNERSHIP | a line owned by an automation | the $imagepolicy marker vs the manual bump (the estate's runbook rule, now data) |
+| RESPONSE | two agents, one alert — conflict at response time | M1 |
+| SHARED-DEPENDENCY | an incident on a shared dependency blocks every change that rides it | the umbrella-Kustomization freeze ("don't change anything that rides the fire") |
+| TEXTUAL | the classic same-file conflict | RARE on this estate (everything runs in worktrees) — the seed C1's inputs were tuned for the LEAST common class |
+
+The seven→four collapse is the site's judgment, with deterministic
+pre-classifications riding in the facts as computed-class hints. (The
+per-class mapping above — TEXTUAL→TEXTUAL, LIVE-STATE→LIVE_STATE,
+SEMANTIC/SHARED-DEPENDENCY→SEMANTIC, SERIALIZE/OWNERSHIP/RESPONSE→
+SERIALIZE-context — is this consolidation's inference from the chunk
+content, recorded here for the register sweep to confirm; the chunks
+named the collapse but not the per-class mapping.)
 - **T2 demoted** (proposed, pending the register sweep): a tier lookup is a
   pure read of the attested trust ledger — `facts.trust_tier` with the
   unknown→ESCALATE handling in the consuming sites' `on_unknown` branches.
@@ -43,6 +64,50 @@ phase's first task; this document is the design of record for the v2 shape.
   M9 splits (the reversibility lookup + M9′ the undo-now site) · M10
   lane-validity (site; the attribution enum) · M3/M5/M7 are INPUT FIXES to
   E2/C1/W1 respectively.
+
+## The seed-audit verdicts (the W-criteria audit of all 13 original sites)
+
+Consolidated from the decision scientist's chunk-1 audit (GAP-AUDIT b1).
+The three offenders are in the v2 delta above; the remaining verdicts:
+
+- **C1**: shape ✓; CAUTION undefined — the fail policy is safe ONLY if
+  CAUTION = hold-for-ack (otherwise a fail-open door in fail-closed
+  costume); the conflict-inventory source undeclared. Vague-but-
+  salvageable → repaired (CAUTION defined; the inventory attested-minimum).
+- **T1**: reclassified rule-backed over attested outcomes (R-SEC-7) — the
+  rule forces W5, so T1 gets MORE well-formed. Remaining gaps (landed in
+  the trust spec): the declared ladder (+1 step), the asymmetric evidence
+  bars (the promote bar ≫ the demote bar), hold-on-unknown-evidence.
+- **T2**: a lookup in a decision costume (the model path answers it —
+  probe 4); probabilities FORBIDDEN on the answer. → the demotion to
+  facts.trust_tier proposed; the canonical THIN SITE.
+- **P1**: fail ✓; criteria undeclared — the most expensive vagueness in
+  the register (this site IS the trust model's operationalization);
+  autonomy-granting → rule-backed; the reason must ride in the answer
+  payload (risky-escalation ≠ uncertain-escalation).
+- **I1**: defensible WITH a provenance flag ("unassessed — emitter's
+  claim"); needs an anchored rubric. Minor. (The self-report hole and the
+  shadow re-scoring control are in THREAT-MODEL.md.)
+- **I2**: fail ✓; the candidate set must come from state (a choice space
+  is only enumerable over supplied candidates); the match confidence
+  hidden by id/none. Fix: candidates-in-state + the score in the answer.
+- **E1**: well-formed as a deterministic membership test; lookup-backed. ✓
+- **B1**: the fail policy defensible (the recency queue discipline); the
+  score semantics + the "oldest" clock undeclared. Minor.
+- **W1 (seeded)**: a W8 violation — a fused computable predicate (the
+  clock) + a judgment (extend?); and a latent W2 violation ({expire,
+  extend} has no value for "the window is fine"). → the split (the fact +
+  W1′), which fixed both.
+
+**The meta-findings** (register-wide): (1) the seed was an answer-shape
+register, not yet a decision register — no state schemas, no decision
+rules (W1/W3/W5 unmet across all 13); (2) the fail policies were assigned
+by family heuristic — the derived distribution replaced it (2 open / 6
+pause / 5 closed; the heuristic scored 2-of-5); (3) noul was a flag
+masquerading as a type; (4) no dependency DAG → the composition semantics
+were undefined (D3 + R-SEC-13 now own it); (5) the widening surface was
+located: shape enforced at the boundary, content and fail policy
+caller-authored (the probes' evidence).
 
 ## The register v2 site list (19 sites + 1 evidence-lane artifact)
 
