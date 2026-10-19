@@ -63,12 +63,21 @@ sites:
     question: "May this proposed change proceed against the current estate state?"
     type: choice
     solver: rule
+    # THE DESIGN AMENDMENT (the compiler's invariant caught the WP0
+    # conflation, 2026-10-19): the verdict enum is the DISPOSITION
+    # {GO, CAUTION, STOP, DEFER} (the scientist's chunk-6 decomposition);
+    # the conflict classes (TEXTUAL/LIVE_STATE/SEMANTIC/SERIALIZE — the
+    # seven-to-four collapse) are the site's DETECTIONS, riding in the
+    # facts as computed pre-classifications. The fail answer CAUTION is a
+    # member of THIS enum; the WP0 YAML had written the classes as the
+    # verdict, leaving the fail answer outside the enum.
     criteria:
-      TEXTUAL: "same-file overlap; rebase resolves"
-      LIVE_STATE: "two writers on one object (serve-time ownership); reconcile ownership first"
-      SEMANTIC: "both apply, result broken (incl. a shared dependency on fire); order or redesign"
-      SERIALIZE: "contention for a shared resource/lane/automation-owned line; queue or order"
+      GO: "no conflict detection fires (no TEXTUAL/LIVE_STATE/SEMANTIC/SERIALIZE pre-classification), the criticality is known, the bar cleared"
+      CAUTION: "hold-for-ack: a detection is ambiguous, or the criticality is unknown — the fail default AND the pause answer, one value doing one job"
+      STOP: "a hard conflict: a SEMANTIC or LIVE_STATE detection (the recorded handling: reconcile ownership first / order or redesign)"
+      DEFER: "the gray band or the descriptor-vs-manifest divergence — routes as a decision packet"
     facts:
+      conflict_preclass: {required: true, min_class: computed, shape: "the seven-to-four collapse hint: none|TEXTUAL|LIVE_STATE|SEMANTIC|SERIALIZE"}
       active_changes: {required: true, min_class: attested, shape: "[{id, created_by, targets}]"}
       serve_time_ownership: {required: true, min_class: attested, shape: "[{object, writer, last_applied_revision, ts}]"}
       post_state: {required: true, min_class: computed, shape: "bounded projection"}
@@ -77,9 +86,10 @@ sites:
       open_incidents: {required: true, min_class: attested, shape: "[{id, target, severity}]"}
       incident_blast_reach: {required: true, min_class: computed, shape: "[targets + shared dependencies]"}
     resolution:
-      bands: [TEXTUAL, LIVE_STATE, SEMANTIC, SERIALIZE]
-      ordering: [TEXTUAL, SERIALIZE, LIVE_STATE, SEMANTIC]
-      coarse: {TEXTUAL: proceed, LIVE_STATE: hold, SEMANTIC: hold, SERIALIZE: queue}
+      bands: [GO, CAUTION, STOP, DEFER]
+      map: {GO: proceed, CAUTION: hold, STOP: block, DEFER: queue}
+      ordering: [GO, DEFER, CAUTION, STOP]
+      coarse: {GO: proceed, CAUTION: hold, STOP: block, DEFER: queue}
     fail_policy:
       default: {answer: CAUTION, reason_class: unknown, resolution: escalation-queue}
       modes:
