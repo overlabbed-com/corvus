@@ -68,10 +68,15 @@ def _site_resolution(site_id: str) -> dict | None:
     return (_REGISTER.get("sites", {}).get(site_id, {}) or {}).get("resolution")
 
 
-# THE REPLAY CACHE (the idempotency): key → {response, ts}. The design's
-# production form is the persisted index (the SQLite WAL); the spike's
-# in-memory dict proves the contract path.
-_REPLAY_CACHE: dict[str, tuple[dict, float]] = {}
+# THE CAPTURE STORE (WP5): the bounded telemetry store + the PERSISTED
+# replay index (the SQLite WAL — F10: a restart does not wipe the replay).
+# The spike defaults to :memory:; the production config points
+# CORVUS_CAPTURE_DB at the file.
+import os  # noqa: E402
+from corvus.capture import CaptureStore  # noqa: E402
+
+_CAPTURE = CaptureStore(db_path=os.environ.get("CORVUS_CAPTURE_DB", ":memory:"),
+                        max_rows=10_000)
 _REPLAY_WINDOW_S = 300.0
 
 
@@ -105,9 +110,9 @@ async def decide(fleet_id: str, request: Request):
     # captured, and the client never heard it).
     idem = body.get("idempotency_key")
     if idem:
-        cached = _REPLAY_CACHE.get(idem)
-        if cached and (time.time() - cached[1]) < _REPLAY_WINDOW_S:
-            replayed = dict(cached[0])
+        cached = _CAPTURE.replay_lookup(idem)
+        if cached:
+            replayed = dict(cached)
             replayed["replayed"] = True
             return replayed
 
@@ -248,8 +253,20 @@ async def decide(fleet_id: str, request: Request):
         "capture_status": "recorded",
         "engine": {"id": "corvus-shim", "version": "1.1.0", "latency_ms": 1},
     }
+    # THE CAPTURE ENQUEUE (B4): the full row — the state, the facts, the
+    # sites (the canonical form), the dual-precision answers — the
+    # re-decide substrate. The status is immediate; the decision path
+    # never waits on the durable write's fate.
+    capture_status = _CAPTURE.enqueue({
+        "request_hash": rh, "idempotency_key": idem,
+        "state": state, "facts": facts, "sites": sites,
+        "answers_full": answers_full, "answers_consumed": answers_consumed,
+        "engine_version": "1.1.0", "weights_version": "spike",
+        "catalog_version": "2.0.0-sweep.1",
+    })
+    response["capture_status"] = capture_status
     if idem:
-        _REPLAY_CACHE[idem] = (response, time.time())
+        _CAPTURE.replay_put(idem, response)
     return response
 
 
