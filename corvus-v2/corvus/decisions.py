@@ -41,7 +41,11 @@ class DecisionClient:
         try:
             with urllib.request.urlopen(req, timeout=self.timeout_ms / 1000 + 1) as resp:
                 data = json.loads(resp.read())
-                return {"answers": data.get("answers", {}), "degraded": False}
+                # THE FULL PASS-THROUGH: the request_hash, the capture_status,
+                # and the engine block ride to the caller — the client is a
+                # transport, not a filter (the request_hash is the cross-store
+                # key the caller joins on).
+                return {**data, "degraded": False}
         except urllib.error.HTTPError:
             # THE CONTRACT BOUNDARY (the spike finding, 2026-10-19): an HTTP
             # error response (400/404/422/…) is the ENGINE ANSWERING — it is
@@ -54,7 +58,8 @@ class DecisionClient:
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             # The engine unreachable: apply each site's fail policy.
             answers: dict[str, Any] = {}
-            for site_id, site in sites.items():
+            for entry in sites:
+                site_id = entry.get("site_id") if isinstance(entry, dict) else entry
                 policy = (fail_policies or {}).get(site_id, "fail-closed:UNKNOWN")
                 kind, _, default = policy.partition(":")
                 answers[site_id] = {

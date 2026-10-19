@@ -31,10 +31,11 @@ def sign_event(payload: dict, key: str) -> str:
 
 
 class CorvusCore:
-    def __init__(self, config: FleetConfig, state: State):
+    def __init__(self, config: FleetConfig, state: State, decisions: Any = None):
         self.config = config
         self.state = state
         self.hlc = HLC(config.node_id)
+        self.decisions = decisions  # the DecisionClient (ADR: the engine seam)
 
     # ── the event ingest (ADR-002: the strict shape, the data vocabulary) ──
 
@@ -133,21 +134,74 @@ class CorvusCore:
         )
         trust_tier = tier_rows[0]["tier"] if tier_rows else "ESCALATE"
 
+        # The C1 decision site (the register): the engine decides when reachable;
+        # the registered fail policy (fail-closed → CAUTION) applies when not.
+        # The deterministic conditions below are the engine's criteria, restated
+        # locally so the degraded path reproduces them exactly.
+        local_reasons: list[str] = []
+        if recent and any(r["severity"] in ("critical", "high", "error") for r in recent):
+            local_reasons.append("recent critical/high event on target")
+        if active:
+            local_reasons.append(f"active change window: {active[0]['id']} by {active[0]['created_by']}")
+        if trust_tier == "ESCALATE":
+            local_reasons.append(f"trust tier ESCALATE for {actor or 'unknown'}/{action_type or 'unknown'}")
+
         recommendation = "GO"
         reasons: list[str] = []
-        if recent and any(r["severity"] in ("critical", "high", "error") for r in recent):
-            recommendation = "STOP"
-            reasons.append("recent critical/high event on target")
-        if active:
-            if recommendation == "GO":
-                recommendation = "CAUTION"
-                reasons.append(f"active change window: {active[0]['id']} by {active[0]['created_by']}")
+        degraded = False
+        if self.decisions is not None:
+            site = {
+                "type": "choice",
+                "instructions": "May the actor proceed on this target right now?",
+                "criteria": {
+                    "GO": "no active changes, no recent critical events, trust is not ESCALATE",
+                    "CAUTION": "an active change window, an ESCALATE trust tier, or a moderate recent event — proceed with attention",
+                    "STOP": "a recent critical/high event, or an active change AND a critical condition on the target",
+                },
+            }
+            state_in = {
+                "target": target, "action_type": action_type, "actor": actor,
+                "active_changes": [{"id": c["id"], "created_by": c["created_by"]} for c in active],
+                "recent_severity": recent[0]["severity"] if recent else None,
+                "trust_tier": trust_tier,
+            }
+            result = self.decisions.decide(
+                self.config.name, state_in,
+                [dict(site, site_id="C1")],
+                fail_policies={"C1": "fail-closed:CAUTION"},
+            )
+            answer = result["answers"].get("C1", {}).get("answer", "CAUTION")
+            degraded = bool(result.get("degraded"))
+            if degraded:
+                reasons.append("engine unreachable — the fail-closed default applied")
+                if local_reasons:
+                    reasons.extend(local_reasons)
+                recommendation = "CAUTION" if answer == "CAUTION" and not local_reasons else "STOP" if any("critical" in r for r in local_reasons) else answer
+                if local_reasons and any("critical" in r for r in local_reasons):
+                    recommendation = "STOP"
+                elif local_reasons:
+                    recommendation = "CAUTION"
+                else:
+                    recommendation = answer
             else:
+                recommendation = answer
+                reasons.extend(local_reasons)
+        else:
+            # The no-engine mode: the deterministic ladder (the v2's original
+            # behavior — the degraded path reproduces exactly this).
+            if recent and any(r["severity"] in ("critical", "high", "error") for r in recent):
                 recommendation = "STOP"
-                reasons.append("active change window AND recent critical event")
-        if trust_tier == "ESCALATE" and recommendation == "GO":
-            recommendation = "CAUTION"
-            reasons.append(f"trust tier ESCALATE for {actor or 'unknown'}/{action_type or 'unknown'}")
+                reasons.append("recent critical/high event on target")
+            if active:
+                if recommendation == "GO":
+                    recommendation = "CAUTION"
+                    reasons.append(f"active change window: {active[0]['id']} by {active[0]['created_by']}")
+                else:
+                    recommendation = "STOP"
+                    reasons.append("active change window AND recent critical event")
+            if trust_tier == "ESCALATE" and recommendation == "GO":
+                recommendation = "CAUTION"
+                reasons.append(f"trust tier ESCALATE for {actor or 'unknown'}/{action_type or 'unknown'}")
         return {
             "target": target,
             "action_type": action_type,
@@ -156,5 +210,6 @@ class CorvusCore:
             "reasons": reasons,
             "active_changes": [{"id": c["id"], "created_by": c["created_by"]} for c in active],
             "trust_tier": trust_tier,
+            "engine_degraded": degraded,
             "checked_at": _now_iso(),
         }
