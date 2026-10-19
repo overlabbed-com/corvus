@@ -1,0 +1,170 @@
+# The Corvus decision register — machine-readable (schema 1)
+# The gate: a new decision ships only with an entry here. See
+# DECISION-REGISTER.md for the human-readable index and the rule.
+schema: 1
+updated: "2026-10-18"
+sites:
+  - id: C1
+    family: change-control
+    question: "May the actor proceed on this target right now?"
+    type: choice
+    inputs:
+      target: str
+      action_type: str?
+      actor: str?
+      state:
+        active_changes: list
+        recent_severity: str?
+        trust_tier: enum[AUTO, SUPERVISED, ESCALATE]
+    outputs: [GO, CAUTION, STOP]
+    fail_policy: fail-closed
+    fail_default: CAUTION
+    escalation: "STOP always names its reasons; STOP on a critical incident may page the operator"
+    source: "corvus-v2/corvus/core.py:120-156 (live)"
+  - id: C2
+    family: change-control
+    question: "Is the target carrying an active critical condition?"
+    type: score
+    inputs:
+      recent_events: list
+    outputs: "0..1 criticality weight"
+    fail_policy: fail-open
+    fail_default: "the local severity heuristic"
+    escalation: "none — the score feeds C1"
+    source: "corvus-v2/corvus/core.py:138 (live)"
+  - id: T1
+    family: trust
+    question: "Does this agent's outcome justify a tier promotion?"
+    type: choice
+    inputs:
+      agent: str
+      action_type: str
+      outcome_events: list
+      current_tier: enum[AUTO, SUPERVISED, ESCALATE]
+    outputs: [promote, hold, demote]
+    fail_policy: fail-closed
+    fail_default: hold
+    escalation: "a demotion of an AUTO-tier agent notifies the operator"
+    source: "ADR-003 (design — the P1 build)"
+  - id: T2
+    family: trust
+    question: "What trust tier applies to (agent, action_type) right now?"
+    type: noul
+    inputs:
+      agent: str
+      action_type: str
+    outputs: "enum[AUTO, SUPERVISED, ESCALATE]"
+    fail_policy: fail-closed
+    fail_default: ESCALATE
+    escalation: "none — the lookup feeds C1/P1"
+    source: "ADR-003, corvus-v2/corvus/core.py:128-134 (live)"
+  - id: P1
+    family: plan-gating
+    question: "Does this plan step auto-approve or escalate?"
+    type: choice
+    inputs:
+      step_action_type: str
+      agent: str
+      trust_tier: enum[AUTO, SUPERVISED, ESCALATE]
+    outputs: [auto, escalate]
+    fail_policy: fail-closed
+    fail_default: escalate
+    escalation: "escalated steps list returns to the caller for human approval"
+    source: "ADR-003, the mcp_server.py:440-470 lineage (design)"
+  - id: P2
+    family: plan-gating
+    question: "Is the plan safe to start given the current fleet state?"
+    type: choice
+    inputs:
+      plan_targets: list
+      fleet_state: str
+    outputs: [yes, no]
+    fail_policy: fail-closed
+    fail_default: "no"
+    escalation: "a NO returns the blocking conditions to the caller"
+    source: "ADR-003 (design)"
+  - id: I1
+    family: incident-triage
+    question: "What severity does this event/incident carry?"
+    type: choice
+    inputs:
+      event_type: str
+      event_data: json
+      target: str
+    outputs: [info, low, medium, high, critical]
+    fail_policy: fail-open
+    fail_default: "the emitter's stated severity"
+    escalation: "critical incidents page via the estate's alert funnel"
+    source: "the event model (design)"
+  - id: I2
+    family: incident-triage
+    question: "Which FMEA runbook matches this service type?"
+    type: choice
+    inputs:
+      service_type: str
+      failure_mode: str?
+    outputs: "the runbook id, or none"
+    fail_policy: fail-closed
+    fail_default: none
+    escalation: "none — the generic investigation applies"
+    source: "the FMEA capability (design)"
+  - id: I3
+    family: incident-triage
+    question: "Is this incident a recurrence of a known problem?"
+    type: noul
+    inputs:
+      incident: json
+      known_problems: list
+    outputs: "the matched problem id, or none"
+    fail_policy: fail-open
+    fail_default: none
+    escalation: "none — a new problem record is created"
+    source: "the problems model (design)"
+  - id: E1
+    family: events
+    question: "Is this event type valid and in the fleet's vocabulary?"
+    type: noul
+    inputs:
+      event_type: str
+      fleet_vocabulary: list
+    outputs: "valid | invalid (+ the reason)"
+    fail_policy: fail-closed
+    fail_default: invalid
+    escalation: "none — the ingest rejects with the valid types"
+    source: "corvus-v2/corvus/config.py:43-45 (live)"
+  - id: E2
+    family: events
+    question: "Does this event warrant escalation given the target's recent history?"
+    type: choice
+    inputs:
+      event: json
+      target_recent: list
+    outputs: [escalate, record]
+    fail_policy: fail-open
+    fail_default: record
+    escalation: "an escalate verdict pages via the estate's alert funnel"
+    source: "the design pass"
+  - id: B1
+    family: blind-spots
+    question: "What is the highest-value unknown to investigate next?"
+    type: score
+    inputs:
+      knowledge_gaps: list
+      recent_incidents: list
+    outputs: "the ranked candidates"
+    fail_policy: fail-open
+    fail_default: "the oldest unresolved"
+    escalation: "none — the backlog is the product's own improvement queue"
+    source: "the README blind-spot capability (design)"
+  - id: W1
+    family: change-windows
+    question: "Should this change window auto-expire now?"
+    type: choice
+    inputs:
+      change: json
+      now: str
+    outputs: [expire, extend]
+    fail_policy: fail-closed
+    fail_default: expire
+    escalation: "an expiry emits change.expired to the fabric"
+    source: "corvus-v2/corvus/core.py:94, the auto_expire field (live)"
