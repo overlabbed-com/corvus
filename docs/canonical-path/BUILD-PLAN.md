@@ -79,6 +79,51 @@ the namespace registry · the tier-table generator · the benchmark
 existence-hiding 404s and the per-state-class isolation verified.
 
 
+
+## The docs plan (the user-facing guides, P2/P3)
+
+The parity thesis made testable in docs: *a new harness author integrates
+from the guide alone.*
+
+**The adapter authoring guide** (P2, with WP13's generalization beyond
+Claude Code):
+- Audience: the harness vendor / the agent-framework author integrating
+  the adapter edge.
+- Outline: the three edges (the interception points, the typed ask/answer,
+  the outcome emission) · the verdict-token consume path (the single-use,
+  the TTL, the action binding — what the adapter MUST enforce and what it
+  MUST NOT decide) · the fail-policy behavior at the seam (the budget
+  trigger, the error-class separation — the spike's finding 2 as the
+  worked example) · the observe-mode first (never blocks) · the
+  conformance fixtures as the integration test (the harness author runs
+  the engine's own probe against their adapter) · the worked example: the
+  CC adapter (the v1 hooks' replacement, the archive's integration surface
+  as the checklist).
+- The acceptance: an author who has never read the design docs integrates
+  a new harness from this guide + the conformance fixtures alone, and the
+  integration passes the fixtures.
+
+**The register authoring guide** (P3, with the marketplace's org-private
+packs):
+- Audience: the operator / the governance author writing decision
+  vocabulary.
+- Outline: the register schema v2 (the type × solver, the criteria shape,
+  the per-field facts with the minimum classes, the resolution map) · the
+  six-step fail-policy derivation (the dossier as the worked examples) ·
+  the well-formedness criteria W1–W11 as the authoring checklist · the
+  compiler's invariants (what the compiler rejects and why) · the
+  boundary rule (fact vs site vs evidence lane — the three-clause rule) ·
+  the tightening-only override rule (the ratchet) · the worked example:
+  authoring one new site end-to-end (from the decision question to the
+  conformance fixtures).
+- The acceptance: an operator authors a new site from this guide alone,
+  the compiler accepts it, and the site's conformance fixtures pass.
+
+Both guides inherit the record schema's field vocabulary (the shared
+contract surface) — the docs' examples are generated from the same
+compiler artifacts the product ships, so the guides cannot drift from the
+implementation (the docs-cascade pattern).
+
 ## The external dependency statement (the engine's model backend)
 
 **The backend: `clef-flash`** — Cloudflare's joint-schema decision model
