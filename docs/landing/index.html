@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Corvus — the change control board for agent fleets</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --bg-raised: #11161d;
+    --bg-card: #151c25;
+    --line: #232b36;
+    --text: #e6ebf1;
+    --text-dim: #8b98a8;
+    --text-faint: #5c6875;
+    --amber: #f5a623;
+    --amber-dim: #f5a62322;
+    --green: #3fb950;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 88px 0; border-top: 1px solid var(--line); }
+  .kicker {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--amber); margin-bottom: 14px;
+  }
+  h2 { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 16px; }
+  .lede { font-size: 18px; color: var(--text-dim); max-width: 640px; margin-bottom: 44px; }
+
+  /* nav */
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(11,15,20,0.85); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .wordmark { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
+  .wordmark .mark { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, var(--amber), #c77b10); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: #0b0f14; font-weight: 800; }
+  .nav-links { display: flex; gap: 26px; }
+  .nav-links a { color: var(--text-dim); text-decoration: none; font-size: 14px; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta { color: var(--amber) !important; font-weight: 600; }
+
+  /* hero */
+  .hero { padding: 110px 0 90px; border-top: none; position: relative; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 50% at 50% -10%, rgba(245,166,35,0.09), transparent);
+    pointer-events: none;
+  }
+  .gate { display: inline-flex; gap: 8px; margin-bottom: 26px; }
+  .gate span {
+    width: 11px; height: 11px; border-radius: 50%;
+    display: inline-block;
+  }
+  .gate .g { background: var(--green); box-shadow: 0 0 12px var(--green); }
+  .gate .c { background: var(--amber); box-shadow: 0 0 12px var(--amber); opacity: 0.95; }
+  .gate .s { background: var(--red); opacity: 0.45; }
+  h1 {
+    font-size: clamp(38px, 6vw, 60px); font-weight: 800;
+    letter-spacing: -0.03em; line-height: 1.06; margin-bottom: 24px;
+    max-width: 820px;
+  }
+  h1 .accent { color: var(--amber); }
+  .hero .lede { font-size: 20px; margin-bottom: 36px; max-width: 700px; }
+  .cta-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-block; padding: 13px 26px; border-radius: 9px;
+    font-weight: 600; font-size: 15px; text-decoration: none;
+    transition: transform 0.12s ease, filter 0.12s ease;
+  }
+  .btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+  .btn-primary { background: var(--amber); color: #0b0f14; }
+  .btn-ghost { color: var(--text); border: 1px solid var(--line); background: var(--bg-raised); }
+  .hero-note { margin-top: 18px; font-family: var(--mono); font-size: 12.5px; color: var(--text-faint); }
+  .hero-note b { color: var(--text-dim); font-weight: 500; }
+
+  /* cards */
+  .grid { display: grid; gap: 18px; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 860px) {
+    .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 620px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+  }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 26px;
+  }
+  .card h3 { font-size: 17px; font-weight: 650; margin-bottom: 9px; letter-spacing: -0.01em; }
+  .card p { font-size: 14.5px; color: var(--text-dim); }
+  .card .tag {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 12px; display: inline-block;
+  }
+
+  /* problem */
+  .fail { border-left: 3px solid var(--red); }
+  .fail .tag { color: var(--red); }
+  .fail p em { color: var(--text); font-style: normal; }
+
+  /* capabilities */
+  .cap { border-top: 2px solid var(--line); }
+  .cap .tag { color: var(--blue); }
+  .cap.c-go { border-top-color: var(--green); }
+  .cap.c-go .tag { color: var(--green); }
+  .cap.c-caution { border-top-color: var(--amber); }
+  .cap.c-caution .tag { color: var(--amber); }
+  .cap.c-stop { border-top-color: var(--red); }
+  .cap.c-stop .tag { color: var(--red); }
+  .cap.c-aware { border-top-color: var(--blue); }
+  .cap.c-aware .tag { color: var(--blue); }
+
+  /* how */
+  .edge { position: relative; }
+  .edge .num {
+    font-family: var(--mono); font-size: 13px; color: var(--amber);
+    margin-bottom: 12px; display: block;
+  }
+  .thesis {
+    margin-top: 34px; padding: 26px 30px; border-radius: 12px;
+    background: var(--amber-dim); border: 1px solid rgba(245,166,35,0.25);
+    font-size: 18px; line-height: 1.5; max-width: 820px;
+  }
+  .thesis b { color: var(--amber); }
+
+  /* trust */
+  .trust-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 860px) { .trust-row { grid-template-columns: 1fr; } }
+  .ramp {
+    margin-top: 18px; padding: 22px 26px; border-radius: 12px;
+    background: var(--bg-raised); border: 1px solid var(--line);
+  }
+  .ramp .meter { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 14px 0 12px; }
+  .ramp .meter i { flex: 1; }
+  .ramp .meter .m1 { background: var(--blue); }
+  .ramp .meter .m2 { background: var(--amber); }
+  .ramp .meter .m3 { background: var(--green); }
+  .ramp p { font-size: 14.5px; color: var(--text-dim); }
+  .ramp .phrase { font-family: var(--mono); font-size: 13px; color: var(--text); margin-top: 10px; }
+
+  /* pricing */
+  .axes { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 34px; }
+  @media (max-width: 720px) { .axes { grid-template-columns: 1fr; } }
+  .axis { padding: 22px 26px; border-radius: 12px; background: var(--bg-raised); border: 1px solid var(--line); }
+  .axis .tag { color: var(--amber); }
+  .tier { display: flex; flex-direction: column; }
+  .tier .price { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .tier .price small { font-size: 13px; color: var(--text-faint); font-weight: 400; }
+  .tier ul { list-style: none; margin-top: 14px; }
+  .tier li { font-size: 14px; color: var(--text-dim); padding: 6px 0 6px 20px; position: relative; }
+  .tier li::before { content: "→"; position: absolute; left: 0; color: var(--amber); font-size: 12px; top: 9px; }
+  .tier .provable {
+    margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line);
+    font-family: var(--mono); font-size: 12px; color: var(--text-faint);
+  }
+  .pricing-note { margin-top: 26px; font-size: 14.5px; color: var(--text-dim); max-width: 720px; }
+  .pricing-note b { color: var(--text); font-weight: 600; }
+
+  /* boundaries */
+  .not-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 720px) { .not-grid { grid-template-columns: 1fr; } }
+  .not {
+    padding: 15px 18px; border-radius: 9px; background: var(--bg-raised);
+    border: 1px solid var(--line); display: flex; gap: 12px; align-items: baseline;
+  }
+  .not .x { color: var(--text-faint); font-family: var(--mono); font-size: 13px; flex-shrink: 0; }
+  .not div { font-size: 14px; color: var(--text-dim); }
+  .not div b { color: var(--text); font-weight: 600; }
+  .not-foot { margin-top: 22px; font-size: 14.5px; color: var(--text-dim); max-width: 720px; }
+  .not-foot b { color: var(--amber); font-weight: 600; }
+
+  /* footer */
+  footer { border-top: 1px solid var(--line); padding: 56px 0 72px; }
+  .foot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  @media (max-width: 720px) { .foot-grid { grid-template-columns: 1fr; } }
+  .foot-h { font-size: 15px; font-weight: 650; margin-bottom: 12px; }
+  .foot-grid p { font-size: 14px; color: var(--text-dim); margin-bottom: 10px; }
+  .promise {
+    margin-top: 44px; padding: 20px 24px; border-radius: 10px;
+    background: var(--bg-raised); border: 1px solid var(--line);
+    font-family: var(--mono); font-size: 13px; line-height: 1.7; color: var(--text-dim);
+  }
+  .promise b { color: var(--text); font-weight: 600; }
+  .colophon { margin-top: 36px; font-size: 12.5px; color: var(--text-faint); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-inner">
+    <div class="wordmark"><span class="mark">C</span>Corvus</div>
+    <div class="nav-links">
+      <a href="#capabilities">Capabilities</a>
+      <a href="#how">How it works</a>
+      <a href="#trust">Trust</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#boundaries">Boundaries</a>
+      <a href="#pricing" class="nav-cta">Start in observe mode</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="gate"><span class="g"></span><span class="c"></span><span class="s"></span></div>
+    <h1>Your agents are your IT workers.<br>Their change control board is <span class="accent">Corvus</span>.</h1>
+    <p class="lede">
+      Agent fleets execute real change on real infrastructure — deploys, configs,
+      remediating incidents at 2am. Corvus is the layer they check before they act:
+      the pre-action gate, the shared picture every agent sees, and the evidence
+      chain your auditor reads afterwards.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#pricing">Start with the change-control check</a>
+      <a class="btn btn-ghost" href="#how">See how it works</a>
+    </div>
+    <p class="hero-note">The wedge: <b>one decision — the pre-action conflict check</b> — running in observe mode. Every decision recorded from day one. Enforcement turns on when the evidence earns it.</p>
+  </div>
+</section>
+
+<section id="problem">
+  <div class="wrap">
+    <div class="kicker">The problem</div>
+    <h2>Agent governance didn't fail. It was never installed.</h2>
+    <p class="lede">
+      The failure modes below aren't hypothetical. They're the patterns Corvus was
+      built against — the ones that happen when capable agents run on infrastructure
+      with no organization layer between them.
+    </p>
+    <div class="grid grid-3">
+      <div class="card fail">
+        <span class="tag">The silent decline</span>
+        <h3>The refusal nobody saw</h3>
+        <p>An agent hits an ambiguous situation at 2am and declines. The refusal lands
+        in a store <em>no human queries</em>. The operator finds out from the outage —
+        not from the governance that was supposed to surface it. One silent decline
+        costs more trust than ten loud failures.</p>
+      </div>
+      <div class="card fail">
+        <span class="tag">The wrong cause</span>
+        <h3>The alert that lies</h3>
+        <p>An overnight critical alert names a cause. The remediation pipeline accepts
+        the narrative. The raw evidence says otherwise — and nobody rendered the
+        disagreement. The stated cause and the observed cause are <em>different
+        claims</em>, and only one of them gets adjudicated.</p>
+      </div>
+      <div class="card fail">
+        <span class="tag">The composed break</span>
+        <h3>Fine alone, broken together</h3>
+        <p>Two changes, each reviewed and safe. Different files, no textual overlap —
+        and one composed route between them. Hours after both merge, every call that
+        rides that route is broken. The check that would have caught it models
+        <em>the world as it will be</em>, not the world as each change sees it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="capabilities">
+  <div class="wrap">
+    <div class="kicker">What Corvus does</div>
+    <h2>Four capabilities, one layer.</h2>
+    <p class="lede">Each one is a decision surface the whole fleet shares — not a dashboard, not a bot, not another place to check.</p>
+    <div class="grid grid-4">
+      <div class="card cap c-go">
+        <span class="tag">Change control</span>
+        <h3>The pre-action gate</h3>
+        <p>Before an agent touches a target, Corvus answers GO, CAUTION, or STOP —
+        from the active changes, the incidents, and the trust on that target. The
+        check that would have caught the composed break.</p>
+      </div>
+      <div class="card cap c-aware">
+        <span class="tag">Shared awareness</span>
+        <h3>One fleet, one picture</h3>
+        <p>Every agent emits structured events and reads the same stream. One agent's
+        action is every other agent's context — the two agents responding to one alert
+        see each other before they collide.</p>
+      </div>
+      <div class="card cap c-caution">
+        <span class="tag">Graded autonomy</span>
+        <h3>Trust that is earned</h3>
+        <p>Per agent, per action class: what may run unsupervised, decided by evidence —
+        attested outcomes at the layer that matters, promotion preconditions that are
+        deterministic, demotion that never waits.</p>
+      </div>
+      <div class="card cap c-stop">
+        <span class="tag">Breakage tracking</span>
+        <h3>Failure knowledge that compounds</h3>
+        <p>Incidents, problems, and FMEA-informed runbooks: when something breaks, the
+        right investigation fires — and the failure-mode knowledge gets sharper every
+        time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="kicker">How it works</div>
+    <h2>Three edges. One thin adapter.</h2>
+    <p class="lede">Corvus is not an agent framework. It doesn't care how your agents are built — if an agent can make HTTP calls, it's a Corvus citizen. The entire integration surface is three edges:</p>
+    <div class="grid grid-3">
+      <div class="card edge">
+        <span class="num">EDGE 1 — INBOUND CONTROL</span>
+        <h3>Ask before mutating</h3>
+        <p>The adapter intercepts the consequential action and asks Corvus for a typed
+        decision. The adapter is a protocol gate: no valid verdict, no execution. It
+        decides nothing itself.</p>
+      </div>
+      <div class="card edge">
+        <span class="num">EDGE 2 — INBOUND STATE</span>
+        <h3>Read at the edges</h3>
+        <p>Signals, calendars, incident feeds — defined read-only ingestion. Corvus
+        reads at edges; it never becomes the pipeline.</p>
+      </div>
+      <div class="card edge">
+        <span class="num">EDGE 3 — OUTBOUND EVIDENCE</span>
+        <h3>Emit and export</h3>
+        <p>Every decision and outcome lands in a tamper-evident ledger. Exports,
+        escalations, and evidence are projections of that record store — the
+        console has no second source of truth.</p>
+      </div>
+    </div>
+    <div class="thesis">
+      Every harness plugged in inherits the whole organization layer
+      <b>for the price of an adapter</b> — and Corvus never sees a credential.
+      It knows an action requires a secret; it never holds, brokers, or renders one.
+    </div>
+  </div>
+</section>
+
+<section id="trust">
+  <div class="wrap">
+    <div class="kicker">Trust</div>
+    <h2>Autonomy that is earned, evidenced, and revocable.</h2>
+    <p class="lede">
+      Corvus doesn't sell trust — it sells the evidence that makes trust auditable
+      and the revocation that makes it safe to grant.
+    </p>
+    <div class="trust-row">
+      <div class="card">
+        <span class="tag" style="color: var(--blue);">The evidence chain</span>
+        <h3>Every decision, recorded</h3>
+        <p>What was asked, what the gate answered, on what facts, under which versions
+        of the register and the weights — signed, hash-chained, externally anchored.
+        For any action: a complete chain from the action to the decision to the trust
+        grant to the evidence behind it.</p>
+      </div>
+      <div class="card">
+        <span class="tag" style="color: var(--amber);">The liability shape</span>
+        <h3>The process, promised — not the outcome</h3>
+        <p>Corvus's position is procedural: the licensing authority isn't liable for
+        every crash; it's liable for issuing licenses without the mandated tests.
+        The preconditions render as a checklist. Demotion is never gated. The ratchet
+        only tightens.</p>
+      </div>
+    </div>
+    <div class="ramp">
+      <h3 style="font-size: 16px; margin-bottom: 4px;">The observe → enforce ramp</h3>
+      <div class="meter"><i class="m1"></i><i class="m2"></i><i class="m3"></i></div>
+      <p>New action classes start in observe mode: the agent proposes, the system
+      executes under the old tier, and the outcomes attest. Promotion preconditions
+      are deterministic — dead-man coverage is an eligibility requirement, volume
+      never substitutes for correctness.</p>
+      <p class="phrase">observe fills the meter · enforce mode spends it</p>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="wrap">
+    <div class="kicker">Pricing</div>
+    <h2>Corvus prices assurance, not features.</h2>
+    <p class="lede">Two axes: how many fleets you run, and how much of the failure
+    surface your tier will stand behind. The buyer's question — "when the engine is
+    unreachable, what exactly happens, per decision, per mode?" — is answered by the
+    tier you buy.</p>
+    <div class="axes">
+      <div class="axis">
+        <span class="tag">Axis 1 — usage</span>
+        <h3 style="font-size: 17px; margin-bottom: 6px;">Per active fleet</h3>
+        <p style="font-size: 14px; color: var(--text-dim);">Scales with how many fleets
+        run governed agents. The wedge runs one fleet; the organization layer grows
+        with you.</p>
+      </div>
+      <div class="axis">
+        <span class="tag">Axis 2 — assurance</span>
+        <h3 style="font-size: 17px; margin-bottom: 6px;">Quotable-cell coverage</h3>
+        <p style="font-size: 14px; color: var(--text-dim);">Scales with how much of the
+        failure surface the tier stands behind — and every quoted cell carries its
+        proof: a conformance run that is mutation-checked, not designed on paper.</p>
+      </div>
+    </div>
+    <div class="grid grid-3">
+      <div class="card tier">
+        <span class="tag" style="color: var(--blue);">Tier 0</span>
+        <div class="price">Free <small>· self-hosted</small></div>
+        <ul>
+          <li>The wedge: the change-control check, in observe mode</li>
+          <li>The flight recorder: the full decision record schema, day one</li>
+          <li>The evidence accrues locally — the flip gate's substrate</li>
+          <li>Marketplace reads, community packs in observe</li>
+        </ul>
+        <div class="provable">The verdict corpus is never pruned. What Corvus keeps is exactly what makes it smarter.</div>
+      </div>
+      <div class="card tier">
+        <span class="tag" style="color: var(--amber);">Tier 1</span>
+        <div class="price">Hosted <small>· per fleet</small></div>
+        <ul>
+          <li>The full fail-policy matrix, with the delivery chains</li>
+          <li>The console: the decision surface, projected from the records</li>
+          <li>The enforce-flip gate: evidence-based, not calendar-based</li>
+          <li>Certified packs enforceable; governed upgrades with diffs</li>
+        </ul>
+        <div class="provable">A fail policy that escalates is only a promise once the escalation has a delivery mechanism.</div>
+      </div>
+      <div class="card tier">
+        <span class="tag" style="color: var(--green);">Tier 2</span>
+        <div class="price">Enterprise <small>· per fleet</small></div>
+        <ul>
+          <li>Isolation with the provable-run standard</li>
+          <li>The conformance-evidence export — the SOC2/ISO artifact</li>
+          <li>Private packs, policy-as-code custom sites</li>
+          <li>The benchmark: percentile-graded, opt-in, distribution-only</li>
+        </ul>
+        <div class="provable">"Export your fleet's conformance evidence for the cells your tier quotes" — on demand, timestamped.</div>
+      </div>
+    </div>
+    <p class="pricing-note"><b>The denominator is the point:</b> the pricing page shows
+    how many of the failure-matrix cells are provable today — because the assurance
+    axis grows with <b>proven</b> cells, not designed ones. You can watch the
+    governance questions on the page; that visibility is itself a trust property.</p>
+  </div>
+</section>
+
+<section id="boundaries">
+  <div class="wrap">
+    <div class="kicker">The boundaries</div>
+    <h2>What Corvus is not — and why that's the moat.</h2>
+    <p class="lede">The negative space is what keeps Corvus a layer you can adopt
+    under anything, instead of a platform monolith that blocks everything.</p>
+    <div class="not-grid">
+      <div class="not"><span class="x">NOT</span><div><b>the monitor</b> — the observability stack observes infrastructure; Corvus observes decisions and their outcomes.</div></div>
+      <div class="not"><span class="x">NOT</span><div><b>the secret store</b> — credential-blind by construction: it can't leak what it never held.</div></div>
+      <div class="not"><span class="x">NOT</span><div><b>the harness</b> — it doesn't run agents or manage context. The adapter stays thin on purpose.</div></div>
+      <div class="not"><span class="x">NOT</span><div><b>the executor</b> — it matches the runbook and hands off; the runbook platform executes.</div></div>
+      <div class="not"><span class="x">NOT</span><div><b>the identity provider</b> — it owns the trust over identities, not identity itself.</div></div>
+      <div class="not"><span class="x">NOT</span><div><b>the human change calendar</b> — it consumes your ITSM as upstream state. ServiceNow isn't a competitor; it's a source system whose customers are the buyers.</div></div>
+      <div class="not"><span class="x">NOT</span><div><b>the agent's task reasoning</b> — "may this rollout proceed" is a decision site; "how do I write this code" is not.</div></div>
+      <div class="not"><span class="x">NOT</span><div><b>the GRC system of record</b> — it produces the evidence; the compliance platform ingests it.</div></div>
+    </div>
+    <p class="not-foot">Corvus grows by adding <b>vocabulary and edges, never by owning
+    new planes.</b> Any feature that requires a fourth surface is a boundary violation
+    by definition — which is why the product compounds instead of sprawling.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-h">The honest posture</div>
+        <p>Your records are your data and stay exportable — always. The lock-in is the
+        running governance, the integrated adapters, and the compounding evidence —
+        never hostage data.</p>
+        <p>Corvus promises the process — the gates, the records, the evidence, the
+        revocation — and never the outcome.</p>
+      </div>
+      <div>
+        <div class="foot-h">The wedge, again</div>
+        <p>Start with one decision: the pre-action conflict check, in observe mode.
+        Every decision recorded from day one. Enforcement turns on when the evidence
+        earns it — and the flip is itself a governed, auditable change.</p>
+      </div>
+    </div>
+    <div class="promise">
+      <b>The promise grammar, applied to this page:</b> every claim above is a process
+      promise — gates, records, evidence, revocation. No uptime figures. No accuracy
+      numbers. No "your agents won't break production." If a claim can't be backed by
+      a provable cell, this page declines to make it.
+    </div>
+    <div class="colophon">Corvus — operational governance for AI agent fleets. OCSF-native, agent-agnostic, audit-grade.</div>
+  </div>
+</footer>
+
+</body>
+</html>
