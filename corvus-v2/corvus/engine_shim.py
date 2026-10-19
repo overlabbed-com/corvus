@@ -15,16 +15,18 @@ Run: python -m corvus.engine_shim --port 8933
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from corvus.canonical import canonical_json, request_hash
+from corvus.capture import CaptureStore
+from corvus.contract_codes import ERROR_CODES
 
 app = FastAPI(title="Corvus decision-engine shim", version="1.1.0")
 
@@ -33,7 +35,7 @@ VALID_TYPES = {"choice", "score", "noul"}
 # THE CLOSED ERROR ENUM (the contract v1.1): every error the boundary emits,
 # compiler-verified against the fixture corpus (the error-enum coverage
 # invariant — an uncovered code is a corpus gap = build failure).
-from corvus.contract_codes import ERROR_CODES
+# (the import itself lives at the module's top with the other imports)
 
 
 def err(code: str, status: int, **fields):
@@ -70,9 +72,6 @@ def _site_resolution(site_id: str) -> dict | None:
 # replay index (the SQLite WAL — F10: a restart does not wipe the replay).
 # The spike defaults to :memory:; the production config points
 # CORVUS_CAPTURE_DB at the file.
-import os
-
-from corvus.capture import CaptureStore
 
 _CAPTURE = CaptureStore(db_path=os.environ.get("CORVUS_CAPTURE_DB", ":memory:"),
                         max_rows=10_000)
@@ -277,6 +276,7 @@ def hashlib_sha(text: str) -> str:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8933)
+    ap.add_argument("--host", default=os.environ.get("CORVUS_BIND_HOST", "127.0.0.1"))
     args = ap.parse_args()
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="error")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="error")
