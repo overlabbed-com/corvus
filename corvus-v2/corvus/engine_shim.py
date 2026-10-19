@@ -57,11 +57,27 @@ PRINCIPAL_FLEETS = {"corvus-service": {"fleet-alpha"}}
 PROV_RANK = {"caller-stated": 0, "computed": 1, "engine-derived": 2, "attested": 3}
 
 # THE REGISTER (WP0's output): the resolution maps for the quantization.
-_REGISTER_PATH = Path(__file__).parent.parent.parent / "decision-register.yaml"
+# THE PATH LADDER: CORVUS_REGISTER_PATH env → the container layout
+# (/app/decision-register.yaml — the Dockerfile's COPY target) → the repo
+# checkout layout (three parents up). The repo-relative math alone broke in
+# the container: /app/corvus/engine_shim.py three-up is /, where no register
+# exists — the deployed engine served every answer unquantized with the
+# register mounted and unread (found 2026-10-19, PR #10882's follow-up).
+def _register_candidates() -> list[Path]:
+    cands: list[Path] = []
+    env = os.environ.get("CORVUS_REGISTER_PATH")
+    if env:
+        cands.append(Path(env))
+    cands.append(Path("/app/decision-register.yaml"))
+    cands.append(Path(__file__).parent.parent.parent / "decision-register.yaml")
+    return cands
+
 _REGISTER: dict = {}
-if _REGISTER_PATH.exists():
-    import yaml
-    _REGISTER = yaml.safe_load(_REGISTER_PATH.read_text()) or {}
+for _cand in _register_candidates():
+    if _cand.exists():
+        import yaml
+        _REGISTER = yaml.safe_load(_cand.read_text()) or {}
+        break
 
 
 def _site_resolution(site_id: str) -> dict | None:
