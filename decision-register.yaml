@@ -116,12 +116,12 @@ sites:
       ordering: [routine, notable, critical]
       coarse: {routine: low, notable: medium, critical: high}
     fail_policy:
-      default: {answer: critical, reason_class: unknown, resolution: approval-gate}
+      default: {answer: critical, reason_class: unknown, resolution: approval-gate, verdict_class: engine-verdict}
       modes:
-        unavailable: {answer: "local-heuristic", reason_class: fallback, resolution: "FALLBACK-VERDICT(unavailable) — never laundered into an engine verdict"}
-        refused: {answer: critical, reason_class: refused, resolution: approval-gate}
-        timeout: {answer: "local-heuristic", reason_class: fallback+timeout, resolution: "stamp + destructive-class floor"}
-        malformed_state: {answer: critical, reason_class: malformed, resolution: approval-gate}
+        unavailable: {answer: "local-heuristic", reason_class: fallback, resolution: "never laundered into an engine verdict", verdict_class: "fallback-verdict(unavailable)"}
+        refused: {answer: critical, reason_class: refused, resolution: approval-gate, verdict_class: refused}
+        timeout: {answer: "local-heuristic", reason_class: fallback+timeout, resolution: "stamp + destructive-class floor", verdict_class: "fallback-verdict(timeout)"}
+        malformed_state: {answer: critical, reason_class: malformed, resolution: approval-gate, verdict_class: engine-verdict}
     on_unknown: critical
     conformance: {cells: 8, mutation: direction}
 
@@ -184,14 +184,15 @@ sites:
     criteria:
       safe: "no enumerated hazard fires (the hazards: destructive-without-undo, credential exposure, unbounded blast, cross-plan composition, shared-dependency contention)"
       hazard: "an enumerated hazard fires — the answer carries WHICH hazard"
+      escalate: "the screen cannot answer (the unknown/fail disposition) — held for human review (the abstention member, W2 discipline)"
     sweep_disposition: "fail default no → escalate ADOPTED (WP0): equally conservative for the action, preserves the work item, removes the availability-lottery incentive"
     facts:
       plan_shape: {required: true, min_class: caller-stated, shape: "{steps, targets, effect_classes}"}
       plan_aggregate: {required: true, min_class: computed, shape: "the aggregate"}
     resolution:
-      bands: [safe, hazard]
-      ordering: [hazard, safe]
-      coarse: {safe: go, hazard: hold}
+      bands: [safe, hazard, escalate]
+      ordering: [safe, hazard, escalate]
+      coarse: {safe: go, hazard: hold, escalate: review}
     fail_policy:
       default: {answer: escalate, reason_class: unknown, resolution: plan-review}
       modes:
@@ -246,13 +247,14 @@ sites:
       ordering: [sev1, sev2, sev3, sev4, sev5]
       coarse: {sev1: critical, sev2: high, sev3: medium, sev4: low, sev5: info}
     fail_policy:
-      default: {answer: "emitter-stated", reason_class: fallback, resolution: "SOURCE=EMITTER stamped; shadow re-scored on recovery"}
+      default: {answer: "emitter-stated", reason_class: fallback, resolution: "SOURCE=EMITTER stamped; shadow re-scored on recovery", verdict_class: "fallback-verdict(unavailable)"}
       modes:
-        unavailable: {answer: "emitter-stated", reason_class: fallback, resolution: "SOURCE=EMITTER stamp"}
-        refused: {answer: unclassified, reason_class: refused, resolution: "the UNCLASSIFIED lane — never low"}
-        timeout: {answer: "emitter-stated", reason_class: fallback+timeout, resolution: stamp}
-        malformed_state: {answer: unclassified, reason_class: malformed, resolution: "the UNCLASSIFIED lane"}
+        unavailable: {answer: "emitter-stated", reason_class: fallback, resolution: "SOURCE=EMITTER stamp", verdict_class: "fallback-verdict(unavailable)"}
+        refused: {answer: unclassified, reason_class: refused, resolution: "the UNCLASSIFIED lane — never low", verdict_class: refused}
+        timeout: {answer: "emitter-stated", reason_class: fallback+timeout, resolution: stamp, verdict_class: "fallback-verdict(timeout)"}
+        malformed_state: {answer: unclassified, reason_class: malformed, resolution: "the UNCLASSIFIED lane", verdict_class: refused}
     on_unknown: unclassified
+    unknown_lane: "the UNCLASSIFIED lane — the site's registered non-enum disposition (W4: recognizably-not-an-answer)"
     conformance: {cells: 8, mutation: direction}
 
   I2:
@@ -302,7 +304,7 @@ sites:
         refused: {answer: unknown, reason_class: refused, resolution: problem-review}
         timeout: {answer: unknown, reason_class: timeout, resolution: problem-review}
         malformed_state: {answer: unknown, reason_class: malformed, resolution: fix-the-caller}
-    on_unknown: unknown-recurrence
+    on_unknown: unknown
     interlock: "a recently-failed remediation requires human re-approval before re-run (a rule, R-SEC-7 class) — independent of I3's answer"
     conformance: {cells: 8, mutation: direction}
 

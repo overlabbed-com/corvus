@@ -35,12 +35,7 @@ VALID_TYPES = {"choice", "score", "noul"}
 # THE CLOSED ERROR ENUM (the contract v1.1): every error the boundary emits,
 # compiler-verified against the fixture corpus (the error-enum coverage
 # invariant — an uncovered code is a corpus gap = build failure).
-ERROR_CODES = {
-    "not_found", "no_sites", "duplicate_site", "unknown_type",
-    "missing_instructions", "choice_without_criteria", "score_without_scale",
-    "provenance_below_floor", "probability_in_facts", "out_of_enum",
-    "idempotency_replay", "quota_exhausted",
-}
+from corvus.contract_codes import ERROR_CODES
 
 
 def err(code: str, status: int, **fields):

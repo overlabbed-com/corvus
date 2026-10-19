@@ -59,12 +59,18 @@ C1_SITE = {"site_id": "C1", "type": "choice", "instructions": "May the actor pro
 
 
 def test_valid_site_returns_typed_answer(client, shim):
+    """C1 is register-quantized: the wire answer is the CONSUMED BAND from
+    the register's resolution map (GO→proceed), not the raw member — the
+    quantization at the response assembly, end-to-end on the register's own
+    site."""
     r = client.decide(FLEET, {"target": "db", "trust_tier": "SUPERVISED"}, [C1_SITE])
     assert not r["degraded"]
     a = r["answers"]["C1"]
-    assert a["answer"] in {"GO", "CAUTION", "STOP"}
+    assert a["answer"] in {"proceed", "hold", "block", "queue"}, \
+        "the consumed band comes from the register's resolution map"
     assert "confidence_band" in a and "provenance" in a
     assert a["provenance"]["request_hash"] == r["request_hash"]
+    assert "probabilities" not in a, "the full precision never crosses the boundary"
 
 
 def test_malformed_site_rejected_at_boundary(client, shim):
@@ -184,6 +190,7 @@ def test_existence_hiding_404_identical(shim):
         with pytest.raises(urllib.error.HTTPError) as ei:
             urllib.request.urlopen(req, timeout=5)
         assert ei.value.code == 404
+        assert json.loads(ei.value.read())["error"]["code"] == "not_found"
         bodies.append(ei.value.read())
     assert bodies[0] == bodies[1], "the 404 bodies must be identical (existence-hiding)"
 
@@ -223,3 +230,11 @@ def test_score_without_scale_rejected(client, shim):
         urllib.request.urlopen(_raw_post(body), timeout=5)
     assert ei.value.code == 400
     assert json.loads(ei.value.read())["error"]["code"] == "score_without_scale"
+
+
+def test_no_sites_rejected(client, shim):
+    from urllib.error import HTTPError
+    with pytest.raises(HTTPError) as ei:
+        urllib.request.urlopen(_raw_post({"state": {}, "sites": []}), timeout=5)
+    assert ei.value.code == 400
+    assert json.loads(ei.value.read())["error"]["code"] == "no_sites"
