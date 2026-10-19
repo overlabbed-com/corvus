@@ -35,12 +35,22 @@ real conflicts — the fleet operator's chunk 4):
 | TEXTUAL | the classic same-file conflict | RARE on this estate (everything runs in worktrees) — the seed C1's inputs were tuned for the LEAST common class |
 
 The seven→four collapse is the site's judgment, with deterministic
-pre-classifications riding in the facts as computed-class hints. (The
-per-class mapping above — TEXTUAL→TEXTUAL, LIVE-STATE→LIVE_STATE,
-SEMANTIC/SHARED-DEPENDENCY→SEMANTIC, SERIALIZE/OWNERSHIP/RESPONSE→
-SERIALIZE-context — is this consolidation's inference from the chunk
-content, recorded here for the register sweep to confirm; the chunks
-named the collapse but not the per-class mapping.)
+pre-classifications riding in the facts as computed-class hints.
+**The per-class mapping is CONFIRMED by derivation from the recorded
+definitions** (the close-out's work item 3; the chunks named the collapse
+but not the per-class mapping): TEXTUAL→TEXTUAL, LIVE-STATE→LIVE_STATE,
+SEMANTIC→SEMANTIC, SERIALIZE→SERIALIZE (identical definitions, [R→R]) ·
+OWNERSHIP→SERIALIZE (the automation-vs-manual contention for the line's
+write ownership; the estate's rule — "the automation owns the line" — is
+a queue/coordinate behavior, matching SERIALIZE's "queue or order") ·
+RESPONSE→SERIALIZE (two agents contending over one alert's response —
+contention over the incident's ownership, not an object write, so not
+LIVE_STATE; the M1 dedup site resolves it) · SHARED-DEPENDENCY→SEMANTIC
+(the block's reason is the broken composition — the change applied onto a
+system on fire yields a broken result, matching SEMANTIC's "both apply,
+result broken; order or redesign", where waiting for the incident to
+clear is ordering-by-the-world — not two-change contention, so not
+SERIALIZE).
 - **T2 demoted** (proposed, pending the register sweep): a tier lookup is a
   pure read of the attested trust ledger — `facts.trust_tier` with the
   unknown→ESCALATE handling in the consuming sites' `on_unknown` branches.

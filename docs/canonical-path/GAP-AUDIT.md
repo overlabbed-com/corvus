@@ -71,7 +71,7 @@ the recovery mechanism).
 | a2 | Security: R-SEC catalog | R-SEC-1..30 with amendments (1a, 2-divergence, 7×3, 9×3, 13-nonpropagation) | trace each requirement to one place | **FAIL → CONSOLIDATE** (R-SEC-CATALOG.md) |
 | a3 | Security: failure-mode matrix | the full site × failure-code × mode table | compare TRUST-SPEC's promise statements vs the chunk's table | **PASS (mostly)** — the promise statements cover every site (uniform + per-code); the per-site *exploitation* notes are threat-model material → folded into a1 |
 | b1 | Scientist: W-criteria audit verdicts | the 13 seed sites' audit (offenders + the passes with conditions) | DECISION-REGISTER-V2.md carries 3 offenders + the repairs; the remaining 9 verdicts are chunk-only | **FAIL → CONSOLIDATE** (the register-audit section) |
-| b2 | Scientist: per-site fail-policy derivations | the six-step procedure's applications | the chunk delivered the aggregate (2/6/5) + C1's derivation; per-site reasoning beyond C1 was never delivered even as residue | **LOST-RECORDED** (the aggregate is consolidated; the per-site detail does not exist to recover) |
+| b2 | Scientist: per-site fail-policy derivations | the six-step procedure's applications | the chunk delivered the aggregate (2/6/5) + C1's derivation; per-site reasoning beyond C1 was never delivered even as residue | **LOST-RECORDED → RECONSTRUCTED** (post-audit: FAIL-POLICY-DERIVATIONS.md — the procedure applied to the recorded per-site data, under-determined fields marked for the sweep) |
 | b3 | Scientist: probe evidence | the five live probes' findings | the findings are embedded in the design decisions (the type system, the quarantine); DECISION-REGISTER-V2 cites them | **PASS** |
 | c1 | Architect: fold-in deltas | the provenance schema, the channel auth, the join grammar, the dual-copy witness, the chain grammar | ENGINE-DESIGN.md carries the store-class table, the witness web, the chain grammar; the detailed schemas (the source-credential stamp fields, the decision_ref fields) are chunk-only | **PARTIAL → CONSOLIDATE-lite** (the schema details fold into R-SEC-CATALOG.md's mechanism notes) |
 | c2 | Architect: the honest ledger | the six gains vs six costs | ENGINE-DESIGN.md §5 carries it | **PASS** |
@@ -80,8 +80,8 @@ the recovery mechanism).
 | e1 | Operator: escalation payload | the seven sections (A–G) + the field-source contract | DECISION-REGISTER-V2 names "the seven sections"; the content is chunk-only | **FAIL → CONSOLIDATE** (ESCALATION-SPEC.md) |
 | e2 | Operator: console spec | the five zones, the morning sequence, the in-place actions, the anti-scatter contract | BUILD-PLAN P2 names them; the content is chunk-only | **FAIL → CONSOLIDATE** (CONSOLE-SPEC.md) |
 | e3 | Operator: conflict taxonomy | the seven conflict classes with estate grounding | DECISION-REGISTER-V2's C1 section has the four-valued verdict; the seven-class input taxonomy is chunk-only | **FAIL → CONSOLIDATE** (into the register doc's C1 section) |
-| f1 | Coordination: route-level traceability | finding → route → design change | the assumption ledger captures the challenge→resolution level; the route-level web is conversation-only | **LOST-RECORDED** (the ledger is the load-bearing subset; the full web is unrecoverable as artifact) |
-| f2 | Coordination: chunk-text durability | the ~35 chunks' full text | the log holds 6 files; the consolidations captured the substance (verified per-surface above); the verbatim texts are conversation-only | **LOST-RECORDED** (this audit's consolidations are the recovery mechanism — the reason the audit matters) |
+| f1 | Coordination: route-level traceability | finding → route → design change | the assumption ledger captures the challenge→resolution level; the route-level web is conversation-only | **LOST-RECORDED → RECONSTRUCTED** (post-audit: TRACEABILITY.md — the load-bearing routes from the session's exchange history) |
+| f2 | Coordination: chunk-text durability | the ~35 chunks' full text | the log holds 6 files; the consolidations captured the substance (verified per-surface above); the verbatim texts are conversation-only | **LOST-RECORDED → NOT-RECONSTRUCTIBLE-WITH-REASON** (post-audit: the verbatim texts are conversation-only and pasting them would be lossy archive, not consolidation; the substance is carried by the per-surface-verified consolidations) |
 | g1 | Review + ledger completeness | the adversarial review's dispositions, the 20 ledger entries | both are committed, self-contained artifacts | **PASS — the negative control** |
 
 ## 4. The instance table (dispositions)
@@ -99,12 +99,39 @@ the recovery mechanism).
 | The probe evidence | ALREADY-COVERED | the findings are embedded; the register cites the probes |
 | The honest ledger, the pricing model | ALREADY-COVERED | ENGINE-DESIGN §5, PRODUCT.md |
 | The pack anatomy + the tier-table generator | DEFER-WITH-REASON | P4 build-phase artifacts; the intent is captured |
-| The per-site fail-policy derivations | LOST-RECORDED | never delivered beyond the aggregate + C1 |
-| The route-level traceability | LOST-RECORDED | the ledger is the load-bearing subset |
-| The chunk-text durability | LOST-RECORDED | the consolidations are the recovery; recorded honestly |
+| The per-site fail-policy derivations | LOST-RECORDED → RECONSTRUCTED | FAIL-POLICY-DERIVATIONS.md; under-determined fields marked for the sweep |
+| The route-level traceability | LOST-RECORDED → RECONSTRUCTED | TRACEABILITY.md; the load-bearing routes |
+| The chunk-text durability | LOST-RECORDED → NOT-RECONSTRUCTIBLE-WITH-REASON | the verbatim texts; the substance is carried |
 
 **Counts**: CONSOLIDATE 7 · ALREADY-COVERED 4 · DEFER-WITH-REASON 1 ·
 LOST-RECORDED 3.
+
+## 4b. The post-audit closures (the close-out goal's work item 6)
+
+The three LOST-RECORDED instances were revisited with the operator's
+confirmed depth (assess all three; reconstruct the honest two):
+
+- **The route-level traceability → RECONSTRUCTED** as TRACEABILITY.md:
+  the load-bearing finding→route→design-change map from the session's
+  exchange history — the design-change level the assumption ledger does
+  not capture.
+- **The per-site fail-policy derivations → RECONSTRUCTED** as
+  FAIL-POLICY-DERIVATIONS.md: the six-step procedure applied to the
+  RECORDED per-site data (the direction taxonomy, the exploitation
+  notes, the register repairs), every field provenance-marked
+  ([R] recorded / [D] derived-at-consolidation / [S] under-determined,
+  marked for the register sweep). Zero invented conclusions; the
+  aggregate check reproduces the recorded 2/6/5 exactly.
+- **The chunk-text durability → NOT-RECONSTRUCTIBLE-WITH-REASON**: the
+  verbatim texts are conversation-only; reproducing them would be lossy
+  archive, not consolidation. The substance is carried by the
+  per-surface-verified consolidations — the honest terminal disposition.
+
+Also closed post-audit: the seed artifacts (DECISION-REGISTER.md,
+ENGINE-CONTRACT.md, decision-register.yaml) were found UNTRACKED on the
+branch — the audit's own pattern in miniature — and committed
+(housekeeping). The durability correction is ingested to the knowledge
+base for future-session retrieval.
 
 ## 5. The pattern's meta-lesson
 
