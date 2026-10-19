@@ -206,3 +206,110 @@ escalation (confirmation attaches to irreversibility, not direction). The
 human as the fourth solver class, enum-bound. Three feedback channels
 (execution, calibration, register repair) joined on decision_id +
 escalation_id; the **answered** terminal state in the delivery grammar.
+
+---
+
+# The sweep dispositions (WP0, 2026-10-19)
+
+**Status**: WP0 complete — the [S]-marked fields are DISPOSITIONED (decided,
+not deferred), per P1-WBS.md. Every disposition cites its recorded basis;
+where the recorded evidence under-determined a field, the register-owner
+decision (the D1 recursion — the CCB governs its own catalog) states its
+reasoning. The seed YAML is rewritten to the v2 shape (`decision-register.yaml`).
+
+## The sweep decisions
+
+**1. P1's declared criteria content** — the recorded gap: "criteria
+undeclared — the most expensive vagueness in the register." The decision:
+P1 is rule-backed, enum {auto, escalate}, with the declared rule:
+**auto** when the actor's trust tier covers the step's action class AND
+facts.plan_approval is live (W7-valid, attested); **escalate** otherwise.
+The reason class rides in the answer payload: `risky` (the tier does not
+cover the step's class — the trust gap) vs `uncertain` (the plan approval
+is absent, stale, or unknown — the evidence gap). The two escalation
+kinds route differently in the operator's queue.
+
+**2. I3's recurrence fingerprint key** — the recorded gap: "the solver
+class was undecidable as written (the recurrence key undeclared)." The
+decision: the fingerprint is **(alertname, target, remediation_class)**
+— the triple hashed; a recurrence = the same triple observed again
+within the problem window. Basis: the estate's recurrence reality (the
+apps-web-jobs wedge twice — the second wedge was a trust event because
+the system knew the class; the bump-flood class; the wrong-cause alert's
+re-fire linkage). The alertname identifies the failure class, the target
+scopes it, the remediation_class identifies what was attempted — the
+same triple failing again is the chronicity signal. I3 becomes
+lookup-backed over the problem store; fail → unknown-recurrence →
+problem review.
+
+**3. P2's fail default: no → escalate — ADOPTED.** The recorded
+recommendation (the security's chunk 3): "equally conservative for the
+action, preserves the work item, removes the availability-lottery
+incentive." The sweep adopts it: P2's fail default is **escalate** (the
+plan is held for review — nothing executes, the work item survives, the
+junk-flood no longer stalls the fleet). The tier table's under-review
+cell converts to a quotable promise upon this adoption (the register
+bump regenerates the table).
+
+**4. T2's demotion: CONFIRMED.** The recorded analysis (the scientist's
+chunk 2 + the architect's proposal): a tier lookup is a pure read of the
+attested trust ledger — no judgment, no site. T2 leaves the register;
+**facts.trust_tier** joins the fact layer (attested class, composer-read
+from the trust ledger, with the status machinery: unknown/stale). The
+fail→ESCALATE semantics are preserved structurally: the tier-consuming
+sites' `on_unknown` branches fire when the tier fact is unknown or
+stale — the unknown-tier handling was always a property of the CONSUMING
+decision, not the lookup. The register stands at **19 sites** (the v2
+count already excluded T2; the demotion makes it structural — the fact
+citizen joins the YAML's fact layer). The thin-site
+principle stands as the register's boundary precedent (the tier is a
+fact; the unknown-tier handling is the site's).
+
+**5. The new sites' full derivations** (from the dossier's recorded
+anchors, now completed as six-step entries in the YAML):
+
+- **M1 respond-dedup**: (1) the unrecoverable error: the duplicated
+  response — two agents on one alert, the second unaware. (2) pause.
+  (3) all four → defer-or-page. (4) the escalation queue. (5) the
+  matching is a fact (facts.same_fingerprint); the AUTO-COLLAPSE is the
+  site (collapse-wrongly hides an incident). (6) W11.
+- **M2′ resolution-declaration**: (1) closing an incident on a
+  wrong/unverified cause. (2) pause. (3) all four → not-resolved. (4) the
+  incident stays open; the human adjudicates. (5) the measurement is a
+  fact; the DECLARATION that gates closure is the site; fail never
+  closes. (6) W11.
+- **M4 verification-adequacy**: (1) declaring DONE on a proxy check. (2)
+  pause. (3) all four → not-verified. (4) the verification gap surfaces
+  as a credibility event. (5) the input: the surface's user-visible
+  failure classes (the layer rule); model-backed (which check is adequate
+  is not enumerable). (6) W11.
+- **M8 contextual-risk-appetite**: (1) the static decline. (2) pause.
+  (3) all four → the conservative posture. (4) the human selects from the
+  framed options. (5) the inputs modulate WHICH action, not whether;
+  model-backed over the bounded posture enum. (6) W11.
+- **M9′ undo-now**: (1) the mid-flight undo on wrong information. (2)
+  pause. (3) all four → abort. (4) the human confirms against
+  facts.m9_reversibility (unknown = destructive). (5) the lookup is a
+  fact; the "undo NOW" commitment is the site. (6) W11.
+- **M10 lane-validity**: (1) acting on a stale-green or misattributing a
+  fleet-wide red. (2) pause. (3) all four → red-attribution-default. (4)
+  the attribution surfaces to the human with the evidence. (5) the parity
+  check is a fact; the attribution judgment is the site, choice over
+  {mine, runner, fleet-wide, unknown}. (6) W11.
+- **P3 plan-aggregate**: (1) the salami-slice aggregate. (2) pause.
+  (3) escalate. (4) the plan-level human review; re-fires on triggers.
+  (5) consumes facts.plan_aggregate + facts.concurrent_plans. (6) W11.
+
+**6. W11 conformance coverage**: each site's fail_policy block in the
+YAML carries the per-failure-mode cells {answer, reason_class,
+resolution} — the matrix IS the test plan; WP14's fixture corpus
+compiles from these cells. The mutation rule: flipping a register cell
+must red that cell's test.
+
+**The net register effect**: the register stands at **19 sites** (T2's
+demotion was already reflected in the v2 count; the sweep makes it
+structural — facts.trust_tier is now a YAML fact citizen) + 10 fact
+citizens + M6 in the evidence lane. The seed YAML is rewritten to the
+v2 shape (decision-register.yaml), schema-validated: every site carries
+the v2 fields, every fail_policy carries the 4 mode cells with
+answer/reason_class/resolution.
