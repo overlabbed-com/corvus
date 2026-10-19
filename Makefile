@@ -57,3 +57,10 @@ cycle: check run  ## THE Build > Test > Fix loop, one command
 
 clean:  ## The artifacts
 	rm -rf $(VENV) corvus-v2/.pytest_cache corvus-v2/coverage.json /tmp/metrics-check.json
+
+# WP14: the mutation evidence + the conformance run (the phase-gate targets)
+mutation:
+	cd corvus-v2 && .venv/bin/python -c "import sys; sys.path.insert(0, '.'); from corvus.conformance import run_mutation_suite; import json; r = run_mutation_suite(); print(json.dumps(r, indent=1)); exit(0 if r['all_mutants_caught'] else 1)"
+
+conformance:
+	cd corvus-v2 && .venv/bin/python -m corvus.engine_shim --port 8933 & sleep 2; .venv/bin/python -c "import sys; sys.path.insert(0, '.'); from corvus.conformance import conformance_run; import json; r = conformance_run('http://127.0.0.1:8933'); print(json.dumps(r, indent=1)); exit(0 if r['failed'] == 0 else 1)"; pkill -f "engine_shim --port 8933" || true

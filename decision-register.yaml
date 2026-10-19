@@ -1,0 +1,588 @@
+# Corvus Decision Register v2 — the sweep's output (WP0)
+# The compiler's SSOT. Schema: the catalog v2 (type x solver, per-field facts
+# with minimum provenance classes, resolution, failure-mode-keyed fail policies
+# with resolution paths, on_unknown). T2 is DEMOTED to the fact layer (the
+# thin-site precedent): 18 sites + 9 fact citizens + M6 in the evidence lane.
+version: 2
+register_version: 2.0.0-sweep.1
+
+fact_layer:
+  schema: "{name, value | unknown, as_of, source, provenance_class, status: present|unknown|stale}"
+  ladder: [caller-stated, computed, engine-derived, attested]
+  facts:
+    change_window:
+      shape: {state: "active|lapsed|unknown", expires_at: ts, as_of: ts, source: str, next_activity: "ts?", collision_at: "ts?"}
+      provenance_class: computed
+      source: "the world composer, from the planned-activity calendar"
+    planned_activity:
+      shape: "[{activity, node?, lane?, window}] (the bounded projection: the activities overlapping the decision's target + time window)"
+      provenance_class: attested
+      source: "the fleet-config calendar"
+    post_state:
+      shape: "{affected_targets, committed_state, delta} (the bounded projection: the touched surfaces only)"
+      provenance_class: computed
+      source: "the world composer"
+    plan_aggregate:
+      shape: "{plan_id, steps_total, steps_completed, cumulative_blast_reach, cumulative_claims, composed_end_state}"
+      provenance_class: computed
+      source: "the world composer, from the attested plan registry"
+    concurrent_plans:
+      shape: "[{plan_id, declared_effects}] (the N-plan scope of the post_state path)"
+      provenance_class: computed
+      source: "the world composer"
+    plan_approval:
+      shape: "{decision_id, approved_at, valid_until}"
+      provenance_class: attested
+      source: "the decision record (P3's output)"
+    m2_measurement:
+      shape: "{observable, in_band: bool, as_of, source}"
+      provenance_class: attested
+      source: "the executing layer's readback"
+    m9_reversibility:
+      shape: "{reversible: bool, path: 'str?', class: reversible-in-place|destructive|unknown}"
+      provenance_class: attested
+      source: "the per-action-class reversibility table"
+    trust_tier:
+      shape: "{tier, as_of, source: trust-register}"
+      provenance_class: attested
+      source: "the trust ledger (T2 demoted: the tier is a fact; the unknown-tier handling is the consuming site's)"
+    same_fingerprint:
+      shape: "{same: bool, uncertain?: bool, fingerprint: str}"
+      provenance_class: computed
+      source: "the fact composer (M1's matching)"
+
+evidence_lane:
+  M6_reconciliation_effect:
+    kind: evidence
+    note: "a prediction is a fact with error bars; never a site answer; the registerable decisions are the commitments that consume it (C1/P1)"
+    inputs: [lifecycle_class, flux_ownership, prune_posture, health_gates]
+
+sites:
+
+  C1:
+    question: "May this proposed change proceed against the current estate state?"
+    type: choice
+    solver: rule
+    # THE DESIGN AMENDMENT (the compiler's invariant caught the WP0
+    # conflation, 2026-10-19): the verdict enum is the DISPOSITION
+    # {GO, CAUTION, STOP, DEFER} (the scientist's chunk-6 decomposition);
+    # the conflict classes (TEXTUAL/LIVE_STATE/SEMANTIC/SERIALIZE — the
+    # seven-to-four collapse) are the site's DETECTIONS, riding in the
+    # facts as computed pre-classifications. The fail answer CAUTION is a
+    # member of THIS enum; the WP0 YAML had written the classes as the
+    # verdict, leaving the fail answer outside the enum.
+    criteria:
+      GO: "no conflict detection fires (no TEXTUAL/LIVE_STATE/SEMANTIC/SERIALIZE pre-classification), the criticality is known, the bar cleared"
+      CAUTION: "hold-for-ack: a detection is ambiguous, or the criticality is unknown — the fail default AND the pause answer, one value doing one job"
+      STOP: "a hard conflict: a SEMANTIC or LIVE_STATE detection (the recorded handling: reconcile ownership first / order or redesign)"
+      DEFER: "the gray band or the descriptor-vs-manifest divergence — routes as a decision packet"
+    facts:
+      conflict_preclass: {required: true, min_class: computed, shape: "the seven-to-four collapse hint: none|TEXTUAL|LIVE_STATE|SEMANTIC|SERIALIZE"}
+      active_changes: {required: true, min_class: attested, shape: "[{id, created_by, targets}]"}
+      serve_time_ownership: {required: true, min_class: attested, shape: "[{object, writer, last_applied_revision, ts}]"}
+      post_state: {required: true, min_class: computed, shape: "bounded projection"}
+      shared_resources: {required: true, min_class: attested, shape: "{lanes, calendar, tenancies}"}
+      ownership_registry: {required: true, min_class: attested, shape: "[{path, automation}]"}
+      open_incidents: {required: true, min_class: attested, shape: "[{id, target, severity}]"}
+      incident_blast_reach: {required: true, min_class: computed, shape: "[targets + shared dependencies]"}
+    resolution:
+      bands: [GO, CAUTION, STOP, DEFER]
+      map: {GO: proceed, CAUTION: hold, STOP: block, DEFER: queue}
+      ordering: [GO, DEFER, CAUTION, STOP]
+      coarse: {GO: proceed, CAUTION: hold, STOP: block, DEFER: queue}
+    fail_policy:
+      default: {answer: CAUTION, reason_class: unknown, resolution: escalation-queue}
+      modes:
+        unavailable: {answer: CAUTION, reason_class: unknown:engine, resolution: escalation-queue}
+        refused: {answer: CAUTION, reason_class: refused, resolution: escalation-queue + refusal-record}
+        timeout: {answer: CAUTION, reason_class: timeout, resolution: escalation-queue}
+        malformed_state: {answer: CAUTION, reason_class: malformed, resolution: fix-the-caller}
+    on_unknown: CAUTION
+    timing: "change-time AND response-time; re-checks on base movement, incident start on a shared dependency, window entry"
+    conformance: {cells: 8, mutation: direction}
+
+  C2:
+    question: "How critical is this action, in declared bins?"
+    type: choice
+    solver: model
+    criteria:
+      routine: "no destructive potential, no credential/exposure surface, bounded blast radius"
+      notable: "state-changing with recovery paths; the failure is visible and recoverable"
+      critical: "destructive-class, credential/exposure surface, or unbounded blast radius — the floor is SUPERVISED regardless"
+    sentinel_bin: critical
+    facts: {}
+    resolution:
+      bands: [routine, notable, critical]
+      ordering: [routine, notable, critical]
+      coarse: {routine: low, notable: medium, critical: high}
+    fail_policy:
+      default: {answer: critical, reason_class: unknown, resolution: approval-gate, verdict_class: engine-verdict}
+      modes:
+        unavailable: {answer: "local-heuristic", reason_class: fallback, resolution: "never laundered into an engine verdict", verdict_class: "fallback-verdict(unavailable)"}
+        refused: {answer: critical, reason_class: refused, resolution: approval-gate, verdict_class: refused}
+        timeout: {answer: "local-heuristic", reason_class: fallback+timeout, resolution: "stamp + destructive-class floor", verdict_class: "fallback-verdict(timeout)"}
+        malformed_state: {answer: critical, reason_class: malformed, resolution: approval-gate, verdict_class: engine-verdict}
+    on_unknown: critical
+    conformance: {cells: 8, mutation: direction}
+
+  T1:
+    question: "Does the evidence move this agent's tier?"
+    type: choice
+    solver: rule
+    criteria:
+      promote: "all Clause-3 preconditions pass (the dead-man eligibility, the reversibility class, the drift coverage, the diversity+span floor) AND the paired one-sided bound clears the tier's bar"
+      hold: "any precondition unmet or un-evaluable"
+      demote: "an attested violation-class event or a recertification failure"
+    facts:
+      attested_outcomes: {required: true, min_class: attested, shape: "[{observer_signature, decision_id, outcome_class, occurred_at}]"}
+      promotion_preconditions: {required: true, min_class: attested, shape: "{dead_man, reversibility_class, drift_coverage, diversity_span}"}
+    resolution:
+      bands: [promote, hold, demote]
+      ordering: [demote, hold, promote]
+      coarse: {promote: up, hold: steady, demote: down}
+    fail_policy:
+      default: {answer: hold, reason_class: unknown, resolution: "hold IS the resolution; the demotion path is independent"}
+      modes:
+        unavailable: {answer: hold, reason_class: unknown:engine, resolution: "none — the demotion executes Corvus-side regardless (R-SEC-12)"}
+        refused: {answer: hold, reason_class: refused, resolution: none}
+        timeout: {answer: hold, reason_class: timeout, resolution: none}
+        malformed_state: {answer: hold, reason_class: malformed, resolution: fix-the-caller}
+    on_unknown: hold
+    asymmetry: "the promote bar >> the demote bar; the integrity-attested (forgery-class) events demote under the replayability standard, containment first"
+    conformance: {cells: 8, mutation: directionality (engine down + attested incident → demotion still fires)}
+
+  P1:
+    question: "May this plan step execute autonomously?"
+    type: choice
+    solver: rule
+    criteria:
+      auto: "the actor's trust tier covers the step's action class AND facts.plan_approval is live (W7-valid, attested)"
+      escalate: "otherwise — the reason class rides in the payload: risky (the tier gap) vs uncertain (the approval absent/stale/unknown)"
+    facts:
+      plan_approval: {required: true, min_class: attested, shape: "{decision_id, approved_at, valid_until}"}
+      trust_tier: {required: true, min_class: attested, shape: "{tier, as_of}"}
+      step_action_class: {required: true, min_class: caller-stated, shape: str}
+    resolution:
+      bands: [auto, escalate]
+      ordering: [escalate, auto]
+      coarse: {auto: run, escalate: human}
+    fail_policy:
+      default: {answer: escalate, reason_class: unknown, resolution: plan-review}
+      modes:
+        unavailable: {answer: escalate, reason_class: unknown:engine, resolution: plan-review}
+        refused: {answer: escalate, reason_class: refused, resolution: plan-review + refusal-record}
+        timeout: {answer: escalate, reason_class: timeout, resolution: plan-review}
+        malformed_state: {answer: escalate, reason_class: malformed, resolution: fix-the-caller}
+    on_unknown: escalate
+    reason_payload: "risky | uncertain — the two escalation kinds route differently"
+    conformance: {cells: 8, mutation: direction}
+
+  P2:
+    question: "Does this plan pass the pre-flight hazard screen?"
+    type: choice
+    solver: rule
+    criteria:
+      safe: "no enumerated hazard fires (the hazards: destructive-without-undo, credential exposure, unbounded blast, cross-plan composition, shared-dependency contention)"
+      hazard: "an enumerated hazard fires — the answer carries WHICH hazard"
+      escalate: "the screen cannot answer (the unknown/fail disposition) — held for human review (the abstention member, W2 discipline)"
+    sweep_disposition: "fail default no → escalate ADOPTED (WP0): equally conservative for the action, preserves the work item, removes the availability-lottery incentive"
+    facts:
+      plan_shape: {required: true, min_class: caller-stated, shape: "{steps, targets, effect_classes}"}
+      plan_aggregate: {required: true, min_class: computed, shape: "the aggregate"}
+    resolution:
+      bands: [safe, hazard, escalate]
+      ordering: [safe, hazard, escalate]
+      coarse: {safe: go, hazard: hold, escalate: review}
+    fail_policy:
+      default: {answer: escalate, reason_class: unknown, resolution: plan-review}
+      modes:
+        unavailable: {answer: escalate, reason_class: unknown:engine, resolution: plan-review}
+        refused: {answer: escalate, reason_class: refused, resolution: plan-review + refusal-record}
+        timeout: {answer: escalate, reason_class: timeout, resolution: plan-review}
+        malformed_state: {answer: escalate, reason_class: malformed, resolution: fix-the-caller}
+    on_unknown: escalate
+    conformance: {cells: 8, mutation: direction}
+
+  P3:
+    question: "Is the plan's aggregate safe to run, given concurrent plans?"
+    type: choice
+    solver: rule
+    criteria:
+      approve: "the cumulative blast reach is bounded; no dangerous concurrent composition; the shared-dependency posture is clear"
+      modify: "the aggregate is acceptable with a declared constraint (the ordering, the scoping)"
+      escalate: "the aggregate is dangerous or undeterminable"
+    facts:
+      plan_aggregate: {required: true, min_class: computed, shape: "the aggregate"}
+      concurrent_plans: {required: true, min_class: computed, shape: "the N-plan projection"}
+    resolution:
+      bands: [approve, modify, escalate]
+      ordering: [escalate, modify, approve]
+      coarse: {approve: go, modify: constrained, escalate: hold}
+    fail_policy:
+      default: {answer: escalate, reason_class: unknown, resolution: plan-review}
+      modes:
+        unavailable: {answer: escalate, reason_class: unknown:engine, resolution: plan-review}
+        refused: {answer: escalate, reason_class: refused, resolution: plan-review + refusal-record}
+        timeout: {answer: escalate, reason_class: timeout, resolution: plan-review}
+        malformed_state: {answer: escalate, reason_class: malformed, resolution: fix-the-caller}
+    on_unknown: escalate
+    triggers: [plan submission, a new concurrent plan appears, a shared-dependency incident starts]
+    conformance: {cells: 8, mutation: direction}
+
+  I1:
+    question: "How severe is this incident, in the 5-level rubric?"
+    type: choice
+    solver: model
+    criteria:
+      sev1: "production down or data loss; the user-visible impact is broad"
+      sev2: "a major function degraded; a workaround absent"
+      sev3: "a minor function impaired; a workaround exists"
+      sev4: "cosmetic or informational"
+      sev5: "no user impact"
+    facts:
+      observables: {required: true, min_class: attested, shape: "{alerts, counters, traces}"}
+      emitter_claim: {required: false, min_class: caller-stated, shape: "{severity, reason}"}
+    resolution:
+      bands: [sev1, sev2, sev3, sev4, sev5]
+      ordering: [sev1, sev2, sev3, sev4, sev5]
+      coarse: {sev1: critical, sev2: high, sev3: medium, sev4: low, sev5: info}
+    fail_policy:
+      default: {answer: "emitter-stated", reason_class: fallback, resolution: "SOURCE=EMITTER stamped; shadow re-scored on recovery", verdict_class: "fallback-verdict(unavailable)"}
+      modes:
+        unavailable: {answer: "emitter-stated", reason_class: fallback, resolution: "SOURCE=EMITTER stamp", verdict_class: "fallback-verdict(unavailable)"}
+        refused: {answer: unclassified, reason_class: refused, resolution: "the UNCLASSIFIED lane — never low", verdict_class: refused}
+        timeout: {answer: "emitter-stated", reason_class: fallback+timeout, resolution: stamp, verdict_class: "fallback-verdict(timeout)"}
+        malformed_state: {answer: unclassified, reason_class: malformed, resolution: "the UNCLASSIFIED lane", verdict_class: refused}
+    on_unknown: unclassified
+    unknown_lane: "the UNCLASSIFIED lane — the site's registered non-enum disposition (W4: recognizably-not-an-answer)"
+    conformance: {cells: 8, mutation: direction}
+
+  I2:
+    question: "Which runbook matches this incident?"
+    type: choice
+    solver: lookup
+    criteria:
+      match: "the candidates-in-state contain a runbook whose fingerprint matches"
+      none: "no candidate matches — the provenance stamps which catalog was searched"
+    facts:
+      candidates: {required: true, min_class: attested, shape: "[runbook ids from the attested catalog]"}
+      incident_fingerprint: {required: true, min_class: computed, shape: str}
+    resolution:
+      bands: [match, none]
+      ordering: [none, match]
+      coarse: {match: run, none: human}
+    fail_policy:
+      default: {answer: none, reason_class: unknown, resolution: "the next tier: the human runbook search"}
+      modes:
+        unavailable: {answer: none, reason_class: unknown:engine, resolution: none-stamped}
+        refused: {answer: none, reason_class: refused, resolution: none-stamped}
+        timeout: {answer: none, reason_class: timeout, resolution: none-stamped}
+        malformed_state: {answer: none, reason_class: malformed, resolution: fix-the-caller}
+    on_unknown: none
+    conformance: {cells: 8, mutation: direction}
+
+  I3:
+    question: "Has this failure recurred?"
+    type: choice
+    solver: lookup
+    sweep_disposition: "the fingerprint key DECLARED (WP0): (alertname, target, remediation_class) hashed; the recurrence = the same triple within the problem window"
+    criteria:
+      recurred: "the fingerprint matches a problem-store entry within the window"
+      none: "no prior entry for the fingerprint"
+      unknown: "the problem store is unreachable or the fingerprint is under-determined"
+    facts:
+      fingerprint: {required: true, min_class: computed, shape: "{alertname, target, remediation_class}"}
+      problem_store: {required: true, min_class: attested, shape: "[{fingerprint, first_seen, count}]"}
+    resolution:
+      bands: [recurred, none, unknown]
+      ordering: [unknown, recurred, none]
+      coarse: {recurred: problem, none: novel, unknown: review}
+    fail_policy:
+      default: {answer: unknown, reason_class: unknown, resolution: problem-review}
+      modes:
+        unavailable: {answer: unknown, reason_class: unknown:engine, resolution: problem-review}
+        refused: {answer: unknown, reason_class: refused, resolution: problem-review}
+        timeout: {answer: unknown, reason_class: timeout, resolution: problem-review}
+        malformed_state: {answer: unknown, reason_class: malformed, resolution: fix-the-caller}
+    on_unknown: unknown
+    interlock: "a recently-failed remediation requires human re-approval before re-run (a rule, R-SEC-7 class) — independent of I3's answer"
+    conformance: {cells: 8, mutation: direction}
+
+  E1:
+    question: "Is this event type in the fleet's vocabulary?"
+    type: choice
+    solver: lookup
+    criteria:
+      valid: "the event type is in the catalog-owned vocabulary"
+      invalid: "not in the vocabulary — a classification, not a destination"
+    facts:
+      vocabulary: {required: true, min_class: attested, shape: "[event types]"}
+      event_type: {required: true, min_class: caller-stated, shape: str}
+    resolution:
+      bands: [valid, invalid]
+      ordering: [invalid, valid]
+      coarse: {valid: accept, invalid: route}
+    fail_policy:
+      default: {answer: invalid, reason_class: unknown, resolution: "routed to the DEFAULT HUMAN CHANNEL + alarm (invalid is a classification, not a destination)"}
+      modes:
+        unavailable: {answer: invalid, reason_class: unknown:engine, resolution: "default channel + alarm"}
+        refused: {answer: invalid, reason_class: refused, resolution: "default channel + refusal-record"}
+        timeout: {answer: invalid, reason_class: timeout, resolution: "default channel + alarm"}
+        malformed_state: {answer: invalid, reason_class: malformed, resolution: "default channel + alarm"}
+    on_unknown: invalid
+    conformance: {cells: 8, mutation: "direction; negative control: the nonexistent-vocabulary lands in the default channel"}
+
+  E2:
+    question: "Should this event escalate to a human?"
+    type: choice
+    solver: model
+    criteria:
+      escalate: "the event warrants human attention now (the severity, the novelty, the blast reach)"
+      record: "informational — filed for the fleet's awareness"
+      defer_review: "worth a human look, not now — the queued sweep (the abstention value)"
+    facts:
+      event_context: {required: true, min_class: attested, shape: "{type, severity, target, novelty}"}
+    resolution:
+      bands: [escalate, record, defer_review]
+      ordering: [defer_review, record, escalate]
+      coarse: {escalate: page, record: log, defer_review: queue}
+    fail_policy:
+      default: {answer: defer_review, reason_class: unknown, resolution: "record → queue → deliver-on-recovery → deadman past SLO (record-without-delivery is not a terminal state)"}
+      modes:
+        unavailable: {answer: defer_review, reason_class: unknown:engine, resolution: "the delivery chain runs"}
+        refused: {answer: defer_review, reason_class: refused, resolution: "the refusal record + the human surface"}
+        timeout: {answer: defer_review, reason_class: timeout, resolution: "the delivery chain runs"}
+        malformed_state: {answer: defer_review, reason_class: malformed, resolution: "the default channel + alarm"}
+    on_unknown: defer_review
+    conformance: {cells: 8, mutation: "direction; negative control: the undelivered-past-SLO fires the deadman"}
+
+  B1:
+    question: "Where does the fleet's next investigation effort go?"
+    type: choice
+    solver: model
+    criteria:
+      oldest: "the oldest uncovered blind spot (the recency queue discipline)"
+      newer: "a newer blind spot ranks first (the recency, the severity, the reach)"
+    facts:
+      coverage_map: {required: true, min_class: attested, shape: "[{blind_spot, first_seen}] — Corvus-attested, never caller-claimed"}
+    resolution:
+      bands: [oldest, newer]
+      ordering: [newer, oldest]
+      coarse: {oldest: queue-head, newer: queue-reorder}
+    fail_policy:
+      default: {answer: oldest, reason_class: unknown, resolution: "the next cycle (self-correcting)"}
+      modes:
+        unavailable: {answer: oldest, reason_class: unknown:engine, resolution: oldest-stamped}
+        refused: {answer: oldest, reason_class: refused, resolution: oldest-stamped}
+        timeout: {answer: oldest, reason_class: timeout, resolution: oldest-stamped}
+        malformed_state: {answer: oldest, reason_class: malformed, resolution: oldest-stamped}
+    on_unknown: oldest
+    conformance: {cells: 8, mutation: direction}
+
+  W1p:
+    question: "The change window has lapsed — expire, extend, or escalate?"
+    type: choice
+    solver: rule
+    note: "replaces the seeded W1 (the split: the expiry clock retired into facts.change_window; the disposition stays a site; the latent W2 violation fixed — 'the window is fine' never reaches the site)"
+    criteria:
+      expire: "the work is complete or the extension is not justified"
+      extend_until: "the work is in flight and safe to continue — the answer CARRIES ITS BOUND (t bounded by a declared max, capped by the next planned activity)"
+      escalate: "the interruption cost is genuinely ambiguous (the gray band)"
+    facts:
+      change_window: {required: true, min_class: computed, shape: "{state, expires_at, collision_at}"}
+      work_in_flight: {required: true, min_class: attested, shape: "{steps_done, steps_total}"}
+    resolution:
+      bands: [expire, extend_until, escalate]
+      ordering: [expire, escalate, extend_until]
+      coarse: {expire: close, extend_until: extend, escalate: human}
+    fail_policy:
+      default: {answer: expire, reason_class: unknown, resolution: "the window-renewal path — an unanswerable disposition never defaults to the widening direction"}
+      modes:
+        unavailable: {answer: expire, reason_class: unknown:engine, resolution: "canonical clock only, the record stamps which clock decided"}
+        refused: {answer: expire, reason_class: refused, resolution: expire-stamped}
+        timeout: {answer: expire, reason_class: timeout, resolution: expire-stamped}
+        malformed_state: {answer: expire, reason_class: malformed, resolution: expire-stamped}
+    on_unknown: expire
+    extension_bound: "extend_until(t): t ≤ declared max ∧ t < next_activity.collision_at"
+    conformance: {cells: 8, mutation: direction}
+
+  M1:
+    question: "Should this agent respond to this event at all?"
+    type: choice
+    solver: model
+    sweep_derivation: "the unrecoverable error: the duplicated response (two agents, one alert); the matching is a fact, the AUTO-COLLAPSE is the site"
+    criteria:
+      respond: "no other agent owns the response; the event is in this agent's lane"
+      defer_or_page: "another agent owns it, the event is stale, or the ownership is uncertain — defer, or page the human if the ownership cannot resolve"
+    facts:
+      same_fingerprint: {required: true, min_class: computed, shape: "{same, uncertain}"}
+      open_incidents: {required: true, min_class: attested, shape: "[{id, claimed_by}]"}
+    resolution:
+      bands: [respond, defer_or_page]
+      ordering: [defer_or_page, respond]
+      coarse: {respond: act, defer_or_page: hold}
+    fail_policy:
+      default: {answer: defer_or_page, reason_class: unknown, resolution: escalation-queue}
+      modes:
+        unavailable: {answer: defer_or_page, reason_class: unknown:engine, resolution: escalation-queue}
+        refused: {answer: defer_or_page, reason_class: refused, resolution: escalation-queue + refusal-record}
+        timeout: {answer: defer_or_page, reason_class: timeout, resolution: escalation-queue}
+        malformed_state: {answer: defer_or_page, reason_class: malformed, resolution: fix-the-caller}
+    on_unknown: defer_or_page
+    conformance: {cells: 8, mutation: direction}
+
+  M2p:
+    question: "Is the incident resolved — declared, not measured?"
+    type: choice
+    solver: rule
+    sweep_derivation: "the split: the measurement is a fact (facts.m2_measurement); the DECLARATION that gates closure is the site; fail never closes"
+    criteria:
+      resolved: "the measurement is in band AND the declared postcondition holds (the alert resolved AND stayed resolved)"
+      not_resolved: "the measurement is out of band, unknown, or stale — the incident stays open"
+    facts:
+      m2_measurement: {required: true, min_class: attested, shape: "{observable, in_band, as_of}"}
+      declared_postcondition: {required: true, min_class: caller-stated, shape: str}
+    resolution:
+      bands: [resolved, not_resolved]
+      ordering: [not_resolved, resolved]
+      coarse: {resolved: close, not_resolved: open}
+    fail_policy:
+      default: {answer: not_resolved, reason_class: unknown, resolution: "the incident stays open — never close on unknown"}
+      modes:
+        unavailable: {answer: not_resolved, reason_class: unknown:engine, resolution: open}
+        refused: {answer: not_resolved, reason_class: refused, resolution: open}
+        timeout: {answer: not_resolved, reason_class: timeout, resolution: open}
+        malformed_state: {answer: not_resolved, reason_class: malformed, resolution: open}
+    on_unknown: not_resolved
+    conformance: {cells: 8, mutation: direction}
+
+  M4:
+    question: "Does the verification prove the operator-visible outcome?"
+    type: choice
+    solver: model
+    sweep_derivation: "the unrecoverable error: declaring DONE on a proxy check (the frontmatter leak; the API-shape verify)"
+    criteria:
+      verified: "the check covers the surface's user-visible failure classes (the layer rule: deploy = the live pod readback, config = the RUNNING pod, publish = the RENDERED page)"
+      not_verified: "the check proves a proxy — the gap surfaces as a credibility event"
+    facts:
+      surface_failure_classes: {required: true, min_class: attested, shape: "[the user-visible failure classes]"}
+      check_coverage: {required: true, min_class: caller-stated, shape: "{what_the_check_proves}"}
+    resolution:
+      bands: [verified, not_verified]
+      ordering: [not_verified, verified]
+      coarse: {verified: done, not_verified: gap}
+    fail_policy:
+      default: {answer: not_verified, reason_class: unknown, resolution: "the credibility event fires (the D3 honesty line)"}
+      modes:
+        unavailable: {answer: not_verified, reason_class: unknown:engine, resolution: credibility-event}
+        refused: {answer: not_verified, reason_class: refused, resolution: credibility-event}
+        timeout: {answer: not_verified, reason_class: timeout, resolution: credibility-event}
+        malformed_state: {answer: not_verified, reason_class: malformed, resolution: credibility-event}
+    on_unknown: not_verified
+    conformance: {cells: 8, mutation: direction}
+
+  M8:
+    question: "Which remediation posture matches the operator's context right now?"
+    type: choice
+    solver: model
+    sweep_derivation: "the unrecoverable error: the static decline (the same answer at 2am and 9am regardless of posture)"
+    criteria:
+      conservative: "the high-load or low-visibility window: the minimal, most-reversible action"
+      standard: "the normal posture: the standard remediation"
+      assertive: "the clear window with the operator's standing posture: the fuller action"
+    facts:
+      context: {required: true, min_class: attested, shape: "{hour_band, open_incident_load, surface_visibility, audience}"}
+    resolution:
+      bands: [conservative, standard, assertive]
+      ordering: [conservative, standard, assertive]
+      coarse: {conservative: minimal, standard: normal, assertive: full}
+    fail_policy:
+      default: {answer: conservative, reason_class: unknown, resolution: "the conservative posture executes or surfaces"}
+      modes:
+        unavailable: {answer: conservative, reason_class: unknown:engine, resolution: conservative-stamped}
+        refused: {answer: conservative, reason_class: refused, resolution: conservative-stamped}
+        timeout: {answer: conservative, reason_class: timeout, resolution: conservative-stamped}
+        malformed_state: {answer: conservative, reason_class: malformed, resolution: conservative-stamped}
+    on_unknown: conservative
+    note: "modulates WHICH action, not whether — the gate decision stays with C1/P1"
+    conformance: {cells: 8, mutation: direction}
+
+  M9p:
+    question: "Undo the in-flight action now?"
+    type: choice
+    solver: model
+    sweep_derivation: "the split: the reversibility lookup is a fact (facts.m9_reversibility); the 'undo NOW' commitment is the site; unknown = destructive"
+    criteria:
+      undo: "a safe undo path exists (the fact) AND the undo cost is lower than the continue cost"
+      abort: "no safe undo path, or the undo cost exceeds the continue cost, or the path is unknown"
+    facts:
+      m9_reversibility: {required: true, min_class: attested, shape: "{reversible, path?, class}"}
+      action_state: {required: true, min_class: attested, shape: "{step, elapsed, effects_so_far}"}
+    resolution:
+      bands: [undo, abort]
+      ordering: [abort, undo]
+      coarse: {undo: revert, abort: stop}
+    fail_policy:
+      default: {answer: abort, reason_class: unknown, resolution: "the human confirms against the reversibility lookup"}
+      modes:
+        unavailable: {answer: abort, reason_class: unknown:engine, resolution: human-confirm}
+        refused: {answer: abort, reason_class: refused, resolution: human-confirm}
+        timeout: {answer: abort, reason_class: timeout, resolution: human-confirm}
+        malformed_state: {answer: abort, reason_class: malformed, resolution: human-confirm}
+    on_unknown: abort
+    conformance: {cells: 8, mutation: direction}
+
+  M10:
+    question: "Is the local green valid for the gating lane — and whose red is this?"
+    type: choice
+    solver: rule
+    sweep_derivation: "the unrecoverable error: acting on a stale-green or misattributing a fleet-wide red (the ruff whipsaw)"
+    criteria:
+      valid_mine: "the parity holds (the toolchain pins match) AND the red is attributable to this change"
+      valid_fleet: "the red is fleet-wide (the environment-owned) — the change is not the cause"
+      invalid: "the parity is broken or the attribution is unknown — the local green proves nothing about the gating lane"
+    facts:
+      lane_pins: {required: true, min_class: attested, shape: "{local_toolchain, gating_toolchain}"}
+      red_attribution: {required: true, min_class: computed, shape: "{scope: change|runner|fleet-wide, evidence}"}
+    resolution:
+      bands: [valid_mine, valid_fleet, invalid]
+      ordering: [invalid, valid_fleet, valid_mine]
+      coarse: {valid_mine: proceed, valid_fleet: proceed-flagged, invalid: hold}
+    fail_policy:
+      default: {answer: invalid, reason_class: unknown, resolution: "hold — the conservative reading: a red is environment-owned only with evidence"}
+      modes:
+        unavailable: {answer: invalid, reason_class: unknown:engine, resolution: hold-stamped}
+        refused: {answer: invalid, reason_class: refused, resolution: hold-stamped}
+        timeout: {answer: invalid, reason_class: timeout, resolution: hold-stamped}
+        malformed_state: {answer: invalid, reason_class: malformed, resolution: hold-stamped}
+    on_unknown: invalid
+    conformance: {cells: 8, mutation: direction}
+
+composition_policies:
+  C1_C2_criticality:
+    decision_point: change-gate
+    sites: [{site_id: C2, required: true}, {site_id: C1, required: true}]
+    composition:
+      on_error: "the conservative branch of the whole decision (any gating-site error forces it — R-SEC-13)"
+      on_unknown: "the conservative branch"
+      on_divergence: CAUTION
+      aggregation_rule: "most-conservative-wins (the declared ordering: SEMANTIC/SERIALIZE are the conservative-terminal classes)"
+    version: 1.0.0
+  plan_gate:
+    decision_point: plan-step
+    sites: [{site_id: P2, required: true}, {site_id: P3, required: true}, {site_id: P1, required: true}]
+    composition:
+      on_error: "the conservative branch"
+      on_unknown: "the conservative branch"
+      on_divergence: escalate
+      aggregation_rule: "most-conservative-wins"
+    version: 1.0.0
+  incident_response:
+    decision_point: respond
+    sites: [{site_id: M1, required: true}, {site_id: M2p, required: false}]
+    composition:
+      on_error: "the conservative branch"
+      on_unknown: "the conservative branch"
+      on_divergence: "route to the calibration-triage queue"
+      aggregation_rule: "most-conservative-wins"
+    version: 1.0.0
