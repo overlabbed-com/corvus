@@ -20,14 +20,15 @@ substitution never happens).
 from __future__ import annotations
 
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 class SliceExceeded(Exception):
     pass
 
 
-from corvus.adapter import AdapterUnavailable  # noqa: E402 (the adapter's error)
+from corvus.adapter import AdapterUnavailable
 
 
 class DecisionCore:
@@ -78,7 +79,6 @@ class DecisionCore:
     # -- the dispatch -------------------------------------------------------
     def _dispatch(self, entry: dict, state: dict, facts: dict,
                   deadline: float) -> dict:
-        sid = entry.get("site_id")
         solver = entry.get("solver")
         if solver == "rule":
             return self._dispatch_rule(entry, state, facts, deadline)
@@ -141,7 +141,7 @@ class DecisionCore:
                 raise
             except AdapterUnavailable:
                 raise
-            except Exception as exc:  # the bounded re-ask
+            except Exception as exc:  # noqa: BLE001 — the bounded re-ask retries any transient
                 last = exc
         raise AdapterUnavailable(f"model path failed twice: {last}")
 

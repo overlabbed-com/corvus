@@ -10,11 +10,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.attested import AttestedStore  # noqa: E402
-from corvus.delivery import DeliveryChain  # noqa: E402
-from corvus.observe import ObserveMode  # noqa: E402
-from corvus.ops import Metrics  # noqa: E402
-
+from corvus.attested import AttestedStore
+from corvus.delivery import DeliveryChain
+from corvus.observe import ObserveMode
+from corvus.ops import Metrics
 
 # -- WP15: the observe mode --------------------------------------------------
 
@@ -96,7 +95,7 @@ def test_delivery_chain_stages_are_chain_events(chain):
 
 
 def test_delivery_failure_queues_for_recovery(chain):
-    dc, store, delivered = chain
+    _dc, store, _delivered = chain
     store2 = store
     dc2 = DeliveryChain(store2, lambda p: (_ for _ in ()).throw(RuntimeError("down")))
     dc2.submit("esc-2", {"headline": "x"})

@@ -26,7 +26,6 @@ import json
 import sqlite3
 import threading
 import time
-from pathlib import Path
 
 RECORD_CLASSES = {"decision", "refusal", "consumption", "outcome",
                   "escalation_delivery", "tombstone"}

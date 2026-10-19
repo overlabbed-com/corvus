@@ -5,11 +5,9 @@ import sys
 import time
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.decision_core import AdapterUnavailable, DecisionCore  # noqa: E402
+from corvus.decision_core import DecisionCore
 
 
 def _site(sid, solver="rule", criteria=None, **extra):

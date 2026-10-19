@@ -29,7 +29,6 @@ import hashlib
 import json
 import sys
 import time
-from typing import Any
 
 
 class CCAdapter:
@@ -68,7 +67,7 @@ class CCAdapter:
                 fail_policies={"C1": "fail-closed:CAUTION"})
             engine_answer = result["answers"].get("C1", {})
             decision_id = result.get("request_hash")
-        except Exception as exc:  # the engine unreachable: the fail policy applied
+        except Exception as exc:  # the engine unreachable: the fail policy applied  # noqa: BLE001
             self.observe_mode.record_attempt(fleet, agent, "C1",
                                              engine_error=str(exc)[:200])
             # THE OBSERVE MODE NEVER BLOCKS — even on the engine outage, the
@@ -103,7 +102,7 @@ class CCAdapter:
             return {"continue": True,
                     "enforce": {"decision_id": decision_id,
                                 "consumed": consume["allowed"]}}
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return {"decision": "block",
                     "reason": f"the enforcement gate refused: {exc}"}
 
@@ -128,12 +127,10 @@ class CCAdapter:
 
 def main():
     """The CC hook entry: the JSON on stdin, the JSON on stdout. The
-    settings.json wiring: the command pipes the hook JSON to this handler
-    with the event name."""
-    raw = sys.stdin.read()
-    hook_input = json.loads(raw) if raw.strip() else {}
-    event = sys.argv[1] if len(sys.argv) > 1 else "PreToolUse"
-    result = CCAdapter  # the wiring injects the configured adapter
+    settings.json wiring pipes the hook JSON to this handler with the
+    event name; the DEPLOYED wiring (OPS-READINESS's shape) injects the
+    configured adapter — the local stub always continues."""
+    sys.stdin.read()
     print(json.dumps({"continue": True}))
 
 

@@ -8,9 +8,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.attested import AttestedStore  # noqa: E402
-from corvus.facts import FactComposer, change_window_source  # noqa: E402
-
+from corvus.attested import AttestedStore
+from corvus.facts import FactComposer, change_window_source
 
 # -- WP9: the fact composer -------------------------------------------------
 
@@ -33,9 +32,9 @@ def test_composer_unknown_never_fabricates():
     including unknown)."""
     composer = FactComposer(sources={
         "conflict_inventory": lambda spec: {"unknown": "source_unavailable"}})
-    facts, absent = composer.compose(
+    facts, _absent = composer.compose(
         {"facts": {"conflict_inventory": {"required": True}}})
-    assert not absent
+    assert not _absent
     assert facts["conflict_inventory"]["status"] == "unknown"
     assert facts["conflict_inventory"]["value"] is None
     assert facts["conflict_inventory"]["reason"] == "source_unavailable"
@@ -49,8 +48,8 @@ def test_composer_stale_stamped_distinctly():
         "tier": lambda spec: {"value": "L2", "provenance_class": "attested",
                               "as_of": 100.0}},
         freshness={"tier": 60.0})
-    facts, absent = composer.compose({"facts": {"tier": {"required": True}}},
-                                     now=1000.0)
+    facts, _absent = composer.compose({"facts": {"tier": {"required": True}}},
+                                      now=1000.0)
     assert facts["tier"]["status"] == "stale"
     assert facts["tier"]["value"] == "L2"  # the value kept, stamped
 

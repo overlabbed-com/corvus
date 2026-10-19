@@ -14,8 +14,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.compiler import CompilerError, build, compile_catalog, diff_classify  # noqa: E402
-from corvus.contract_codes import ERROR_CODES  # noqa: E402
+from corvus.compiler import CompilerError, build, compile_catalog, diff_classify
 
 REPO = Path(__file__).parent.parent.parent
 REGISTER = yaml.safe_load((REPO / "decision-register.yaml").read_text())

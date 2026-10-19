@@ -25,7 +25,6 @@ import json
 import sqlite3
 import threading
 import time
-from pathlib import Path
 
 
 class CaptureStore:
@@ -34,7 +33,6 @@ class CaptureStore:
         self.max_rows = max_rows
         self.dropped = 0
         self._lock = threading.Lock()
-        is_new = db_path == ":memory:" or not Path(db_path).exists()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(

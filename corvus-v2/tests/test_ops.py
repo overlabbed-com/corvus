@@ -4,11 +4,9 @@ the three-state healthz (advisory-only by construction).
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.ops import FleetScopeResolver, Health, Metrics  # noqa: E402
+from corvus.ops import FleetScopeResolver, Health, Metrics
 
 
 def test_scope_resolver_existence_hiding():

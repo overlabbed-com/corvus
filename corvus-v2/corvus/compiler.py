@@ -17,10 +17,8 @@ mechanical; the undeclared is a report, not a guess).
 from __future__ import annotations
 
 import json
-import re
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 # THE SOLVER LADDER (the declared ordering): down the list = the
 # determinism strengthening (lookup needs no judgment); up = the
@@ -49,9 +47,9 @@ def validate_register(register: dict) -> list[str]:
     sites = register.get("sites") or {}
     for sid, site in sites.items():
         enum = set((site.get("criteria") or {}).keys()) if isinstance(site.get("criteria"), dict) else set()
-        if site.get("type") == "score":
-            if not isinstance(site.get("criteria"), list) or not site["criteria"]:
-                findings.append(f"{sid}: a score site must declare its bins (the criteria list)")
+        if (site.get("type") == "score"
+                and (not isinstance(site.get("criteria"), list) or not site["criteria"])):
+            findings.append(f"{sid}: a score site must declare its bins (the criteria list)")
         # THE INVARIANT THAT CAUGHT C1: the fail answer and on_unknown must be
         # enum members (the WP0 conflation's detector).
         fp = site.get("fail_policy") or {}
@@ -63,15 +61,14 @@ def validate_register(register: dict) -> list[str]:
         # the verdict_class stamp's presence.
         default_cell = fp.get("default") or {}
         default_answer = default_cell.get("answer")
-        if enum and default_answer not in enum and \
-                "fallback-verdict" not in str(default_cell.get("verdict_class", "")):
+        if (enum and default_answer not in enum
+                and "fallback-verdict" not in str(default_cell.get("verdict_class", ""))):
             findings.append(f"{sid}: the fail default {default_answer!r} is not an "
                             f"enum member — the verdict enum and the fail branch "
                             f"diverged (the C1-class conflation)")
         for mode, cell in (fp.get("modes") or {}).items():
             vclass = str(cell.get("verdict_class", "engine-verdict"))
-            if enum and cell.get("answer") not in enum \
-                    and "fallback-verdict" not in vclass and vclass != "refused":
+            if enum and cell.get("answer") not in enum and "fallback-verdict" not in vclass and vclass != "refused":
                 findings.append(f"{sid}.{mode}: the fail answer "
                                 f"{cell.get('answer')!r} is not an enum member")
         # THE W4 ALLOWANCE: the fail answers are recognizably-not-an-answer
@@ -187,14 +184,14 @@ def diff_classify(new: dict, base: dict | None) -> dict:
         # = the more conservative; a LOWER index = the weakening).
         if n.get("fail_default") != b.get("fail_default"):
             n_order = ((n.get("resolution") or {}).get("ordering")) or []
-            if n.get("fail_default") in n_order and b.get("fail_default") in n_order:
-                if n_order.index(n["fail_default"]) < n_order.index(b["fail_default"]):
-                    cls = "weakening"
+            if (n.get("fail_default") in n_order and b.get("fail_default") in n_order
+                    and n_order.index(n["fail_default"]) < n_order.index(b["fail_default"])):
+                cls = "weakening"
         if n.get("on_unknown") != b.get("on_unknown"):
             n_order = ((n.get("resolution") or {}).get("ordering")) or []
-            if n.get("on_unknown") in n_order and b.get("on_unknown") in n_order:
-                if n_order.index(n["on_unknown"]) < n_order.index(b["on_unknown"]):
-                    cls = "weakening"
+            if (n.get("on_unknown") in n_order and b.get("on_unknown") in n_order
+                    and n_order.index(n["on_unknown"]) < n_order.index(b["on_unknown"])):
+                cls = "weakening"
         per_site[sid] = cls
         # The structural report (the undeclared dimensions — the human review,
         # never silently ignored).

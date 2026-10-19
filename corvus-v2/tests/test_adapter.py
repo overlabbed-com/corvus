@@ -10,8 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.adapter import AdapterUnavailable, ClefFlashAdapter, StubAdapter  # noqa: E402
-from corvus.decision_core import DecisionCore  # noqa: E402
+from corvus.adapter import AdapterUnavailable, ClefFlashAdapter, StubAdapter
+from corvus.decision_core import DecisionCore
 
 
 def _site(sid="S1", stype="choice", solver="rule"):
@@ -39,7 +39,6 @@ def test_adapter_parses_joint_schema_response():
 
     adapter = ClefFlashAdapter(base_url="http://engine", api_key="k")
     adapter._urlopen = FakeTransport().urlopen  # the transport injection
-    monkey_target = "urllib.request.urlopen"
     import urllib.request
     original = urllib.request.urlopen
     urllib.request.urlopen = FakeTransport().urlopen

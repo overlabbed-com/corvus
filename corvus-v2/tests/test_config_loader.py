@@ -4,11 +4,9 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.config_loader import ConfigLoader  # noqa: E402
+from corvus.config_loader import ConfigLoader
 
 
 def test_fleet_config_loads_from_path(tmp_path):

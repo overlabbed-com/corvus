@@ -9,12 +9,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.attested import AttestedStore  # noqa: E402
-from corvus.cc_adapter import CCAdapter  # noqa: E402
-from corvus.decision_core import DecisionCore  # noqa: E402
-from corvus.observe import ObserveMode  # noqa: E402
-from corvus.ops import Metrics  # noqa: E402
-from corvus.tokens import VerdictTokenIssuer  # noqa: E402
+from corvus.attested import AttestedStore
+from corvus.cc_adapter import CCAdapter
+from corvus.observe import ObserveMode
+from corvus.ops import Metrics
+from corvus.tokens import VerdictTokenIssuer
 
 
 class _StubClient:

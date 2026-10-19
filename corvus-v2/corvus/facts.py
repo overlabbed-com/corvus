@@ -27,7 +27,7 @@ poisoning detectable and scopeable post hoc).
 from __future__ import annotations
 
 import time
-from typing import Any, Callable
+from collections.abc import Callable
 
 # The provenance ladder (the ordering from the architect's schema)
 LADDER = ["caller-stated", "computed", "engine-derived", "attested"]

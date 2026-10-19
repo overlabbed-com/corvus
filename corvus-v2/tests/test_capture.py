@@ -1,17 +1,14 @@
 """WP5's tests — the dual-precision atomicity, the bounded store, the
 persisted replay, the re-decide substrate, the non-blocking append.
 """
-import json
 import sys
 import time
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.capture import CaptureStore  # noqa: E402
-from corvus.canonical import canonical_json, request_hash  # noqa: E402
+from corvus.canonical import request_hash
+from corvus.capture import CaptureStore
 
 
 def _row(rh="rh-1", **over):

@@ -85,8 +85,9 @@ def run_mutation_suite(test_command: list[str] | None = None,
             continue
         try:
             target.write_text(original.replace(mutant["old"], mutant["new"]))
-            proc = subprocess.run(test_command, capture_output=True,
-                                  text=True, timeout=300, cwd=str(repo / "corvus-v2"))
+            proc = subprocess.run(test_command, capture_output=True, text=True,
+                                  timeout=300, cwd=str(repo / "corvus-v2"),
+                                  check=False)
             # THE MUTATION CONTRACT: the suite must RED (exit non-zero).
             caught = proc.returncode != 0
             red_test = _extract_red_test(proc.stdout)
@@ -122,7 +123,8 @@ def conformance_run(base_url: str, timeout: float = 10.0) -> dict:
             checks.append({"id": cid, "verdict": "pass"})
         except AssertionError as exc:
             checks.append({"id": cid, "verdict": "fail", "detail": str(exc)})
-        except Exception as exc:
+
+        except Exception as exc:  # noqa: BLE001
             checks.append({"id": cid, "verdict": "void",
                            "detail": f"{type(exc).__name__}: {exc}"})
 

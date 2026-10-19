@@ -20,7 +20,7 @@ import json
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Protocol
+from typing import Protocol
 
 
 class AdapterUnavailable(Exception):

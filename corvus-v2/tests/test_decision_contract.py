@@ -17,8 +17,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from corvus.decisions import DecisionClient  # noqa: E402
-from corvus.canonical import request_hash  # noqa: E402
+from corvus.canonical import request_hash
+from corvus.decisions import DecisionClient
 
 FLEET = "fleet-alpha"
 SHIM_PORT = 8934
@@ -107,7 +107,6 @@ def test_duplicate_site_ids_rejected(client, shim):
 def test_request_hash_is_key_order_stable(client, shim):
     """THE CANONICAL-FORM HASH: the same inputs in a different JSON key order
     produce the IDENTICAL request_hash — the replay/re-decide substrate."""
-    import hashlib as hl
     s1 = {"target": "db", "recent_severity": "critical"}
     s2 = {"recent_severity": "critical", "target": "db"}
     h1 = request_hash(s1, {}, [C1_SITE])

@@ -16,17 +16,15 @@ from __future__ import annotations
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import json  # noqa: E402 (used in the handler below)
 
-from fastapi import FastAPI, HTTPException, Request  # noqa: E402
-from fastapi.responses import JSONResponse  # noqa: E402
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
-from corvus.canonical import canonical_json, request_hash  # noqa: E402
+from corvus.canonical import canonical_json, request_hash
 
 app = FastAPI(title="Corvus decision-engine shim", version="1.1.0")
 
@@ -72,8 +70,9 @@ def _site_resolution(site_id: str) -> dict | None:
 # replay index (the SQLite WAL — F10: a restart does not wipe the replay).
 # The spike defaults to :memory:; the production config points
 # CORVUS_CAPTURE_DB at the file.
-import os  # noqa: E402
-from corvus.capture import CaptureStore  # noqa: E402
+import os
+
+from corvus.capture import CaptureStore
 
 _CAPTURE = CaptureStore(db_path=os.environ.get("CORVUS_CAPTURE_DB", ":memory:"),
                         max_rows=10_000)

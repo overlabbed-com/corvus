@@ -50,7 +50,7 @@ class DeliveryChain:
         delivered = False
         try:
             delivered = bool(self.channel(entry["payload"]))
-        except Exception:
+        except Exception:  # noqa: BLE001
             delivered = False
         entry["delivered"] = delivered
         self.store.append("escalation_delivery",
@@ -75,7 +75,7 @@ class DeliveryChain:
             delivered = False
             try:
                 delivered = bool(self.channel(entry["payload"]))
-            except Exception:
+            except Exception:  # noqa: BLE001
                 delivered = False
             if delivered:
                 entry["delivered"] = True

@@ -95,9 +95,9 @@ class TrustLedger:
         if delivered >= due_count:
             return []
         missing = due_count - delivered
-        return [f"{agent}/{action_type}: {missing} of {due_count} due outcome "
-                f"rows missing — the disqualifying event (the silent-failure "
-                f"class, detected fail-closed)"]
+        return [(f"{agent}/{action_type}: {missing} of {due_count} due outcome "
+                 "rows missing — the disqualifying event (the silent-failure "
+                 "class, detected fail-closed)")]
 
     def evaluate_promotion(self, fleet: str, agent: str, action_type: str,
                            preconditions: dict) -> dict:
