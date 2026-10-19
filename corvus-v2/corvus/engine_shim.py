@@ -15,6 +15,7 @@ Run: python -m corvus.engine_shim --port 8933
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -277,6 +278,7 @@ def hashlib_sha(text: str) -> str:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8933)
+    ap.add_argument("--host", default=os.environ.get("CORVUS_BIND_HOST", "127.0.0.1"))
     args = ap.parse_args()
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="error")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="error")
