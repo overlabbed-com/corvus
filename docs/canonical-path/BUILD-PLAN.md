@@ -107,6 +107,34 @@ queue depth rises, the at-a-glance line shows the elevated count, and the
 quiet strip stays loud. The latency spike (work item 4c) targets this
 backend and expects the p50 in the 73–90 ms band.
 
+
+## The build-phase design-change process
+
+When build-time discovery contradicts a design artifact, the path is:
+**amend the artifact → update the assumption ledger** (the entry: the
+assumption, the challenge, the resolution) **→ re-run the survival test**
+on the amended artifact ("if this conversation were lost, would the
+substance survive in the repo?") **→ note the route in TRACEABILITY.md →
+the DDR** where the estate's tier or deny-path requires.
+
+**Distinguished from the register-as-gate**: the compiler governs
+*register* changes (the diff-classify stage, the change-class stamp, the
+downgrade-acknowledgment gate); *design-doc* changes are the
+artifact-amendment path above — different gates, both auditable. A
+register change that also amends a design doc triggers both paths.
+
+**The spike-promotion rule**: spike code is throwaway by default. When a
+spike's code becomes the seed of a P1 work package, it stops being
+throwaway — it enters the WBS (the package's DoD then governs it, the
+repo's CI gates it, and its provenance notes the spike origin). The
+contract spike's fixtures → WP14; the latency spike's measurement →
+WP4's DoD.
+
+**The gate discipline**: every phase's capability gate re-runs the
+survival test on the phase's artifacts and re-reads RISK-REGISTER.md —
+the gate is not just "did the code pass," it is "is the plan still
+true."
+
 ## The acceptance gate (the ideation's thesis, made testable)
 
 **A new harness reaches full governance parity by shipping only an
