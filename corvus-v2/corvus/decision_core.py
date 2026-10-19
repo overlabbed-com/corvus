@@ -27,8 +27,7 @@ class SliceExceeded(Exception):
     pass
 
 
-class AdapterUnavailable(Exception):
-    pass
+from corvus.adapter import AdapterUnavailable  # noqa: E402 (the adapter's error)
 
 
 class DecisionCore:
