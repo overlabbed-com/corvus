@@ -24,8 +24,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from corvus.capture import CaptureStore
 from corvus.canonical import canonical_json, request_hash
+from corvus.capture import CaptureStore
 from corvus.contract_codes import ERROR_CODES
 
 app = FastAPI(title="Corvus decision-engine shim", version="1.1.0")
