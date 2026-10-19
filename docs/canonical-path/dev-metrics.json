@@ -1,16 +1,16 @@
 {
  "schema": 1,
- "source_commit": "de30025",
- "generated_at": "2026-10-19T21:27:13.682892+00:00",
+ "source_commit": "dabbda4",
+ "generated_at": "2026-10-19T21:30:43.414112+00:00",
  "tests": {
-  "total": 10,
-  "passed": 10,
+  "total": 108,
+  "passed": 108,
   "failed": 0
  },
  "coverage": {
-  "percent": 55.0,
-  "lines_covered": 126,
-  "lines_total": 229
+  "percent": 79.1,
+  "lines_covered": 1008,
+  "lines_total": 1274
  },
  "duration_seconds": 0.0
 }
