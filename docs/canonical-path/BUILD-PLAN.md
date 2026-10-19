@@ -78,6 +78,35 @@ the namespace registry · the tier-table generator · the benchmark
 **Capability gate**: a second fleet runs on the same engine with the
 existence-hiding 404s and the per-state-class isolation verified.
 
+
+## The external dependency statement (the engine's model backend)
+
+**The backend: `clef-flash`** — Cloudflare's joint-schema decision model
+served by SGLang (the dev-clef image, digest-pinned), deployed on dp01's
+RTX PRO 4500 (GPU-d67e1f24, 32,623 MiB, compute 12.0), BF16, zero
+quantization, 19.1 GB weights. It serves the Jev/SystemOne API natively
+at `/v1/systemone` — the joint schema head emits one logit per allowed
+option per question (no free-form generation, no output parsing), which
+IS the v2 design's per-option probability source. The gateway alias pins
+`served-model-name clef-flash`.
+
+**The measured provenance** (the bake-off, 2026-10-13, on this corpus and
+card): agreement with the homelab's three-model consensus labels on the
+232-state held-out split — alert_class 91.8%, severity 80.3%, needs_rca
+80.0% — at **p50 73–90 ms per decision**. The boot line on any future
+roll is the authority for the KV pool (read max_total_num_tokens off it).
+
+**The availability reality**: one engine on one card, co-tenanted on dp01
+(the Lightning on GPU 1 keeps its own engine — untouched). When
+clef-flash is down, the designed behavior is the fail-policy floor: the
+fleet's autonomy drops to the registered defaults (C1→CAUTION, T2→
+ESCALATE, P1→escalate), the escalation queue absorbs the surge with its
+SLA and deadman, and the observe/enforce attempt-records make the
+degradation visible. **What the operator actually sees**: the escalation
+queue depth rises, the at-a-glance line shows the elevated count, and the
+quiet strip stays loud. The latency spike (work item 4c) targets this
+backend and expects the p50 in the 73–90 ms band.
+
 ## The acceptance gate (the ideation's thesis, made testable)
 
 **A new harness reaches full governance parity by shipping only an
