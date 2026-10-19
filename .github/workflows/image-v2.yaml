@@ -24,6 +24,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to Harbor (the estate's registry-of-record)
+        uses: docker/login-action@v3
+        with:
+          registry: harbor.themillertribe-int.org
+          username: ${{ secrets.HARBOR_ROBOT_NAME }}
+          password: ${{ secrets.HARBOR_ROBOT_SECRET }}
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -32,7 +38,9 @@ jobs:
           tags: |
             ghcr.io/overlabbed-com/corvus-v2:latest
             ghcr.io/overlabbed-com/corvus-v2:${{ github.sha }}
+            harbor.themillertribe-int.org/homelab/corvus-v2:${{ github.sha }}
       - name: The digest record
         run: |
           DIGEST=$(docker buildx imagetools inspect ghcr.io/overlabbed-com/corvus-v2:${{ github.sha }} --format '{{json .Manifest.Digest}}' 2>/dev/null || echo "see-the-push-step")
           echo "image: ghcr.io/overlabbed-com/corvus-v2@${DIGEST}"
+          echo "image: harbor.themillertribe-int.org/homelab/corvus-v2:${{ github.sha }}"
