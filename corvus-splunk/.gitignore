@@ -1,0 +1,3 @@
+# Component-local artifacts (the root .gitignore is owned elsewhere)
+__pycache__/
+*.pyc

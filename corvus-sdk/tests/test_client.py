@@ -1,5 +1,7 @@
 """Tests for CorvusClient — all API operations."""
 
+import json
+
 import httpx
 import pytest
 import respx
@@ -514,3 +516,159 @@ class TestErrors:
         async with client as c:
             with pytest.raises(CorvusError):
                 await c.metrics()
+
+
+# ---------------------------------------------------------------------------
+# Step submission + triage continuation
+# ---------------------------------------------------------------------------
+
+
+class TestStepFlow:
+    @respx.mock
+    async def test_submit_step_posts_its_result(self, client):
+        route = respx.post(f"{BASE}/ops/runbooks/steps/STEP-1/result").mock(
+            return_value=httpx.Response(200, json={
+                "step_id": "STEP-1",
+                "status": "submitted",
+                "triage_id": "TRG-1",
+                "all_steps_complete": True,
+                "total_steps": 2,
+                "pending_steps": 0,
+            })
+        )
+        async with client as c:
+            step = await c.submit_step("STEP-1", output={"stdout": "ok"})
+        assert step.all_steps_complete is True
+        assert json.loads(route.calls.last.request.content) == {
+            "output": {"stdout": "ok"},
+            "error": None,
+            "success": True,
+        }
+
+    @respx.mock
+    async def test_submit_step_reports_a_failed_step(self, client):
+        route = respx.post(f"{BASE}/ops/runbooks/steps/STEP-2/result").mock(
+            return_value=httpx.Response(200, json={
+                "step_id": "STEP-2",
+                "status": "submitted",
+                "triage_id": "TRG-1",
+                "all_steps_complete": False,
+                "total_steps": 2,
+                "pending_steps": 1,
+            })
+        )
+        async with client as c:
+            step = await c.submit_step("STEP-2", error="command timed out", success=False)
+        assert step.pending_steps == 1
+        body = json.loads(route.calls.last.request.content)
+        assert body["error"] == "command timed out"
+        assert body["success"] is False
+
+    @respx.mock
+    async def test_continue_triage(self, client):
+        respx.post(f"{BASE}/ops/runbooks/steps/triage/TRG-1/continue").mock(
+            return_value=httpx.Response(200, json={
+                "status": "triaged",
+                "triage_id": "TRG-1",
+                "target": "caddy",
+                "service_type": "proxy",
+                "diagnosis": "config_drift",
+                "root_cause": "stale Caddyfile",
+                "confidence": 0.8,
+                "escalation_required": True,
+                "restart_safe": False,
+            })
+        )
+        async with client as c:
+            result = await c.continue_triage("TRG-1")
+        assert result.diagnosis == "config_drift"
+        assert result.escalation_required is True
+        assert result.restart_safe is False
+
+    @respx.mock
+    async def test_pending_steps_filters_by_triage(self, client):
+        route = respx.get(f"{BASE}/ops/runbooks/steps/pending").mock(
+            return_value=httpx.Response(200, json=[{"id": "STEP-1", "command": "docker logs caddy"}])
+        )
+        async with client as c:
+            assert len(await c.pending_steps()) == 1
+            assert dict(route.calls.last.request.url.params) == {}
+            assert len(await c.pending_steps("TRG-1")) == 1
+            assert dict(route.calls.last.request.url.params) == {"triage_id": "TRG-1"}
+
+
+# ---------------------------------------------------------------------------
+# List filters — the query params the server filters on
+# ---------------------------------------------------------------------------
+
+
+class TestListFilters:
+    @respx.mock
+    async def test_list_incidents_sends_its_filters(self, client):
+        route = respx.get(f"{BASE}/ops/incidents").mock(
+            return_value=httpx.Response(200, json=[])
+        )
+        async with client as c:
+            await c.list_incidents(status="open", target="vllm", severity="warning")
+        params = route.calls.last.request.url.params
+        assert (params["status"], params["target"], params["severity"]) == ("open", "vllm", "warning")
+
+    @respx.mock
+    async def test_list_services_sends_its_filters(self, client):
+        route = respx.get(f"{BASE}/ops/cmdb").mock(
+            return_value=httpx.Response(200, json=[])
+        )
+        async with client as c:
+            await c.list_services(service_type="proxy", host="host-01", critical=False)
+        params = route.calls.last.request.url.params
+        assert params["service_type"] == "proxy"
+        assert params["host"] == "host-01"
+        assert params["critical"] == "false"
+
+    @respx.mock
+    async def test_compliance_audit_sends_its_filters(self, client):
+        route = respx.get(f"{BASE}/ops/metrics/compliance").mock(
+            return_value=httpx.Response(200, json={"coverage_rate": 95.0})
+        )
+        async with client as c:
+            await c.compliance_audit(since="2026-03-01", source="corvus-sdk")
+        params = route.calls.last.request.url.params
+        assert params["since"] == "2026-03-01"
+        assert params["source"] == "corvus-sdk"
+
+
+# ---------------------------------------------------------------------------
+# Dual-shape server fields — JSON-string or native list
+# ---------------------------------------------------------------------------
+
+
+class TestDualShapeFields:
+    @respx.mock
+    async def test_create_change_accepts_native_list_targets(self, client):
+        respx.post(f"{BASE}/ops/changes").mock(
+            return_value=httpx.Response(200, json={
+                "id": "CHG-2",
+                "created_at": "2026-03-31T10:00:00",
+                "created_by": "corvus-sdk",
+                "status": "active",
+                "targets": ["caddy", "litellm"],
+                "description": "Rolling restart",
+            })
+        )
+        async with client as c:
+            change = await c.create_change(["caddy", "litellm"], "Rolling restart")
+        assert change.targets == ["caddy", "litellm"]
+
+    @respx.mock
+    async def test_get_service_accepts_native_list_dependencies(self, client):
+        respx.get(f"{BASE}/ops/cmdb/litellm").mock(
+            return_value=httpx.Response(200, json={
+                "id": "SVC-2",
+                "name": "litellm",
+                "dependencies": ["postgresql"],
+            })
+        )
+        async with client as c:
+            svc = await c.get_service("litellm")
+        assert svc.dependencies == ["postgresql"]
+        assert svc.alert_policy == "default"

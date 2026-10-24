@@ -1,66 +1,82 @@
-# The Corvus dev harness — the Build > Test > Fix cycle, one command per step.
-# `make cycle` is the full loop; every step is idempotent and fresh-clone safe.
+# The Corvus dev harness — the Build > Test > Fix cycle for EVERY component.
+# Each component owns its cycle in <component>/Makefile; this file is the umbrella
+# that runs them all, so "does the repo work?" has one answer.
+#
+# Live components (real harnesses): corvus-v2, corvus-sdk, corvus-cli
+# Legacy/config guards:             corvus-server, corvus-hooks, corvus-splunk
+#   v1 is archived at branch v1-archive and is NOT deployed; its guards exist only
+#   so archived code cannot silently rot. No tests are resurrected for it.
+#
+# The component lists below are NOT cosmetic: the legacy three do not declare
+# build/test (nothing to build or test), and corvus-splunk has no lint/fix (it is
+# config, not Python). Looping a target over a component that lacks it aborts the
+# whole umbrella with "No rule to make target", so each target runs over exactly
+# the components that define it.
+#
+# The interpreter is PINNED to python3.12 (CI uses 3.12). Bare `python3` on this
+# host is 3.15, and running the suite on it changes the coverage number enough to
+# matter — that mismatch is what the pin removes.
 
-VENV := corvus-v2/.venv
-PY := $(VENV)/bin/python
-PIP := $(VENV)/bin/pip
-METRICS := docs/canonical-path/dev-metrics.json
+PYTHON ?= python3.12
 
-.PHONY: setup lint test metrics run check cycle clean
+# Live three: the full harness.
+LIVE := corvus-v2 corvus-sdk corvus-cli
+# Everything: setup, cycle and clean exist everywhere.
+ALL := $(LIVE) corvus-server corvus-hooks corvus-splunk
+# Python components: they lint and autofix. corvus-splunk is config (validate only).
+PY := $(LIVE) corvus-server corvus-hooks
 
-setup:  ## Bootstrap the venv + the deps (fresh-clone safe)
-	python3 -m venv $(VENV)
-	$(PIP) install --quiet --upgrade pip
-	$(PIP) install --quiet -r corvus-v2/requirements.txt
-	$(PIP) install --quiet pytest pytest-cov ruff httpx
-	@echo "setup: ok"
+V2 := corvus-v2
 
-lint:  ## Ruff over the v2 package and the tests
-	$(PY) -m ruff check corvus-v2/corvus/ corvus-v2/tests/
-	@echo "lint: ok"
+export PYTHON
 
-test:  ## The tests with the coverage measurement
-	cd corvus-v2 && .venv/bin/python -m pytest tests/ -q \
-		--cov=corvus --cov-report=term --cov-report=json:coverage.json \
-		--junitxml=junit.xml
-	@echo "test: ok"
+.PHONY: help setup build lint test fix cycle check clean metrics metrics-check run mutation conformance
 
-metrics:  ## Regenerate the dev-metrics artifact from the last test run
-	$(PY) corvus-v2/scripts/gen_metrics.py \
-		--coverage corvus-v2/coverage.json --junit corvus-v2/junit.xml --out $(METRICS) \
-		--source "$$(git rev-parse --short HEAD)" --duration "$$(cd corvus-v2 && .venv/bin/python -c "import json;print(json.load(open('coverage.json')).get('duration',0) if False else 0)")"
-	@echo "metrics: regenerated"
+help:  ## This list
+	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*##/ —/'
 
-metrics-check:  ## The drift guard: the committed metrics must match the fresh run
-	$(PY) corvus-v2/scripts/gen_metrics.py \
-		--coverage corvus-v2/coverage.json --junit corvus-v2/junit.xml --out /tmp/metrics-check.json \
-		--source "$$(git rev-parse --short HEAD)"
-	$(PY) corvus-v2/scripts/check_metrics.py --expected $(METRICS) --actual /tmp/metrics-check.json
+setup:  ## Bootstrap every component's venv + deps (fresh-clone safe)
+	@for c in $(ALL); do printf '\n== %s ==\n' "$$c"; $(MAKE) -C $$c setup || exit 1; done
+	@echo "\nsetup: all components ok"
 
-run:  ## The server up + the live health check (the dev loop's "build" step)
-	cd corvus-v2 && .venv/bin/python -c "\
-import sys, threading, time, json, urllib.request;\
-sys.path.insert(0, '.');\
-from corvus.app import create_app;\
-from corvus.config import FleetConfig;\
-cfg = FleetConfig(name='dev-fleet', node_id='dev-1', api_key='dev-local-key');\
-app = create_app(config=cfg, db_path=':memory:');\
-t = threading.Thread(target=lambda: __import__('uvicorn').run(app, host='127.0.0.1', port=8932, log_level='error'), daemon=True);\
-t.start(); time.sleep(1.5);\
-r = json.loads(urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8932/health', headers={'X-Corvus-Key': 'dev-key'}), timeout=5).read());\
-assert r['status'] == 'ok', r;\
-print('run: ok —', r['fleet'])"
+build:  ## The live three's build proof (the legacy guards have nothing to build)
+	@for c in $(LIVE); do printf '\n== %s ==\n' "$$c"; $(MAKE) -C $$c build || exit 1; done
+	@echo "\nbuild: all live components ok"
 
-check: lint test metrics-check  ## The gates the CI runs (identical locally)
+lint:  ## Ruff over every Python component
+	@for c in $(PY); do printf '\n== %s ==\n' "$$c"; $(MAKE) -C $$c lint || exit 1; done
+	@echo "\nlint: all Python components ok"
 
-cycle: check run  ## THE Build > Test > Fix loop, one command
+test:  ## The live three's tests (the legacy guards have no tests by design)
+	@for c in $(LIVE); do printf '\n== %s ==\n' "$$c"; $(MAKE) -C $$c test || exit 1; done
+	@echo "\ntest: all live components ok"
 
-clean:  ## The artifacts
-	rm -rf $(VENV) corvus-v2/.pytest_cache corvus-v2/coverage.json /tmp/metrics-check.json
+fix:  ## The autofix step across every Python component
+	@for c in $(PY); do printf '\n== %s ==\n' "$$c"; $(MAKE) -C $$c fix || exit 1; done
+	@echo "\nfix: all Python components ok — run `make lint` to confirm"
 
-# WP14: the mutation evidence + the conformance run (the phase-gate targets)
-mutation:
-	cd corvus-v2 && .venv/bin/python -c "import sys; sys.path.insert(0, '.'); from corvus.conformance import run_mutation_suite; import json; r = run_mutation_suite(); print(json.dumps(r, indent=1)); exit(0 if r['all_mutants_caught'] else 1)"
+cycle: setup  ## THE loop: setup, then every component's build > lint > test
+	@for c in $(ALL); do printf '\n===== %s =====\n' "$$c"; $(MAKE) -C $$c cycle || exit 1; done
+	@echo "\ncycle: ALL COMPONENTS OK"
 
-conformance:
-	cd corvus-v2 && .venv/bin/python -m corvus.engine_shim --port 8933 & sleep 2; .venv/bin/python -c "import sys; sys.path.insert(0, '.'); from corvus.conformance import conformance_run; import json; r = conformance_run('http://127.0.0.1:8933'); print(json.dumps(r, indent=1)); exit(0 if r['failed'] == 0 else 1)"; pkill -f "engine_shim --port 8933" || true
+check: cycle  ## The full gate set (what CI runs) — identical to cycle
+
+clean:  ## Remove every component's regenerable state
+	@for c in $(ALL); do $(MAKE) -C $$c clean; done
+	@echo "clean: ok — run `make setup` to rebuild"
+
+# ── v2-specific targets, kept at the root for continuity ────────────────────
+metrics:  ## Regenerate the committed dev-metrics artifact
+	$(MAKE) -C $(V2) metrics
+
+metrics-check:  ## The metrics drift guard
+	$(MAKE) -C $(V2) metrics-check
+
+run:  ## The engine up + the live proof
+	$(MAKE) -C $(V2) build
+
+mutation:  ## The mutation evidence (the phase-gate target)
+	$(MAKE) -C $(V2) mutation
+
+conformance:  ## The conformance run (the phase-gate target)
+	$(MAKE) -C $(V2) conformance

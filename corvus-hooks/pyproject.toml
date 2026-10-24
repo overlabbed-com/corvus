@@ -1,0 +1,25 @@
+# Ruff config for the legacy v1 governance hooks.
+#
+# v1 is ARCHIVED (branch v1-archive) and not deployed — this file exists so the
+# hooks cannot silently rot. The rule set is pinned EXPLICITLY rather than left to
+# ruff's defaults, because those drift: ruff 0.15 enabled 59 rules by default and
+# ruff 0.17 enables 407, which would flip this guard red on a tool upgrade alone.
+#
+# The select list matches corvus-server/pyproject.toml so both legacy components
+# are held to one standard. It is ruff-only — there is deliberately no [project]
+# table, so this file cannot be mistaken for an installable package.
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C4", "SIM"]
+ignore = [
+    "S310",    # urlopen against the operator-configured Corvus URL is the hook's whole job
+    "S603",    # shelling out to the local git/installer binaries is intentional
+    "S607",    # ditto — the hooks resolve git from PATH by design
+    "SIM102",  # 2 nested ifs in the archived adapters; ruff marks the collapse UNSAFE, so the dead code stays untouched
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["corvus_core"]

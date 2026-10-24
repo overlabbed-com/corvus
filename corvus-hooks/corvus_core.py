@@ -19,7 +19,7 @@ import re
 import subprocess
 import urllib.error
 import urllib.request
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -41,7 +41,7 @@ ENV_API_KEY = "CORVUS_API_KEY"  # fallback for Linux/CI
 # ---------------------------------------------------------------------------
 
 
-def get_api_key() -> Optional[str]:
+def get_api_key() -> str | None:
     """Retrieve Corvus API key. Tries macOS keychain, then env var."""
     # macOS keychain
     if platform.system() == "Darwin":
@@ -65,7 +65,7 @@ def get_api_key() -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def check_target(target: str, api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def check_target(target: str, api_key: str | None = None) -> dict[str, Any] | None:
     """Call Corvus GET /ops/events/targets/{target}/status.
 
     Returns dict with keys: target, recommendation (GO/CAUTION/STOP),
@@ -95,8 +95,8 @@ def emit_event(
     target: str,
     source: str = "ai-assistant",
     severity: str = "info",
-    data: Optional[Dict[str, Any]] = None,
-    api_key: Optional[str] = None,
+    data: dict[str, Any] | None = None,
+    api_key: str | None = None,
 ) -> bool:
     """POST an event to Corvus. Returns True on success."""
     if not api_key:
@@ -182,7 +182,7 @@ ACTION_EVENT_MAP = {
 }
 
 
-def extract_target_from_command(command: str) -> Optional[str]:
+def extract_target_from_command(command: str) -> str | None:
     """Extract infrastructure target from a shell command.
 
     Returns container/volume/network/stack name, or None if not destructive.
@@ -216,7 +216,7 @@ def extract_target_from_command(command: str) -> Optional[str]:
     return None
 
 
-def extract_action_from_command(command: str) -> Optional[Tuple[str, str]]:
+def extract_action_from_command(command: str) -> tuple[str, str] | None:
     """Extract (action, target) from a shell command for event emission.
 
     Returns (action, target) tuple or None.
@@ -275,7 +275,7 @@ def normalize_mcp_tool_name(tool_name: str) -> str:
     return tool_name
 
 
-def extract_target_from_mcp(tool_name: str, tool_input: Dict[str, Any]) -> Optional[str]:
+def extract_target_from_mcp(tool_name: str, tool_input: dict[str, Any]) -> str | None:
     """Extract target from an MCP tool call's input dict."""
     canonical = normalize_mcp_tool_name(tool_name)
     primary = MCP_TARGET_FIELDS.get(canonical)
@@ -295,7 +295,7 @@ def is_destructive_mcp_tool(tool_name: str) -> bool:
     return canonical in MCP_TARGET_FIELDS
 
 
-def get_mcp_event_type(tool_name: str) -> Optional[str]:
+def get_mcp_event_type(tool_name: str) -> str | None:
     """Get the Corvus event type for an MCP tool."""
     canonical = normalize_mcp_tool_name(tool_name)
     return MCP_EVENT_MAP.get(canonical)
@@ -384,7 +384,7 @@ FALSE_POSITIVE_PATTERNS = [
 ]
 
 
-def classify_intent(prompt: str) -> Optional[str]:
+def classify_intent(prompt: str) -> str | None:
     """Classify user intent: 'incident', 'change', 'design', or None."""
     for pattern in INCIDENT_PATTERNS:
         if pattern.search(prompt):

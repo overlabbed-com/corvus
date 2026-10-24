@@ -92,7 +92,7 @@ def main():
     try:
         raw = sys.stdin.read()
         data = json.loads(raw)
-    except (json.JSONDecodeError, IOError):
+    except (OSError, json.JSONDecodeError):
         sys.exit(0)
 
     prompt = data.get("user_prompt", "")

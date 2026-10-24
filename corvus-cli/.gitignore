@@ -1,0 +1,9 @@
+# corvus-cli harness artifacts (component-local: the root .gitignore is not ours to edit)
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.json
+junit.xml
+__pycache__/
+*.egg-info/

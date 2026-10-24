@@ -44,7 +44,6 @@ import json
 import os
 import sys
 
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import corvus_core as core
 
@@ -129,7 +128,7 @@ def cmd_stdin_check():
     """Read JSON from stdin (for pipe-based integration)."""
     try:
         data = json.loads(sys.stdin.read())
-    except (json.JSONDecodeError, IOError):
+    except (OSError, json.JSONDecodeError):
         sys.exit(0)
 
     # Support both command-style and tool-style input
