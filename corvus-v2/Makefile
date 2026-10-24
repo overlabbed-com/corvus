@@ -60,9 +60,19 @@ mutation:  ## The mutation evidence (the phase-gate target)
 	$(PY) -c "import sys; sys.path.insert(0, '.'); from corvus.conformance import run_mutation_suite; import json; r = run_mutation_suite(); print(json.dumps(r, indent=1)); exit(0 if r['all_mutants_caught'] else 1)"
 
 conformance:  ## The conformance run against the engine shim (the phase-gate target)
-	$(PY) -m corvus.engine_shim --port 8933 & sleep 2; \
-	$(PY) -c "import sys; sys.path.insert(0, '.'); from corvus.conformance import conformance_run; import json; r = conformance_run('http://127.0.0.1:8933'); print(json.dumps(r, indent=1)); exit(0 if r['failed'] == 0 else 1)"; \
-	pkill -f "engine_shim --port 8933" || true
+	@PORT=$$($(PY) -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'); \
+	$(PY) -m corvus.engine_shim --port $$PORT & SHIM=$$!; sleep 2; \
+	$(PY) -c "import sys, json; sys.path.insert(0, '.'); from corvus.conformance import conformance_run; r = conformance_run('http://127.0.0.1:' + sys.argv[1]); print(json.dumps(r, indent=1)); sys.exit(0 if r['failed'] == 0 else 1)" $$PORT; \
+	STATUS=$$?; kill $$SHIM 2>/dev/null || true; exit $$STATUS
+# Two measured defects this target used to have:
+# 1. The shim is killed by PID, never by `pkill -f`: the recipe's own shell carries
+#    the pattern in its argv, so pkill matched and killed the shell — the run passed
+#    (2/0) while make reported "Terminated" and exited 2 (CI run 40058979560).
+# 2. The port is EPHEMERAL. A fixed 8933 silently tested whatever already held it:
+#    this host runs a launchd agent (com.themillertribe.corvus-v2-engine) bound to
+#    127.0.0.1:8933 from a different worktree, so a local conformance "pass" was
+#    evidence about that process, not this code. The ephemeral port removes the
+#    ambiguity; if the shim fails to start, conformance fails loudly.
 
 # PREFLIGHT:rollback-written — clean deletes only REGENERABLE state (the venv and the
 # pytest cache); `make setup` and `make test` recreate both. It deliberately does NOT

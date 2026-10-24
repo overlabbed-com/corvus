@@ -192,7 +192,17 @@ with 0-statement tolerance — my `make cycle` above passes the tightened gate.
 9. **The contract tests share a fixed port.** Each `shim` fixture starts uvicorn on 8934 and never
    stops it; my run emits repeated `PytestUnhandledThreadExceptionWarning` (Thread-2…6, uvicorn
    startup `SystemExit: 3`) and still passes because an earlier server is listening. Parallel runs
-   or a busy port collide.
+   or a busy port collide. The `conformance` make target had the same class of defect and it bit
+   CI: it bound a fixed 8933 and cleaned up with `pkill -f "engine_shim --port 8933"`, which also
+   matched the recipe's own shell, so the run passed 2/0 while make reported "Terminated" and
+   exited 2 (CI run 40058979560). It now binds an ephemeral port and kills the shim by PID.
+10. **This host runs a launchd-managed engine on the conformance port.** `launchctl list` shows
+    `com.themillertribe.corvus-v2-engine` (PID 66272, `-m corvus.engine_shim --port 8933 --host
+    127.0.0.1`, cwd `/Users/tmiller/worktrees/corvus-canonical/corvus-v2`, python 3.15) holding
+    127.0.0.1:8933. It restarts when killed (parent PID 1). A local `make conformance` against a
+    fixed 8933 was therefore testing THAT process, not this worktree's code — a green local result
+    that proved nothing. The ephemeral port fixes the harness; the agent itself is outside this
+    repo and was not touched.
 10. **The deployed register load is inferred, not observed.** The mount is proven (hash match), and
     `engine_shim.py:66-80` is the path ladder, but I could not read the running process's loaded
     register: `kubectl exec` is blocked by the session's guardrails (a DDR is required for that
