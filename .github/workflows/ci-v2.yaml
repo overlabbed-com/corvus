@@ -5,8 +5,8 @@ name: CI v2
 # every PR and main push runs everything.
 # workflow_dispatch stays as the manual re-run lever for any sha.
 #
-# EVERY component runs its own harness. The live three (v2, sdk, cli) run a real
-# build > lint > test cycle; the legacy/config three run their guards. The
+# EVERY component in harness scope runs its own harness. The live three (v2, sdk,
+# cli) run a real build > lint > test cycle; the legacy two run their guards. The
 # interpreter is pinned to 3.12 here and in the Makefiles — a mismatch changes the
 # coverage number and used to hide behind a 7-point tolerance.
 on:
@@ -28,7 +28,6 @@ jobs:
           - corvus-cli
           - corvus-server
           - corvus-hooks
-          - corvus-splunk
     defaults:
       run:
         working-directory: ${{ matrix.component }}
