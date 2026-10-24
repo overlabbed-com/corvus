@@ -17,7 +17,7 @@ repo's README and CLAUDE.md are not instruments: they describe v1 and are stale 
 | `corvus-cli` | typer CLI | **LIVE PACKAGE, v1 protocol** | 214 statements; 50 tests (added on this branch), 100% coverage, `MockTransport` (`make cycle`); 15 `/ops` paths, **3** served by v2; no evidence-export command. |
 | `corvus-server` | v1 platform (FastAPI, CMDB, runbooks, Neo4j) | **LEGACY** — archived at `v1-archive`, not deployed | `src/` absent on this branch (`ls corvus-server/src` → No such file); `Dockerfile:35` still `COPY src/ src/`; two modules remain; 15 runbooks; 0 tests. |
 | `corvus-hooks` | v1 governance hooks (CC PreToolUse/PostToolUse, 3 adapters, installer) | **LEGACY** — not deployed | stdlib scripts; default URL `http://localhost:9420` and v1 route `/ops/events/targets/{target}/status` (`corvus_core.py:28,80`); 0 tests; v1 copy archived at `~/.claude/hooks/_archive-corvus-decom-2026-05-28`. |
-| `corvus-splunk` | Splunk app (4 dashboards, 11 searches, 3 lookups) | **LEGACY config** — not deployed | expects `index=corvus sourcetype="corvus:ocsf"` + `class_uid` (`default/macros.conf:4,13-29`); app version 0.1.0; 0 tests; no Splunk instance locally. |
+| `corvus-splunk` | Splunk app (4 dashboards, 11 searches, 3 lookups) | **LEGACY config** — not deployed, **out of harness scope** | expects `index=corvus sourcetype="corvus:ocsf"` + `class_uid` (`default/macros.conf:4,13-29`); app version 0.1.0; 0 tests; no Splunk instance locally; no `Makefile` (`ls corvus-splunk/Makefile` → absent), so the harness neither builds nor validates it. |
 
 The `Status` column carries the distinction that matters: a component can be **live as a package**
 (builds, lints, tests, CI-gated) while speaking a protocol nothing serves. `corvus-cli` and
@@ -109,7 +109,8 @@ NOT reachable from either entrypoint: __init__, adapter, attested, cc_adapter, c
 
 ## 4. What the dev harness proves today
 
-Each component owns `<component>/Makefile`; the root `Makefile` runs every component's `cycle`.
+Each component in harness scope owns `<component>/Makefile`; the root `Makefile` runs every
+component's `cycle`.
 
 | Component | Targets | Evidence from my run | What it cannot prove |
 |---|---|---|---|
@@ -118,20 +119,26 @@ Each component owns `<component>/Makefile`; the root `Makefile` runs every compo
 | `corvus-cli` | setup build lint test fix cycle clean | `make cycle`: "import: ok"; "`corvus --help`" and "`corvus check-target --help`" exit 0; "All checks passed!"; "50 passed in 0.72s"; "TOTAL 214 0 100%" | parity with v2; any command that reads decisions/capture/audit evidence |
 | `corvus-server` | setup lint import fix cycle clean | `make cycle`: "All checks passed!"; "import: ok on 3.12.15 — soc2 APIRouter(3 routes), typer app 'corvus' (11 commands)" | anything behavioral: no tests, no runnable app |
 | `corvus-hooks` | setup lint import fix cycle clean | `make cycle`: "All checks passed!"; "import: byte-compiled 8 scripts"; "import: ok — corvus_core imported, public API present" | that the hooks work against any server (they target v1 routes) |
-| `corvus-splunk` | setup validate cycle clean | `make cycle`: "validate: ok — 6 conf, 5 xml, 3 csv, 1 py" | that Splunk accepts the app, that the SPL is valid, that the dashboards render |
+| `corvus-splunk` | — (out of harness scope) | none: no `Makefile` and no entry in the root lists, so `make cycle` never reaches it | anything about the app — acceptance, SPL validity, rendering (needs a live Splunk) |
 
 Two contract deviations, stated plainly: `corvus-v2` has no `pyproject.toml`, so its `build` is a
-live-socket proof instead of `pip install -e .`; and the three legacy components replace
-`build`/`test` with `import`/`validate` because there is no installable package and no suite.
+live-socket proof instead of `pip install -e .`; and the two legacy components in harness scope
+(`corvus-server`, `corvus-hooks`) replace `build`/`test` with `import` because there is no
+installable package and no suite.
 
 Consequence for the umbrella, and its fix: the root's `build`/`lint`/`test`/`fix` first looped
 over all six components and aborted at the first one lacking the target
-(`make -C corvus-hooks test` → "No rule to make target 'test'"; `make -C corvus-splunk build` →
-same, and splunk has no `lint` or `fix` either). The root Makefile now declares per-target
-component lists — `LIVE` (the three with build/test), `PY` (the five that lint and autofix), and
-`ALL` (setup/cycle/clean) — so every root target resolves. Verified on this worktree: `make lint`,
-`make build`, `make test` and `make fix` all exit 0, and `make fix` on the clean tree leaves
-`git status` byte-identical (it is idempotent). `make check` is an alias for `make cycle`.
+(`make -C corvus-hooks test` → "No rule to make target 'test'"). The root Makefile now declares
+per-target component lists — `LIVE` (the three with build/test), `PY` (the five that lint and
+autofix), and `ALL` (setup/cycle/clean, the same five) — so every root target resolves.
+
+`corvus-splunk` is out of harness scope, not a config guard: it is a Splunk app (conf/XML/CSV),
+not a Python component, so it declares no build/lint/test and the harness proves nothing about it.
+Its harness files (`Makefile`, `validate.py`, `.gitignore`) are gone; the app itself
+(`default/`, `lookups/`, `metadata/`, `bin/`) is untouched. Verified on this worktree:
+`make cycle` runs five components and exits 0; `make lint`, `make build`, `make test` and
+`make fix` all exit 0, and `make fix` on the clean tree leaves `git status` byte-identical
+(it is idempotent). `make check` is an alias for `make cycle`.
 
 ## 5. Plan mapping — the phase that needs each component next
 
@@ -142,7 +149,7 @@ component lists — `LIVE` (the three with build/test), `PY` (the five that lint
 | `corvus-cli` | **P5** | "the audit CLI's evidence export" | 50 mocked tests at 100%, entrypoint dispatch | v1 protocol; no decision/audit/evidence commands exist |
 | `corvus-server` | **P2** (+P4) | the runbook schema + validation gate; the knowledge base; blind-spot detection "ported from the old implementation where the concept survives review" | lint + import of the two remaining modules | `src/` is in `v1-archive`; 15 runbooks with no schema gate; 78 archived test files / 746 test functions that cannot run on this branch |
 | `corvus-hooks` | **P1** | ADR-004's adapter contract, its conformance suite, and the first two real adapters | lint + byte-compile + `corvus_core` import | v1 routes; no adapter-conformance fixture; the one real v2 adapter is outside the repo (§7.4) |
-| `corvus-splunk` | **P3** | "The Splunk app validated against the rebuilt OCSF events" | config/XML/CSV parse + cross-reference validation | v2 emits no OCSF and forwards nothing to a SIEM (§7.6) |
+| `corvus-splunk` | **P3** | "The Splunk app validated against the rebuilt OCSF events" | nothing — out of harness scope (no `Makefile`) | v2 emits no OCSF and forwards nothing to a SIEM (§7.6); the app has no harness at all |
 
 **THE acceptance gate is untestable today.** "A new harness reaches full governance parity by
 shipping only an adapter" needs a fixture that runs an adapter against the engine and checks the
