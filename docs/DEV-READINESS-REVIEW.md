@@ -101,11 +101,12 @@ NOT reachable from either entrypoint: __init__, adapter, attested, cc_adapter, c
 - **`app.py` is 0% under pytest** even though it is the CCB's whole HTTP surface. The harness build
   step exercises `/health` and the auth boundary over a socket (`scripts/dev_check.py`), which is
   why the build target is meaningful — but no pytest test covers the app.
-- **The P1 conformance gate is not gated.** At HEAD, `ci-v2.yaml` ran lint, tests, the metrics
-  guard and a smoke job — no mutation, no conformance run. The branch's CI matrix runs each
-  component's `make cycle`, which still does not include the `mutation`/`conformance` targets.
-  The P1 capability gate ("the conformance suite runs green in CI with the mutation evidence") is
-  therefore a manual target, not a gate.
+- **The P1 conformance gate is now wired — and its evidence is thin.** At `2191155` (the sha
+  this review was written against) `ci-v2.yaml` ran lint, tests, the metrics guard and a smoke
+  job — no mutation, no conformance run. The `phase-gates` job added by the harness PR closes
+  that gap: CI run `40059341183` runs `make mutation` then `make conformance`, and its log shows
+  4/4 mutants caught and conformance 2 passed / 0 failed. What is still weak is the corpus and the
+  coverage behind it, not the wiring — tracked as GB-8 and GB-9 in `docs/DEV-GAP-BACKLOG.md`.
 
 ## 4. What the dev harness proves today
 
