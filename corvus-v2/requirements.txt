@@ -1,4 +1,7 @@
-fastapi>=0.115
-uvicorn>=0.30
-pyyaml>=6.0
-pydantic>=2.0
+# Floors are the versions the harness actually tested (python3.12), capped at the
+# next MAJOR: a future breaking major must fail loudly at install time rather than
+# be silently absorbed by a loose floor. Re-run `make cycle` before raising.
+fastapi>=0.162,<1.0
+uvicorn>=0.54,<1.0
+pyyaml>=6.0.3,<7.0
+pydantic>=2.14,<3.0

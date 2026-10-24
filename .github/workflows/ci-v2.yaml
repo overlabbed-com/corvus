@@ -1,9 +1,14 @@
 name: CI v2
 
 # NO paths filter (the adversarial review's high finding): a PR touching only
-# corvus-sdk or the Makefile got ZERO CI — the blind spot. The suite is fast
-# (the test ~16s, the smoke ~5s): every PR and main push runs everything.
+# corvus-sdk or the Makefile got ZERO CI — the blind spot. The suite is fast:
+# every PR and main push runs everything.
 # workflow_dispatch stays as the manual re-run lever for any sha.
+#
+# EVERY component runs its own harness. The live three (v2, sdk, cli) run a real
+# build > lint > test cycle; the legacy/config three run their guards. The
+# interpreter is pinned to 3.12 here and in the Makefiles — a mismatch changes the
+# coverage number and used to hide behind a 7-point tolerance.
 on:
   push:
     branches: [main]
@@ -11,7 +16,36 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  harness:
+    name: harness (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - corvus-v2
+          - corvus-sdk
+          - corvus-cli
+          - corvus-server
+          - corvus-hooks
+          - corvus-splunk
+    defaults:
+      run:
+        working-directory: ${{ matrix.component }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Setup (pinned venv + deps)
+        run: make setup
+      - name: Build > Lint > Test
+        run: make cycle
+
+  phase-gates:
+    # The P1 capability gate, actually gated: BUILD-PLAN.md requires 'the
+    # conformance suite runs green in CI with the mutation evidence'. At HEAD
+    # neither ran in CI — they were manual targets. They are manual no longer.
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,32 +55,17 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install
-        run: |
-          python -m venv .venv
-          . .venv/bin/activate
-          pip install -r requirements.txt
-          pip install pytest pytest-cov httpx ruff==0.17.1
-      - name: Lint
-        run: |
-          . .venv/bin/activate
-          ruff check corvus/ tests/
-      - name: Tests with coverage
-        run: |
-          . .venv/bin/activate
-          pytest tests/ -v --cov=corvus --cov-report=term --cov-report=json:coverage.json --junitxml=junit.xml
-      - name: The metrics drift guard
-        run: |
-          . .venv/bin/activate
-          python scripts/gen_metrics.py --coverage coverage.json --junit junit.xml \
-            --out /tmp/metrics-check.json --source "$GITHUB_SHA"
-          python scripts/check_metrics.py --expected ../docs/canonical-path/dev-metrics.json \
-            --actual /tmp/metrics-check.json
-      - name: Coverage summary
-        run: |
-          . .venv/bin/activate
-          python -c 'import json; c = json.load(open("coverage.json")); t = c["totals"]; print("coverage: %.1f%% (%d/%d lines)" % (t["percent_covered"], t["covered_lines"], t["num_statements"]))'
+      - name: Setup
+        run: make setup
+      - name: Mutation evidence
+        run: make mutation
+      - name: Conformance run
+        run: make conformance
+
   smoke:
+    # Kept from the original gate: the components install and import cleanly.
+    # Each component's build step now proves this too, but this job stays as the
+    # independent cross-component check that a packaging change cannot silently break.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

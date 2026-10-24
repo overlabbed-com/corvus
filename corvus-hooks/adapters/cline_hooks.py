@@ -45,7 +45,6 @@ import json
 import os
 import sys
 
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import corvus_core as core
 
@@ -200,7 +199,7 @@ def main():
         else:
             print(f"Unknown mode: {mode}", file=sys.stderr)
             sys.exit(1)
-    except (json.JSONDecodeError, IOError):
+    except (OSError, json.JSONDecodeError):
         respond()
 
 

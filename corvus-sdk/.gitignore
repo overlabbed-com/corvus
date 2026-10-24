@@ -1,0 +1,4 @@
+# Component-local artifacts (the root .gitignore already covers .venv/)
+.venv/
+coverage.json
+junit.xml
