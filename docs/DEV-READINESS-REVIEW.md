@@ -124,11 +124,14 @@ Two contract deviations, stated plainly: `corvus-v2` has no `pyproject.toml`, so
 live-socket proof instead of `pip install -e .`; and the three legacy components replace
 `build`/`test` with `import`/`validate` because there is no installable package and no suite.
 
-Consequence for the umbrella: `make cycle` works for all six components, but the root's
-`build`/`lint`/`test`/`fix` loops abort at the first component that lacks the target
+Consequence for the umbrella, and its fix: the root's `build`/`lint`/`test`/`fix` first looped
+over all six components and aborted at the first one lacking the target
 (`make -C corvus-hooks test` → "No rule to make target 'test'"; `make -C corvus-splunk build` →
-same for `build`, and splunk has no `lint` or `fix` either). Only the per-component `cycle` is a
-uniform command today.
+same, and splunk has no `lint` or `fix` either). The root Makefile now declares per-target
+component lists — `LIVE` (the three with build/test), `PY` (the five that lint and autofix), and
+`ALL` (setup/cycle/clean) — so every root target resolves. Verified on this worktree: `make lint`,
+`make build`, `make test` and `make fix` all exit 0, and `make fix` on the clean tree leaves
+`git status` byte-identical (it is idempotent). `make check` is an alias for `make cycle`.
 
 ## 5. Plan mapping — the phase that needs each component next
 
